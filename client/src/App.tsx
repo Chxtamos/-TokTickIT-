@@ -6,7 +6,6 @@ type UiState = "idle" | "loading" | "success" | "error";
 export default function App() {
   const [state, setState] = useState<UiState>("idle");
   const [categories, setCategories] = useState<Category[]>([]);
-  void categories;
 
   async function handleCheck() {
     setState("loading");
@@ -14,7 +13,7 @@ export default function App() {
     try {
       const result = await checkSystem();
       setCategories(result.categories);
-      setState(result.online ? "success" : "error");
+      setState("success");
     } catch {
       setCategories([]);
       setState("error");
@@ -36,9 +35,23 @@ export default function App() {
       </button>
 
       {state === "success" && (
-        <div className="alert alert-success mt-4">
-          <strong>System Status:</strong> Online
-        </div>
+        <>
+          <div className="alert alert-success mt-4">
+            <strong>System Status:</strong> Online
+          </div>
+
+          <section className="mt-4">
+            <h2 className="h5">IT Request Categories</h2>
+
+            <ul className="list-group">
+              {categories.map((category) => (
+                <li className="list-group-item" key={category.id}>
+                  {category.name}
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
       )}
 
       {state === "error" && (
