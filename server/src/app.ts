@@ -21,6 +21,7 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
         id: true,
         name: true,
       },
+      where: { isActive: true },
       orderBy: {
         id: "asc",
       },
@@ -28,9 +29,35 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
 
     res.status(200).json(categories);
   } catch {
-    res.status(500).json({
-      error: "Unable to load categories",
+    res.status(500).json({ error: "REFERENCE_DATA_UNAVAILABLE" });
+  }
+});
+
+app.get("/api/related-systems", async (_req: Request, res: Response) => {
+  try {
+    const relatedSystems = await getPrisma().relatedSystem.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
     });
+
+    res.status(200).json(relatedSystems);
+  } catch {
+    res.status(500).json({ error: "REFERENCE_DATA_UNAVAILABLE" });
+  }
+});
+
+app.get("/api/development-requesters", async (_req: Request, res: Response) => {
+  try {
+    const requesters = await getPrisma().requesterUser.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    });
+
+    res.status(200).json(requesters);
+  } catch {
+    res.status(500).json({ error: "REFERENCE_DATA_UNAVAILABLE" });
   }
 });
 
