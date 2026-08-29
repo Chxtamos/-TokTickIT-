@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
 
 const validBody = {
@@ -166,6 +167,29 @@ describe("POST /api/tickets", () => {
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe("IDEMPOTENCY_CONFLICT");
     expect(transaction.ticket.create).not.toHaveBeenCalled();
+  });
+
+  it("returns the existing Ticket when a concurrent create hits the unique constraint", async () => {
+    const existing = { ...makeTicket(), requestPayloadHash: hashFor(validBody) };
+    const { prisma, transaction } = makePrisma({ existing });
+    transaction.ticket.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(existing);
+    transaction.ticket.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "5.22.0",
+      }),
+    );
+
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(validBody);
+
+    expect(res.status).toBe(200);
+    expect(res.body.replayed).toBe(true);
+    expect(res.body.ticket.ticketNumber).toBe(existing.ticketNumber);
   });
 
   it("returns a safe 500 response when ticket creation fails", async () => {

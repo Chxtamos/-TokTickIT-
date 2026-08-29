@@ -272,6 +272,22 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
         const parsed = JSON.parse(error.message.slice("VALIDATION_FAILED:".length)) as Record<string, string[]>;
         return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", parsed);
       }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        try {
+          const existing = await prisma.ticket.findUnique({
+            where: { requesterId_clientRequestId: { requesterId, clientRequestId: input.clientRequestId } },
+            include: { requester: true, category: true, relatedSystem: true },
+          });
+          if (existing) {
+            if (existing.requestPayloadHash !== requestPayloadHash) {
+              return errorResponse(res, 409, "IDEMPOTENCY_CONFLICT", "This request ID was already used for different ticket data.");
+            }
+            return res.status(200).json({ ticket: ticketResponse(existing), replayed: true });
+          }
+        } catch {
+          // Fall through to the safe generic error response.
+        }
+      }
       return errorResponse(res, 500, "TICKET_CREATE_FAILED", "Unable to create the Ticket.");
     }
   });
