@@ -1,0 +1,318 @@
+import { describe, expect, it, vi } from "vitest";
+import request from "supertest";
+import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
+import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
+
+const validBody = {
+  clientRequestId: "f13f2298-1153-4cea-966d-3bc466d53d7b",
+  categoryId: 2,
+  relatedSystemId: 7,
+  summary: "  Laptop battery drains quickly  ",
+  requestedPriority: "MEDIUM",
+  description: "  Battery drops from full to empty in about one hour.  ",
+};
+
+function makeTicket() {
+  const createdAt = new Date("2026-08-24T10:00:00.000Z");
+  return {
+    id: 42,
+    ticketNumber: "TKT-2026-000042",
+    requesterId: 1,
+    categoryId: 2,
+    relatedSystemId: 7,
+    summary: "Laptop battery drains quickly",
+    description: "Battery drops from full to empty in about one hour.",
+    requestedPriority: "MEDIUM" as const,
+    currentStatus: "NEW",
+    clientRequestId: validBody.clientRequestId,
+    requestPayloadHash: "hash",
+    createdAt,
+    updatedAt: createdAt,
+    requester: { id: 1, name: "Anan Srisuk", email: "anan.srisuk@example.test" },
+    category: { id: 2, name: "Hardware" },
+    relatedSystem: { id: 7, name: "Corporate Laptop" },
+  };
+}
+
+function makePrisma(options: { existing?: ReturnType<typeof makeTicket>; failTransaction?: boolean } = {}) {
+  const createdTicket = makeTicket();
+  const ticket = options.existing;
+  const transaction = {
+    requesterUser: {
+      findFirst: vi.fn().mockResolvedValue({ id: 1, name: "Anan Srisuk", email: "anan.srisuk@example.test" }),
+    },
+    category: {
+      findFirst: vi.fn().mockResolvedValue({ id: 2, name: "Hardware" }),
+    },
+    relatedSystem: {
+      findFirst: vi.fn().mockResolvedValue({ id: 7, name: "Corporate Laptop" }),
+    },
+    ticket: {
+      findUnique: vi.fn().mockResolvedValue(ticket),
+      create: vi.fn().mockResolvedValue(createdTicket),
+    },
+    $queryRaw: vi.fn().mockResolvedValue([{ nextval: 42n }]),
+  };
+  const prisma = {
+    ...transaction,
+    $transaction: vi.fn(async (callback: (tx: typeof transaction) => unknown) => {
+      if (options.failTransaction) throw new Error("database unavailable");
+      return callback(transaction);
+    }),
+  } as unknown as ReferenceDataPrisma;
+
+  return { prisma, transaction, createdTicket };
+}
+
+describe("POST /api/tickets", () => {
+  it("creates a Ticket with normalized text, server number, and NEW status", async () => {
+    const { prisma } = makePrisma();
+
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(validBody);
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      replayed: false,
+      ticket: {
+        id: 42,
+        ticketNumber: "TKT-2026-000042",
+        ticketDate: "2026-08-24T10:00:00.000Z",
+        summary: "Laptop battery drains quickly",
+        description: "Battery drops from full to empty in about one hour.",
+        requestedPriority: "MEDIUM",
+        currentStatus: "NEW",
+      },
+    });
+  });
+
+  it("rejects missing requester context and invalid body fields", async () => {
+    const { prisma } = makePrisma();
+
+    const missingContext = await request(createApp(prisma)).post("/api/tickets").send(validBody);
+    expect(missingContext.status).toBe(400);
+    expect(missingContext.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
+
+    const invalidBody = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send({ ...validBody, requesterId: 1, summary: "x", unknown: true });
+    expect(invalidBody.status).toBe(400);
+    expect(invalidBody.body.error.code).toBe("VALIDATION_FAILED");
+    expect(invalidBody.body.error.fieldErrors).toMatchObject({
+      requesterId: ["This field is not supported."],
+      unknown: ["This field is not supported."],
+      summary: ["Summary must contain 5 to 120 characters."],
+    });
+  });
+
+  it.each(["0", "-1", "01", "1.0", "1abc", "1e2", "9007199254740992"])(
+    "rejects malformed or unsafe requester ID %s",
+    async (requesterId) => {
+      const { prisma } = makePrisma();
+      const res = await request(createApp(prisma))
+        .post("/api/tickets")
+        .set("X-Requester-Id", requesterId)
+        .send(validBody);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
+    },
+  );
+
+  it("rejects invalid UUID, unsafe reference IDs, whitespace-only text, and invalid priority", async () => {
+    const { prisma } = makePrisma();
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send({
+        ...validBody,
+        clientRequestId: "not-a-uuid",
+        categoryId: Number.MAX_SAFE_INTEGER + 1,
+        relatedSystemId: Number.MAX_SAFE_INTEGER + 1,
+        summary: "     ",
+        requestedPriority: "CRITICAL",
+        description: "          ",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.fieldErrors).toMatchObject({
+      clientRequestId: ["clientRequestId must be a valid UUID."],
+      categoryId: ["Must be a positive integer."],
+      relatedSystemId: ["Must be a positive integer."],
+      summary: ["Summary must contain 5 to 120 characters."],
+      requestedPriority: ["Requested priority is invalid."],
+      description: ["Description must contain 10 to 5,000 characters."],
+    });
+  });
+
+  it("accepts exact summary and description boundaries", async () => {
+    const { prisma, transaction } = makePrisma();
+    const body = {
+      ...validBody,
+      summary: "12345",
+      description: "1234567890",
+    };
+
+    const minimum = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(body);
+    expect(minimum.status).toBe(201);
+
+    const maximum = await request(createApp(makePrisma().prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send({ ...body, clientRequestId: "6f0e0f5e-0f66-4a2e-89f8-6abacb67fd57", summary: "s".repeat(120), description: "d".repeat(5000) });
+    expect(maximum.status).toBe(201);
+    expect(transaction.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ summary: "12345", description: "1234567890" }),
+    }));
+  });
+
+  it("accepts URGENT priority", async () => {
+    const { prisma, transaction } = makePrisma();
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send({ ...validBody, requestedPriority: "URGENT" });
+
+    expect(res.status).toBe(201);
+    expect(transaction.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ requestedPriority: "URGENT" }),
+    }));
+  });
+
+  it("rejects inactive or missing reference data", async () => {
+    const { prisma, transaction } = makePrisma();
+    transaction.category.findFirst.mockResolvedValue(null);
+
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(validBody);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatchObject({
+      code: "VALIDATION_FAILED",
+      fieldErrors: { categoryId: ["Category does not exist or is inactive."] },
+    });
+  });
+
+  it("rejects an inactive requester context", async () => {
+    const { prisma, transaction } = makePrisma();
+    transaction.requesterUser.findFirst.mockResolvedValue(null);
+
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(validBody);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
+  });
+
+  it("returns the existing Ticket on an idempotent replay", async () => {
+    const existing = makeTicket();
+    const { prisma, transaction } = makePrisma({ existing });
+    transaction.ticket.findUnique.mockResolvedValue({ ...existing, requestPayloadHash: hashFor(validBody) });
+
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(validBody);
+
+    expect(res.status).toBe(200);
+    expect(res.body.replayed).toBe(true);
+    expect(res.body.ticket.ticketNumber).toBe(existing.ticketNumber);
+    expect(transaction.ticket.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects reuse of a request ID with a different payload", async () => {
+    const existing = makeTicket();
+    const { prisma, transaction } = makePrisma({ existing });
+    transaction.ticket.findUnique.mockResolvedValue({ ...existing, requestPayloadHash: "different-hash" });
+
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(validBody);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("IDEMPOTENCY_CONFLICT");
+    expect(transaction.ticket.create).not.toHaveBeenCalled();
+  });
+
+  it("returns the existing Ticket when a concurrent create hits the unique constraint", async () => {
+    const existing = { ...makeTicket(), requestPayloadHash: hashFor(validBody) };
+    const { prisma, transaction } = makePrisma({ existing });
+    transaction.ticket.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(existing);
+    transaction.ticket.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "5.22.0",
+        meta: { target: ["requesterId", "clientRequestId"] },
+      }),
+    );
+
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(validBody);
+
+    expect(res.status).toBe(200);
+    expect(res.body.replayed).toBe(true);
+    expect(res.body.ticket.ticketNumber).toBe(existing.ticketNumber);
+  });
+
+  it("does not treat a ticket number unique violation as an idempotency replay", async () => {
+    const { prisma, transaction } = makePrisma();
+    transaction.ticket.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "5.22.0",
+        meta: { target: ["ticketNumber"] },
+      }),
+    );
+
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(validBody);
+
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe("TICKET_CREATE_FAILED");
+  });
+
+  it("returns a safe 500 response when ticket creation fails", async () => {
+    const { prisma } = makePrisma({ failTransaction: true });
+
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(validBody);
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatchObject({
+      code: "TICKET_CREATE_FAILED",
+      message: "Unable to create the Ticket.",
+    });
+    expect(res.body.error.correlationId).toEqual(expect.any(String));
+  });
+});
+
+function hashFor(body: typeof validBody) {
+  const normalized = JSON.stringify({
+    categoryId: body.categoryId,
+    relatedSystemId: body.relatedSystemId,
+    summary: body.summary.trim(),
+    requestedPriority: body.requestedPriority,
+    description: body.description.trim(),
+  });
+  return createHash("sha256").update(normalized).digest("hex");
+}
