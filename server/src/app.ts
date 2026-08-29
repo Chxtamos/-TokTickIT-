@@ -47,7 +47,8 @@ function errorResponse(
 function parseRequesterId(req: Request): number | null {
   const value = req.header("X-Requester-Id");
   if (!value || !/^[1-9]\d*$/.test(value)) return null;
-  return Number(value);
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 function validateTicketBody(body: unknown): { input?: TicketCreateInput; fieldErrors: Record<string, string[]> } {
@@ -68,7 +69,7 @@ function validateTicketBody(body: unknown): { input?: TicketCreateInput; fieldEr
 
   for (const field of ["categoryId", "relatedSystemId"] as const) {
     const value = raw[field];
-    if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
       fieldErrors[field] = ["Must be a positive integer."];
     }
   }
@@ -128,6 +129,13 @@ function ticketResponse(ticket: {
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
   };
+}
+
+function isIdempotencyUniqueViolation(error: unknown): error is Prisma.PrismaClientKnownRequestError {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") return false;
+  const target = error.meta?.target;
+  const fields = Array.isArray(target) ? target.map(String) : typeof target === "string" ? [target] : [];
+  return fields.includes("requesterId") && fields.includes("clientRequestId");
 }
 
 export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Express {
@@ -272,7 +280,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
         const parsed = JSON.parse(error.message.slice("VALIDATION_FAILED:".length)) as Record<string, string[]>;
         return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", parsed);
       }
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      if (isIdempotencyUniqueViolation(error)) {
         try {
           const existing = await prisma.ticket.findUnique({
             where: { requesterId_clientRequestId: { requesterId, clientRequestId: input.clientRequestId } },

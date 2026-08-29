@@ -109,6 +109,83 @@ describe("POST /api/tickets", () => {
     });
   });
 
+  it.each(["0", "-1", "01", "1.0", "1abc", "1e2", "9007199254740992"])(
+    "rejects malformed or unsafe requester ID %s",
+    async (requesterId) => {
+      const { prisma } = makePrisma();
+      const res = await request(createApp(prisma))
+        .post("/api/tickets")
+        .set("X-Requester-Id", requesterId)
+        .send(validBody);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
+    },
+  );
+
+  it("rejects invalid UUID, unsafe reference IDs, whitespace-only text, and invalid priority", async () => {
+    const { prisma } = makePrisma();
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send({
+        ...validBody,
+        clientRequestId: "not-a-uuid",
+        categoryId: Number.MAX_SAFE_INTEGER + 1,
+        relatedSystemId: Number.MAX_SAFE_INTEGER + 1,
+        summary: "     ",
+        requestedPriority: "CRITICAL",
+        description: "          ",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.fieldErrors).toMatchObject({
+      clientRequestId: ["clientRequestId must be a valid UUID."],
+      categoryId: ["Must be a positive integer."],
+      relatedSystemId: ["Must be a positive integer."],
+      summary: ["Summary must contain 5 to 120 characters."],
+      requestedPriority: ["Requested priority is invalid."],
+      description: ["Description must contain 10 to 5,000 characters."],
+    });
+  });
+
+  it("accepts exact summary and description boundaries", async () => {
+    const { prisma, transaction } = makePrisma();
+    const body = {
+      ...validBody,
+      summary: "12345",
+      description: "1234567890",
+    };
+
+    const minimum = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(body);
+    expect(minimum.status).toBe(201);
+
+    const maximum = await request(createApp(makePrisma().prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send({ ...body, clientRequestId: "6f0e0f5e-0f66-4a2e-89f8-6abacb67fd57", summary: "s".repeat(120), description: "d".repeat(5000) });
+    expect(maximum.status).toBe(201);
+    expect(transaction.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ summary: "12345", description: "1234567890" }),
+    }));
+  });
+
+  it("accepts URGENT priority", async () => {
+    const { prisma, transaction } = makePrisma();
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send({ ...validBody, requestedPriority: "URGENT" });
+
+    expect(res.status).toBe(201);
+    expect(transaction.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ requestedPriority: "URGENT" }),
+    }));
+  });
+
   it("rejects inactive or missing reference data", async () => {
     const { prisma, transaction } = makePrisma();
     transaction.category.findFirst.mockResolvedValue(null);
@@ -179,6 +256,7 @@ describe("POST /api/tickets", () => {
       new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
         code: "P2002",
         clientVersion: "5.22.0",
+        meta: { target: ["requesterId", "clientRequestId"] },
       }),
     );
 
@@ -190,6 +268,25 @@ describe("POST /api/tickets", () => {
     expect(res.status).toBe(200);
     expect(res.body.replayed).toBe(true);
     expect(res.body.ticket.ticketNumber).toBe(existing.ticketNumber);
+  });
+
+  it("does not treat a ticket number unique violation as an idempotency replay", async () => {
+    const { prisma, transaction } = makePrisma();
+    transaction.ticket.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "5.22.0",
+        meta: { target: ["ticketNumber"] },
+      }),
+    );
+
+    const res = await request(createApp(prisma))
+      .post("/api/tickets")
+      .set("X-Requester-Id", "1")
+      .send(validBody);
+
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe("TICKET_CREATE_FAILED");
   });
 
   it("returns a safe 500 response when ticket creation fails", async () => {
