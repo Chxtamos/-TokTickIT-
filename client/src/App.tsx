@@ -1,43 +1,9 @@
 import { useEffect, useState } from "react";
-import { checkSystem, DevelopmentRequester, getDevelopmentRequesters } from "./api.js";
+import { DevelopmentRequester, getDevelopmentRequesters } from "./api.js";
 import "./App.css";
 
 const REQUESTER_STORAGE_KEY = "toktickit.requesterId";
 type RequesterLoadState = "loading" | "ready" | "empty" | "error";
-type HealthState = "idle" | "loading" | "success" | "error";
-
-function SystemCheck() {
-  const [state, setState] = useState<HealthState>("idle");
-  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
-
-  async function handleCheck() {
-    setState("loading");
-    try {
-      const result = await checkSystem();
-      setCategories(result.categories);
-      setState("success");
-    } catch {
-      setCategories([]);
-      setState("error");
-    }
-  }
-
-  return (
-    <section className="system-check" aria-labelledby="system-check-title">
-      <h2 id="system-check-title">System connection</h2>
-      <button className="button button-secondary" onClick={handleCheck} disabled={state === "loading"}>
-        {state === "loading" ? "Loading..." : "Check System"}
-      </button>
-      {state === "success" && (
-        <div className="alert alert-success" role="status">
-          <strong>System Status:</strong> Online
-          <ul>{categories.map((category) => <li key={category.id}>{category.name}</li>)}</ul>
-        </div>
-      )}
-      {state === "error" && <div className="alert alert-error" role="alert"><strong>System Status:</strong> Offline<p>Unable to connect to TokTickIT API</p></div>}
-    </section>
-  );
-}
 
 function RequesterSelector({
   requesters,
@@ -47,6 +13,7 @@ function RequesterSelector({
   onContinue,
   onRetry,
   validating,
+  selectionError,
 }: {
   requesters: DevelopmentRequester[];
   state: RequesterLoadState;
@@ -55,6 +22,7 @@ function RequesterSelector({
   onContinue: () => void;
   onRetry: () => void;
   validating: boolean;
+  selectionError: string | null;
 }) {
   return (
     <main className="selector-page" aria-busy={state === "loading" || validating}>
@@ -87,7 +55,7 @@ function RequesterSelector({
             </button>
           </>
         )}
-        <SystemCheck />
+        {selectionError && <div className="alert alert-error" role="alert">{selectionError}</div>}
       </section>
     </main>
   );
@@ -100,8 +68,9 @@ function ApplicationShell({ requester, onChangeRequester }: { requester: Develop
         <div className="header-inner">
           <a className="brand" href="#home">TokTickIT</a>
           <nav aria-label="Primary navigation">
-            <a href="#my-tickets">My Tickets</a>
-            <a href="#create-ticket">Create Ticket</a>
+            <a href="#home" aria-current="page">Workspace</a>
+            <button className="nav-unavailable" type="button" disabled title="Available in a later Lab 2 feature">My Tickets <span>(coming soon)</span></button>
+            <button className="nav-unavailable" type="button" disabled title="Available in a later Lab 2 feature">Create Ticket <span>(coming soon)</span></button>
           </nav>
           <div className="requester-context">
             <span>Requester: {requester.name}</span>
@@ -125,6 +94,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState("");
   const [currentRequester, setCurrentRequester] = useState<DevelopmentRequester | null>(null);
   const [validating, setValidating] = useState(false);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
@@ -157,14 +127,26 @@ export default function App() {
   }, [retryToken]);
 
   function handleContinue() {
-    const requester = requesters.find((item) => String(item.id) === selectedId);
-    if (!requester) return;
+    if (!requesters.some((item) => String(item.id) === selectedId)) return;
     setValidating(true);
-    sessionStorage.setItem(REQUESTER_STORAGE_KEY, String(requester.id));
-    Promise.resolve().then(() => {
-      setCurrentRequester(requester);
-      setValidating(false);
-    });
+    setSelectionError(null);
+    getDevelopmentRequesters()
+      .then((freshRequesters) => {
+        setRequesters(freshRequesters);
+        const requester = freshRequesters.find((item) => String(item.id) === selectedId);
+        if (!requester) {
+          sessionStorage.removeItem(REQUESTER_STORAGE_KEY);
+          setSelectedId("");
+          setCurrentRequester(null);
+          setLoadState(freshRequesters.length > 0 ? "ready" : "empty");
+          setSelectionError("That Development Requester is no longer active. Please select another.");
+          return;
+        }
+        sessionStorage.setItem(REQUESTER_STORAGE_KEY, String(requester.id));
+        setCurrentRequester(requester);
+      })
+      .catch(() => setSelectionError("Unable to validate the selected Requester. Please try again."))
+      .finally(() => setValidating(false));
   }
 
   function handleChangeRequester() {
@@ -174,5 +156,5 @@ export default function App() {
   }
 
   if (currentRequester) return <ApplicationShell requester={currentRequester} onChangeRequester={handleChangeRequester} />;
-  return <RequesterSelector requesters={requesters} state={loadState} selectedId={selectedId} onSelect={setSelectedId} onContinue={handleContinue} onRetry={() => setRetryToken((token) => token + 1)} validating={validating} />;
+  return <RequesterSelector requesters={requesters} state={loadState} selectedId={selectedId} onSelect={(value) => { setSelectionError(null); setSelectedId(value); }} onContinue={handleContinue} onRetry={() => setRetryToken((token) => token + 1)} validating={validating} selectionError={selectionError} />;
 }

@@ -41,6 +41,8 @@ select:focus, button:focus-visible, a:focus-visible { outline: 3px solid #0b7a46
 nav { display: flex; gap: 16px; }
 nav a { color: white; text-decoration: none; font-weight: 600; }
 nav a:hover { text-decoration: underline; }
+.nav-unavailable { border: 0; padding: 0; background: transparent; color: rgb(255 255 255 / 70%); font: inherit; font-weight: 600; cursor: not-allowed; }
+.nav-unavailable span { font-size: 12px; font-weight: 500; }
 .requester-context { display: flex; align-items: center; gap: 12px; margin-left: auto; font-size: 14px; }
 .change-requester { border: 1px solid rgb(255 255 255 / 75%); border-radius: 6px; padding: 6px 10px; background: transparent; color: white; cursor: pointer; }
 .shell-content { width: min(100% - 32px, 1120px); margin: 0 auto; padding: 48px 0; }

@@ -75,7 +75,7 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | --- | --- | --- | --- | --- | --- |
 | UI-01 | FR-01, AC-01 | Route guard without Requester | Selector shown; protected screen absent | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | PASS |
 | UI-02 | FR-02-FR-03, AC-02-AC-03 | Selector ready/loading/empty/failure | Correct accessible states/Retry | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | PASS |
-| UI-03 | FR-04-FR-06, AC-04-AC-05 | Restore/current identity/Change Requester | Header updates; A state cleared; B reloads | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | PASS |
+| UI-03 | FR-04-FR-06, AC-04-AC-05 | Restore/current identity/Change Requester | Header updates; A state cleared; B is revalidated and rendered | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | PASS |
 | UI-04 | FR-07-FR-09, AC-06 | Create initial/reference/read-only fields | API data, current Requester, pending values | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
 | UI-05 | FR-10, BR-14-BR-17, AC-07 | Field validation/focus | Near-field errors; no API call; focus first invalid | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
 | UI-06 | FR-11, AC-08 | Successful creation | Backend Ticket Number/saved values/next actions | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
@@ -204,9 +204,9 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Feature 12 Evidence
 
-- `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx`: **8 client tests passed** including Lab 1 regression coverage.
+- Client suite: **11 tests passed total** = 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests updated for the Lab 2 route guard.
 - `npm run build` from `client/`: **passed**.
-- Coverage includes route guard, active Requester loading/empty/failure states, disabled Continue, sessionStorage restore, current identity, and Change Requester reset.
+- Coverage includes route guard, active Requester loading/empty/failure states, disabled Continue, response-shape validation, sessionStorage restore, current identity, Change Requester A→B revalidation, and unavailable navigation placeholders.
 
 ## 10. Known Limitations and Deferred Tests
 
