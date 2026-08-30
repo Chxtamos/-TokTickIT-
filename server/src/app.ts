@@ -497,6 +497,14 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     const ticketId = Number(ticketIdValue);
 
     try {
+      const requester = await prisma.requesterUser.findFirst({
+        where: { id: requesterId, isActive: true },
+        select: { id: true },
+      });
+      if (!requester) {
+        return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+      }
+
       const ticket = await prisma.ticket.findFirst({
         where: { id: ticketId, requesterId },
         select: {

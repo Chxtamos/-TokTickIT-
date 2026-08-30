@@ -48,6 +48,9 @@ function makeTicket() {
 function makePrisma(options: { ticket?: unknown; fail?: boolean } = {}) {
   const ticketResult = Object.prototype.hasOwnProperty.call(options, "ticket") ? options.ticket : makeTicket();
   const prisma = {
+    requesterUser: {
+      findFirst: options.fail ? vi.fn().mockRejectedValue(new Error("database unavailable")) : vi.fn().mockResolvedValue({ id: 1 }),
+    },
     ticket: {
       findFirst: options.fail ? vi.fn().mockRejectedValue(new Error("database unavailable")) : vi.fn().mockResolvedValue(ticketResult),
     },
@@ -132,6 +135,23 @@ describe("GET /api/tickets/:ticketId", () => {
     expect(unsafeTicket.status).toBe(400);
     expect(unsafeTicket.body.error.code).toBe("INVALID_TICKET_ID");
     expect(prisma.ticket.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown or inactive Requester before querying Ticket data", async () => {
+    const unknownPrisma = makePrisma();
+    vi.mocked(unknownPrisma.requesterUser.findFirst).mockResolvedValue(null);
+    const unknown = await request(createApp(unknownPrisma)).get("/api/tickets/42").set("X-Requester-Id", "999");
+
+    const inactivePrisma = makePrisma();
+    vi.mocked(inactivePrisma.requesterUser.findFirst).mockResolvedValue(null);
+    const inactive = await request(createApp(inactivePrisma)).get("/api/tickets/42").set("X-Requester-Id", "1");
+
+    expect(unknown.status).toBe(400);
+    expect(inactive.status).toBe(400);
+    expect(unknown.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
+    expect(inactive.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
+    expect(unknownPrisma.ticket.findFirst).not.toHaveBeenCalled();
+    expect(inactivePrisma.ticket.findFirst).not.toHaveBeenCalled();
   });
 
   it("returns a safe error when detail lookup fails", async () => {
