@@ -107,6 +107,27 @@ integration("Attachment APIs PostgreSQL integration", () => {
     expect(removedDownload.status).toBe(404);
   });
 
+  it("does not leave metadata when storage preparation fails", async () => {
+    const ticketId = await createTicket(requesterA, "Attachment storage rollback integration");
+    const failurePath = path.resolve(process.cwd(), "storage", "attachment-storage-failure-marker");
+    await rm(failurePath, { recursive: true, force: true });
+    await mkdir(path.dirname(failurePath), { recursive: true });
+    await writeFile(failurePath, "not a directory");
+    const before = await prisma.attachment.count({ where: { ticketId } });
+    process.env.ATTACHMENT_STORAGE_DIR = failurePath;
+
+    const response = await request(createApp(prisma))
+      .post(`/api/tickets/${ticketId}/attachments`)
+      .set("X-Requester-Id", String(requesterA))
+      .attach("file", pdfBytes, "storage-failure.pdf");
+
+    expect(response.status).toBe(500);
+    expect(response.body.error.code).toBe("ATTACHMENT_UPLOAD_FAILED");
+    await expect(prisma.attachment.count({ where: { ticketId } })).resolves.toBe(before);
+    process.env.ATTACHMENT_STORAGE_DIR = storageDirectory;
+    await rm(failurePath, { force: true });
+  });
+
   it("serializes concurrent uploads at the five-active limit without orphan files", async () => {
     const ticketId = await createTicket(requesterA, "Attachment concurrency integration");
     await rm(storageDirectory, { recursive: true, force: true });
