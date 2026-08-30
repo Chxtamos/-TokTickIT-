@@ -57,8 +57,8 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | API-18 | BR-27-BR-28, AC-17, AC-19 | Page beyond final/owner empty | `200` empty with accurate totals | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
 | API-19 | FR-20, BR-27, AC-18 | Invalid/unknown query | Safe `400 INVALID_QUERY` | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
 | API-20 | FR-20, BR-41, AC-18 | Ticket-list database failure | Safe `500` with no internals | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
-| API-21 | FR-22, AC-20 | Owned Ticket Detail | `200`; approved detail/metadata shape | `server/tests/lab-02/ticket-detail.api.test.ts` | Planned |
-| API-22 | FR-23, BR-07-BR-08, AC-21 | Missing/cross-owner Ticket | Same safe `404`; no owner data | `server/tests/lab-02/ticket-detail.api.test.ts` | Planned |
+| API-21 | FR-22, AC-20 | Owned Ticket Detail | `200`; approved detail/metadata shape | `server/tests/lab-02/ticket-detail.api.test.ts` | PASS |
+| API-22 | FR-23, BR-07-BR-08, AC-21 | Missing/cross-owner Ticket | Same safe `404`; no owner data | `server/tests/lab-02/ticket-detail.api.test.ts` | PASS |
 | API-23 | FR-25, BR-29-BR-35, AC-22 | Valid types and exact 5 MiB upload | `201`; one active row/file | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-24 | BR-29-BR-32, AC-23 | Type/signature mismatch and >5 MiB | `415`/`413`; no row/file | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-25 | BR-31, AC-23 | Fifth/sixth active Attachment | Fifth accepted; sixth `409`; removed excluded | `server/tests/lab-02/attachments.api.test.ts` | Planned |
@@ -192,7 +192,15 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Lab 2
 
-**Status:** Not run.
+**Status:** Feature 10 Ticket Detail API verified on branch `feature/10-lab2-ticket-detail-api`.
+
+### Feature 10 Evidence
+
+- Implementation and integration-test commit: `3e8e6c2`.
+- `npm test` with `RUN_DB_INTEGRATION=1`: **42 tests passed**.
+- `npm run build`: **passed**.
+- PostgreSQL integration covers owned detail, A/B owner isolation, active/removed Attachment ordering, and safe 404 behavior.
+- Hosted evidence is provided by GitHub Actions workflow `Server CI` in `.github/workflows/server-ci.yml`; the post-fix run will execute on PR #23 after this branch is pushed.
 
 ## 10. Known Limitations and Deferred Tests
 

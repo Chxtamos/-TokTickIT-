@@ -286,6 +286,55 @@ function ticketSummaryResponse(ticket: {
   };
 }
 
+function ticketDetailResponse(ticket: {
+  id: number;
+  ticketNumber: string;
+  createdAt: Date;
+  updatedAt: Date;
+  summary: string;
+  description: string;
+  requestedPriority: RequestedPriority;
+  currentStatus: string;
+  requester: { id: number; name: string; email: string };
+  category: { id: number; name: string };
+  relatedSystem: { id: number; name: string };
+  attachments: Array<{
+    id: number;
+    originalName: string;
+    mimeType: string;
+    sizeBytes: number;
+    uploadedAt: Date;
+    removedAt: Date | null;
+    removedReason: string | null;
+  }>;
+}) {
+  return {
+    id: ticket.id,
+    ticketNumber: ticket.ticketNumber,
+    ticketDate: ticket.createdAt.toISOString(),
+    requester: ticket.requester,
+    category: ticket.category,
+    relatedSystem: ticket.relatedSystem,
+    summary: ticket.summary,
+    requestedPriority: ticket.requestedPriority,
+    description: ticket.description,
+    currentStatus: ticket.currentStatus,
+    createdAt: ticket.createdAt.toISOString(),
+    updatedAt: ticket.updatedAt.toISOString(),
+    attachments: ticket.attachments.map((attachment) => ({
+      id: attachment.id,
+      originalName: attachment.originalName,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      state: attachment.removedAt ? "REMOVED" : "ACTIVE",
+      uploadedAt: attachment.uploadedAt.toISOString(),
+      removedAt: attachment.removedAt?.toISOString() ?? null,
+      removedReason: attachment.removedReason,
+      downloadUrl: attachment.removedAt ? null : `/api/tickets/${ticket.id}/attachments/${attachment.id}/download`,
+    })),
+  };
+}
+
 function isIdempotencyUniqueViolation(error: unknown): error is Prisma.PrismaClientKnownRequestError {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") return false;
   const target = error.meta?.target;
@@ -432,6 +481,62 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       });
     } catch {
       return errorResponse(res, 500, "TICKET_LIST_FAILED", "Unable to load Tickets.");
+    }
+  });
+
+  app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
+    const requesterId = parseRequesterId(req);
+    if (!requesterId) {
+      return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+    }
+
+    const ticketIdValue = req.params.ticketId;
+    if (!/^[1-9]\d*$/.test(ticketIdValue) || !Number.isSafeInteger(Number(ticketIdValue))) {
+      return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
+    }
+    const ticketId = Number(ticketIdValue);
+
+    try {
+      const requester = await prisma.requesterUser.findFirst({
+        where: { id: requesterId, isActive: true },
+        select: { id: true },
+      });
+      if (!requester) {
+        return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+      }
+
+      const ticket = await prisma.ticket.findFirst({
+        where: { id: ticketId, requesterId },
+        select: {
+          id: true,
+          ticketNumber: true,
+          createdAt: true,
+          updatedAt: true,
+          summary: true,
+          description: true,
+          requestedPriority: true,
+          currentStatus: true,
+          requester: { select: { id: true, name: true, email: true } },
+          category: { select: { id: true, name: true } },
+          relatedSystem: { select: { id: true, name: true } },
+          attachments: {
+            orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],
+            select: {
+              id: true,
+              originalName: true,
+              mimeType: true,
+              sizeBytes: true,
+              uploadedAt: true,
+              removedAt: true,
+              removedReason: true,
+            },
+          },
+        },
+      });
+      if (!ticket) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Ticket not found.");
+      return res.status(200).json(ticketDetailResponse(ticket));
+    } catch {
+      return errorResponse(res, 500, "TICKET_DETAIL_FAILED", "Unable to load Ticket details.");
     }
   });
 
