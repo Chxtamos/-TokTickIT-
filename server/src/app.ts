@@ -1,12 +1,15 @@
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
+import multer from "multer";
 import { Prisma, type PrismaClient, type RequestedPriority } from "@prisma/client";
 import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { getPrisma } from "./prisma.js";
 
 export type ReferenceDataPrisma = Pick<
   PrismaClient,
-  "category" | "relatedSystem" | "requesterUser" | "ticket" | "$transaction" | "$queryRaw"
+  "category" | "relatedSystem" | "requesterUser" | "ticket" | "attachment" | "$transaction" | "$queryRaw"
 >;
 
 const requestedPriorities = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
@@ -51,6 +54,21 @@ const ticketListQueryFields = new Set([
   "page",
   "pageSize",
 ]);
+
+const MAX_ATTACHMENT_SIZE = 5_242_880;
+const MAX_ACTIVE_ATTACHMENTS = 5;
+const attachmentStorageDirectory = path.resolve(process.env.ATTACHMENT_STORAGE_DIR ?? path.join(process.cwd(), "storage", "attachments"));
+const attachmentTypes = {
+  ".jpg": { mimeType: "image/jpeg", extension: ".jpg" },
+  ".jpeg": { mimeType: "image/jpeg", extension: ".jpeg" },
+  ".png": { mimeType: "image/png", extension: ".png" },
+  ".webp": { mimeType: "image/webp", extension: ".webp" },
+  ".pdf": { mimeType: "application/pdf", extension: ".pdf" },
+} as const;
+const attachmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_ATTACHMENT_SIZE, files: 1 },
+});
 
 function errorResponse(
   res: Response,
@@ -335,6 +353,59 @@ function ticketDetailResponse(ticket: {
   };
 }
 
+type AttachmentRecord = {
+  id: number;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedAt: Date;
+  removedAt: Date | null;
+  removedReason: string | null;
+};
+
+type AttachmentUploadRequest = Request & {
+  attachmentContext?: { requesterId: number; ticketId: number };
+};
+
+function attachmentResponse(attachment: AttachmentRecord, ticketId: number) {
+  return {
+    id: attachment.id,
+    originalName: attachment.originalName,
+    mimeType: attachment.mimeType,
+    sizeBytes: attachment.sizeBytes,
+    state: attachment.removedAt ? "REMOVED" : "ACTIVE",
+    uploadedAt: attachment.uploadedAt.toISOString(),
+    removedAt: attachment.removedAt?.toISOString() ?? null,
+    removedReason: attachment.removedReason,
+    downloadUrl: attachment.removedAt ? null : `/api/tickets/${ticketId}/attachments/${attachment.id}/download`,
+  };
+}
+
+function parsePositiveId(value: string): number | null {
+  if (!/^[1-9]\d*$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function sanitizeAttachmentName(originalName: string): string {
+  const baseName = path.basename(originalName).replace(/[\u0000-\u001f\u007f]/g, "_").replace(/[<>:"/\\|?*]/g, "_").trim() || "attachment";
+  const extension = path.extname(baseName);
+  const stem = path.basename(baseName, extension);
+  return `${stem.slice(0, Math.max(1, 255 - extension.length))}${extension}`;
+}
+
+function hasMatchingSignature(buffer: Buffer, extension: keyof typeof attachmentTypes): boolean {
+  if (extension === ".jpg" || extension === ".jpeg") return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  if (extension === ".png") return buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (extension === ".webp") return buffer.length >= 12 && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+  return buffer.subarray(0, 5).toString("ascii") === "%PDF-";
+}
+
+function attachmentStoragePath(storageKey: string, originalName: string): string {
+  const extension = path.extname(originalName).toLowerCase();
+  return path.join(attachmentStorageDirectory, `${storageKey}${extension}`);
+}
+
 function isIdempotencyUniqueViolation(error: unknown): error is Prisma.PrismaClientKnownRequestError {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") return false;
   const target = error.meta?.target;
@@ -537,6 +608,165 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       return res.status(200).json(ticketDetailResponse(ticket));
     } catch {
       return errorResponse(res, 500, "TICKET_DETAIL_FAILED", "Unable to load Ticket details.");
+    }
+  });
+
+  app.post(
+    "/api/tickets/:ticketId/attachments",
+    async (req: AttachmentUploadRequest, res: Response, next: NextFunction) => {
+      const requesterId = parseRequesterId(req);
+      if (!requesterId) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+      const ticketId = parsePositiveId(req.params.ticketId);
+      if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
+      try {
+        const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true }, select: { id: true } });
+        if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+        const ownedTicket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } });
+        if (!ownedTicket) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Ticket not found.");
+        req.attachmentContext = { requesterId, ticketId };
+        return next();
+      } catch {
+        return errorResponse(res, 500, "ATTACHMENT_UPLOAD_FAILED", "Unable to upload Attachment.");
+      }
+    },
+    (req: Request, res: Response, next: NextFunction) => {
+      attachmentUpload.single("file")(req, res, (error: unknown) => {
+        if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+          return errorResponse(res, 413, "ATTACHMENT_TOO_LARGE", "Attachment must be 5 MiB or smaller.");
+        }
+        if (error instanceof multer.MulterError && error.code === "LIMIT_UNEXPECTED_FILE") {
+          return errorResponse(res, 400, "ATTACHMENT_REQUIRED", "Upload exactly one file using the file field.");
+        }
+        if (error) return errorResponse(res, 400, "ATTACHMENT_REQUIRED", "Upload exactly one file using the file field.");
+        next();
+      });
+    },
+    async (req: AttachmentUploadRequest, res: Response) => {
+      const context = req.attachmentContext;
+      if (!context) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+      const { requesterId, ticketId } = context;
+
+      try {
+        if (!req.file) return errorResponse(res, 400, "ATTACHMENT_REQUIRED", "Upload exactly one file using the file field.");
+
+        const extension = path.extname(req.file.originalname).toLowerCase() as keyof typeof attachmentTypes;
+        const type = attachmentTypes[extension];
+        if (!type || req.file.mimetype !== type.mimeType || !hasMatchingSignature(req.file.buffer, extension)) {
+          return errorResponse(res, 415, "ATTACHMENT_TYPE_UNSUPPORTED", "Attachment type or file signature is unsupported.");
+        }
+
+        const storageKey = randomUUID();
+        const originalName = sanitizeAttachmentName(req.file.originalname);
+        const storagePath = attachmentStoragePath(storageKey, originalName);
+        try {
+          await mkdir(attachmentStorageDirectory, { recursive: true });
+          await writeFile(storagePath, req.file.buffer, { flag: "wx" });
+          const created = await prisma.$transaction(async (tx) => {
+            await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
+            const activeCount = await tx.attachment.count({ where: { ticketId, removedAt: null } });
+            if (activeCount >= MAX_ACTIVE_ATTACHMENTS) throw new Error("ATTACHMENT_LIMIT_REACHED");
+            return tx.attachment.create({
+              data: {
+                ticketId,
+                originalName,
+                storageKey,
+                mimeType: type.mimeType,
+                sizeBytes: req.file!.size,
+              },
+              select: { id: true, originalName: true, mimeType: true, sizeBytes: true, uploadedAt: true, removedAt: true, removedReason: true },
+            });
+          });
+          return res.status(201).json(attachmentResponse(created, ticketId));
+        } catch (error) {
+          await unlink(storagePath).catch(() => undefined);
+          if (error instanceof Error && error.message === "ATTACHMENT_LIMIT_REACHED") {
+            return errorResponse(res, 409, "ATTACHMENT_LIMIT_REACHED", "A Ticket can have at most five active Attachments.");
+          }
+          return errorResponse(res, 500, "ATTACHMENT_UPLOAD_FAILED", "Unable to upload Attachment.");
+        }
+      } catch {
+        return errorResponse(res, 500, "ATTACHMENT_UPLOAD_FAILED", "Unable to upload Attachment.");
+      }
+    },
+  );
+
+  app.get("/api/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
+    const requesterId = parseRequesterId(req);
+    if (!requesterId) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
+
+    try {
+      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true }, select: { id: true } });
+      if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+      const ownedTicket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } });
+      if (!ownedTicket) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Ticket not found.");
+      const attachments = await prisma.attachment.findMany({
+        where: { ticketId },
+        orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],
+        select: { id: true, originalName: true, mimeType: true, sizeBytes: true, uploadedAt: true, removedAt: true, removedReason: true },
+      });
+      return res.status(200).json(attachments.map((attachment) => attachmentResponse(attachment, ticketId)));
+    } catch {
+      return errorResponse(res, 500, "ATTACHMENT_LIST_FAILED", "Unable to load Attachments.");
+    }
+  });
+
+  app.get("/api/tickets/:ticketId/attachments/:attachmentId/download", async (req: Request, res: Response) => {
+    const requesterId = parseRequesterId(req);
+    if (!requesterId) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+    const ticketId = parsePositiveId(req.params.ticketId);
+    const attachmentId = parsePositiveId(req.params.attachmentId);
+    if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
+    if (!attachmentId) return errorResponse(res, 400, "INVALID_ATTACHMENT_ID", "Attachment ID must be a positive integer.");
+
+    try {
+      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true }, select: { id: true } });
+      if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+      const attachment = await prisma.attachment.findFirst({
+        where: { id: attachmentId, ticketId, removedAt: null, ticket: { requesterId } },
+        select: { id: true, originalName: true, mimeType: true, storageKey: true },
+      });
+      if (!attachment) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Attachment not found.");
+      const bytes = await readFile(attachmentStoragePath(attachment.storageKey, attachment.originalName));
+      res.setHeader("Content-Type", attachment.mimeType);
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(sanitizeAttachmentName(attachment.originalName))}`);
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      return res.status(200).send(bytes);
+    } catch {
+      return errorResponse(res, 500, "ATTACHMENT_DOWNLOAD_FAILED", "Unable to download Attachment.");
+    }
+  });
+
+  app.delete("/api/tickets/:ticketId/attachments/:attachmentId", async (req: Request, res: Response) => {
+    const requesterId = parseRequesterId(req);
+    if (!requesterId) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+    const ticketId = parsePositiveId(req.params.ticketId);
+    const attachmentId = parsePositiveId(req.params.attachmentId);
+    if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
+    if (!attachmentId) return errorResponse(res, 400, "INVALID_ATTACHMENT_ID", "Attachment ID must be a positive integer.");
+    const reason = req.body && typeof req.body === "object" && !Array.isArray(req.body) && typeof req.body.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 5 || reason.length > 250) {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please provide a removal reason between 5 and 250 characters.", { reason: ["Reason must contain 5 to 250 characters."] });
+    }
+
+    try {
+      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true }, select: { id: true } });
+      if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+      const removed = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} AND "requesterId" = ${requesterId} FOR UPDATE`);
+        const existing = await tx.attachment.findFirst({ where: { id: attachmentId, ticketId, removedAt: null, ticket: { requesterId } }, select: { id: true } });
+        if (!existing) throw new Error("RESOURCE_NOT_FOUND");
+        return tx.attachment.update({
+          where: { id: attachmentId },
+          data: { removedAt: new Date(), removedReason: reason, removedByRequesterId: requesterId },
+          select: { id: true, originalName: true, mimeType: true, sizeBytes: true, uploadedAt: true, removedAt: true, removedReason: true },
+        });
+      });
+      return res.status(200).json(attachmentResponse(removed, ticketId));
+    } catch (error) {
+      if (error instanceof Error && error.message === "RESOURCE_NOT_FOUND") return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Attachment not found.");
+      return errorResponse(res, 500, "ATTACHMENT_REMOVE_FAILED", "Unable to remove Attachment.");
     }
   });
 
