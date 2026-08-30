@@ -59,15 +59,15 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | API-20 | FR-20, BR-41, AC-18 | Ticket-list database failure | Safe `500` with no internals | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
 | API-21 | FR-22, AC-20 | Owned Ticket Detail | `200`; approved detail/metadata shape | `server/tests/lab-02/ticket-detail.api.test.ts` | PASS |
 | API-22 | FR-23, BR-07-BR-08, AC-21 | Missing/cross-owner Ticket | Same safe `404`; no owner data | `server/tests/lab-02/ticket-detail.api.test.ts` | PASS |
-| API-23 | FR-25, BR-29-BR-35, AC-22 | Valid types and exact 5 MiB upload | `201`; one active row/file | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-24 | BR-29-BR-32, AC-23 | Type/signature mismatch and >5 MiB | `415`/`413`; no row/file | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-25 | BR-31, AC-23 | Fifth/sixth active Attachment | Fifth accepted; sixth `409`; removed excluded | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-26 | BR-35, AC-22 | Storage/metadata compensation | Safe `500`; no orphan/active row | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-27 | FR-26, BR-34, AC-24 | Active owned download | Correct bytes/MIME/name/`nosniff` | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-28 | FR-27, BR-36-BR-38, AC-25-AC-26 | Valid soft removal | `200`; metadata retained; count decreases | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-29 | BR-37, AC-25 | Removal-reason boundaries | Invalid `400`; 5/250 accepted; >250 rejected | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-30 | FR-28-FR-29, BR-39, AC-26-AC-27 | Removed/non-owned/wrong-Ticket access | Safe `404`; no bytes/mutation | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-31 | FR-24, BR-38, AC-26 | Metadata after removal | Active/removed states; removed URL null | `server/tests/lab-02/attachments.api.test.ts` | Planned |
+| API-23 | FR-25, BR-29-BR-35, AC-22 | Valid types and exact 5 MiB upload | `201`; one active row/file | `server/tests/lab-02/attachments.api.test.ts`, `attachments.postgres.integration.test.ts` | PASS |
+| API-24 | BR-29-BR-32, AC-23 | Type/signature mismatch and >5 MiB | `415`/`413`; no row/file | `server/tests/lab-02/attachments.api.test.ts` | PASS |
+| API-25 | BR-31, AC-23 | Fifth/sixth active Attachment | Fifth accepted; sixth `409`; removed excluded | `server/tests/lab-02/attachments.api.test.ts`, `attachments.postgres.integration.test.ts` | PASS |
+| API-26 | BR-35, AC-22 | Storage/metadata compensation | Safe `500`; no orphan/active row | `server/tests/lab-02/attachments.api.test.ts`, `attachments.postgres.integration.test.ts` | PASS |
+| API-27 | FR-26, BR-34, AC-24 | Active owned download | Correct bytes/MIME/name/`nosniff` | `server/tests/lab-02/attachments.api.test.ts`, `attachments.postgres.integration.test.ts` | PASS |
+| API-28 | FR-27, BR-36-BR-38, AC-25-AC-26 | Valid soft removal | `200`; metadata retained; count decreases | `server/tests/lab-02/attachments.api.test.ts`, `attachments.postgres.integration.test.ts` | PASS |
+| API-29 | BR-37, AC-25 | Removal-reason boundaries | Invalid `400`; 5/250 accepted; >250 rejected | `server/tests/lab-02/attachments.api.test.ts` | PASS |
+| API-30 | FR-28-FR-29, BR-39, AC-26-AC-27 | Removed/non-owned/wrong-Ticket access | Safe `404`; no bytes/mutation | `server/tests/lab-02/attachments.api.test.ts`, `attachments.postgres.integration.test.ts` | PASS |
+| API-31 | FR-24, BR-38, AC-26 | Metadata after removal | Active/removed states; removed URL null | `server/tests/lab-02/attachments.api.test.ts`, `attachments.postgres.integration.test.ts` | PASS |
 
 ## 4. Planned UI, Style, and Accessibility Tests
 

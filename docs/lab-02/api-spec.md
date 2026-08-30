@@ -299,7 +299,7 @@ Validation order:
 4. Reject size above 5,242,880 bytes.
 5. Validate extension, MIME, and signature.
 6. Confirm fewer than five active Attachments while locking/serializing the count update.
-7. Generate UUID storage name and write outside the public root.
+7. Generate UUID storage name and write outside the public root while the Ticket lock is held; a request that loses the capacity race must not write a file.
 8. Commit metadata; remove a newly written orphan if metadata fails.
 
 | Extensions | MIME |
@@ -318,6 +318,8 @@ Responses:
 - `413 ATTACHMENT_TOO_LARGE`.
 - `415 ATTACHMENT_TYPE_UNSUPPORTED`.
 - `500 ATTACHMENT_UPLOAD_FAILED`; no active metadata/orphan file remains.
+
+Unsafe path, control, and reserved filename characters are sanitized to `_` for display. The client path is never stored or used as the storage name; filenames are truncated by Unicode code point while preserving the extension.
 
 ### `GET /api/tickets/:ticketId/attachments`
 
