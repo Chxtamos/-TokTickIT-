@@ -131,7 +131,7 @@ The sample Ticket Detail image is a visual-direction reference only. Features vi
 - **BR-30:** Maximum size is 5 MiB (5,242,880 bytes) per file.
 - **BR-31:** A Ticket has at most five active Attachments; removed records do not count toward the limit.
 - **BR-32:** Acceptance requires an allowed extension, MIME type, and matching file signature.
-- **BR-33:** Original filenames are sanitized for display; storage names are generated UUIDs and never use the client path.
+- **BR-33:** Original filenames are sanitized for display: path separators, control characters, and reserved filename characters are replaced with `_`, and the result is truncated to 255 Unicode code points while preserving its extension. Storage names are generated UUIDs and never use the client path.
 - **BR-34:** Files are stored outside the public web root; download always passes through ownership and active-state checks.
 - **BR-35:** Upload accepts one file per request. Any file written before a metadata failure is removed as compensation.
 - **BR-36:** Removal is soft removal using `removedAt`, `removedReason`, and `removedByRequesterId`.

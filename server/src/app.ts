@@ -57,7 +57,9 @@ const ticketListQueryFields = new Set([
 
 const MAX_ATTACHMENT_SIZE = 5_242_880;
 const MAX_ACTIVE_ATTACHMENTS = 5;
-const attachmentStorageDirectory = path.resolve(process.env.ATTACHMENT_STORAGE_DIR ?? path.join(process.cwd(), "storage", "attachments"));
+function attachmentStorageDirectory(): string {
+  return path.resolve(process.env.ATTACHMENT_STORAGE_DIR ?? path.join(process.cwd(), "storage", "attachments"));
+}
 const attachmentTypes = {
   ".jpg": { mimeType: "image/jpeg", extension: ".jpg" },
   ".jpeg": { mimeType: "image/jpeg", extension: ".jpeg" },
@@ -391,7 +393,8 @@ function sanitizeAttachmentName(originalName: string): string {
   const baseName = path.basename(originalName).replace(/[\u0000-\u001f\u007f]/g, "_").replace(/[<>:"/\\|?*]/g, "_").trim() || "attachment";
   const extension = path.extname(baseName);
   const stem = path.basename(baseName, extension);
-  return `${stem.slice(0, Math.max(1, 255 - extension.length))}${extension}`;
+  const maxStemCodePoints = Math.max(1, 255 - Array.from(extension).length);
+  return `${Array.from(stem).slice(0, maxStemCodePoints).join("")}${extension}`;
 }
 
 function hasMatchingSignature(buffer: Buffer, extension: keyof typeof attachmentTypes): boolean {
@@ -403,7 +406,7 @@ function hasMatchingSignature(buffer: Buffer, extension: keyof typeof attachment
 
 function attachmentStoragePath(storageKey: string, originalName: string): string {
   const extension = path.extname(originalName).toLowerCase();
-  return path.join(attachmentStorageDirectory, `${storageKey}${extension}`);
+  return path.join(attachmentStorageDirectory(), `${storageKey}${extension}`);
 }
 
 function isIdempotencyUniqueViolation(error: unknown): error is Prisma.PrismaClientKnownRequestError {
@@ -659,12 +662,12 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
         const originalName = sanitizeAttachmentName(req.file.originalname);
         const storagePath = attachmentStoragePath(storageKey, originalName);
         try {
-          await mkdir(attachmentStorageDirectory, { recursive: true });
-          await writeFile(storagePath, req.file.buffer, { flag: "wx" });
           const created = await prisma.$transaction(async (tx) => {
             await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
             const activeCount = await tx.attachment.count({ where: { ticketId, removedAt: null } });
             if (activeCount >= MAX_ACTIVE_ATTACHMENTS) throw new Error("ATTACHMENT_LIMIT_REACHED");
+            await mkdir(attachmentStorageDirectory(), { recursive: true });
+            await writeFile(storagePath, req.file!.buffer, { flag: "wx" });
             return tx.attachment.create({
               data: {
                 ticketId,

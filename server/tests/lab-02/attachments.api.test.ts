@@ -7,6 +7,13 @@ import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
 
 const storageDirectory = path.resolve(process.cwd(), "storage", "attachments");
 const pdfBytes = Buffer.from("%PDF-1.7\nfixture");
+const validFixtures = [
+  { extension: "jpg", mimeType: "image/jpeg", bytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) },
+  { extension: "jpeg", mimeType: "image/jpeg", bytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) },
+  { extension: "png", mimeType: "image/png", bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) },
+  { extension: "webp", mimeType: "image/webp", bytes: Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBP")]) },
+  { extension: "pdf", mimeType: "application/pdf", bytes: pdfBytes },
+] as const;
 
 function makeAttachment(overrides: Record<string, unknown> = {}) {
   return {
@@ -73,6 +80,18 @@ afterEach(async () => {
 });
 
 describe("Attachment APIs", () => {
+  it.each(validFixtures)("accepts .$extension with matching MIME and signature", async ({ extension, mimeType, bytes }) => {
+    const { prisma } = makePrisma();
+    const res = await request(createApp(prisma))
+      .post("/api/tickets/42/attachments")
+      .set("X-Requester-Id", "1")
+      .attach("file", bytes, { filename: `valid.${extension}`, contentType: mimeType });
+
+    expect(res.status).toBe(201);
+    expect(res.body.mimeType).toBe(mimeType);
+    expect(res.body.originalName).toBe(`valid.${extension}`);
+  });
+
   it("uploads one supported file and returns active metadata", async () => {
     const { prisma, transaction } = makePrisma();
     const res = await request(createApp(prisma))
@@ -126,6 +145,12 @@ describe("Attachment APIs", () => {
       .set("X-Requester-Id", "1")
       .attach("file", Buffer.from("plain text"), "notes.pdf");
     expect(mismatch.status).toBe(415);
+
+    const mimeMismatch = await request(createApp(makePrisma().prisma))
+      .post("/api/tickets/42/attachments")
+      .set("X-Requester-Id", "1")
+      .attach("file", validFixtures[2].bytes, { filename: "image.png", contentType: "image/jpeg" });
+    expect(mimeMismatch.status).toBe(415);
 
     const oversized = await request(createApp(makePrisma().prisma))
       .post("/api/tickets/42/attachments")
@@ -252,7 +277,7 @@ describe("Attachment APIs", () => {
 
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe("ATTACHMENT_UPLOAD_FAILED");
-    expect(await readdir(storageDirectory)).toEqual([]);
+    expect(await readdir(storageDirectory).catch(() => [])).toEqual([]);
   });
 
   it("rejects unknown or inactive Requesters before Ticket/Attachment access", async () => {
@@ -267,5 +292,25 @@ describe("Attachment APIs", () => {
     const inactiveResponse = await request(createApp(inactive.prisma)).get("/api/tickets/42/attachments").set("X-Requester-Id", "1");
     expect(inactiveResponse.status).toBe(400);
     expect(inactive.transaction.ticket.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("sanitizes unsafe names and truncates Unicode names without splitting emoji", async () => {
+    const { prisma } = makePrisma();
+    const unsafe = await request(createApp(prisma))
+      .post("/api/tickets/42/attachments")
+      .set("X-Requester-Id", "1")
+      .attach("file", pdfBytes, "../bad\nname.pdf");
+    expect(unsafe.status).toBe(201);
+    expect(unsafe.body.originalName).toBe("bad_name.pdf");
+
+    const longName = `${"😀".repeat(300)}.pdf`;
+    const unicode = await request(createApp(makePrisma().prisma))
+      .post("/api/tickets/42/attachments")
+      .set("X-Requester-Id", "1")
+      .attach("file", pdfBytes, longName);
+    expect(unicode.status).toBe(201);
+    expect(Array.from(unicode.body.originalName).length).toBe(255);
+    expect(unicode.body.originalName.endsWith(".pdf")).toBe(true);
+    expect(unicode.body.originalName).not.toMatch(/[\ud800-\udfff](?![\udc00-\udfff])/);
   });
 });
