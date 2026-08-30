@@ -5,6 +5,11 @@ export interface Category {
   name: string;
 }
 
+export interface DevelopmentRequester {
+  id: number;
+  name: string;
+}
+
 export interface SystemStatus {
   online: boolean;
   categories: Category[];
@@ -38,4 +43,12 @@ export async function checkSystem(): Promise<SystemStatus> {
     online: true,
     categories,
   };
+}
+
+export async function getDevelopmentRequesters(): Promise<DevelopmentRequester[]> {
+  const response = await fetch(`${API_URL}/api/development-requesters`);
+  if (!response.ok) throw new Error("Unable to load Development Requesters");
+  const requesters = (await response.json()) as DevelopmentRequester[];
+  if (!Array.isArray(requesters)) throw new Error("TokTickIT API returned an invalid Requester response");
+  return requesters;
 }

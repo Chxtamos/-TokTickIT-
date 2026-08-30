@@ -73,9 +73,9 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 
 | ID | Requirement / AC | What it tests | Expected result | Test file | Final |
 | --- | --- | --- | --- | --- | --- |
-| UI-01 | FR-01, AC-01 | Route guard without Requester | Selector shown; protected screen absent | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | Planned |
-| UI-02 | FR-02-FR-03, AC-02-AC-03 | Selector ready/loading/empty/failure | Correct accessible states/Retry | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | Planned |
-| UI-03 | FR-04-FR-06, AC-04-AC-05 | Restore/current identity/Change Requester | Header updates; A state cleared; B reloads | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | Planned |
+| UI-01 | FR-01, AC-01 | Route guard without Requester | Selector shown; protected screen absent | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | PASS |
+| UI-02 | FR-02-FR-03, AC-02-AC-03 | Selector ready/loading/empty/failure | Correct accessible states/Retry | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | PASS |
+| UI-03 | FR-04-FR-06, AC-04-AC-05 | Restore/current identity/Change Requester | Header updates; A state cleared; B reloads | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | PASS |
 | UI-04 | FR-07-FR-09, AC-06 | Create initial/reference/read-only fields | API data, current Requester, pending values | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
 | UI-05 | FR-10, BR-14-BR-17, AC-07 | Field validation/focus | Near-field errors; no API call; focus first invalid | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
 | UI-06 | FR-11, AC-08 | Successful creation | Backend Ticket Number/saved values/next actions | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
@@ -192,7 +192,7 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Lab 2
 
-**Status:** Feature 10 Ticket Detail API verified on branch `feature/10-lab2-ticket-detail-api`.
+**Status:** Feature 12 Requester Selection and Application Shell implemented on branch `feature/12-lab2-requester-selection`; backend/API and later Ticket screens remain separate Features.
 
 ### Feature 10 Evidence
 
@@ -201,6 +201,12 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 - `npm run build`: **passed**.
 - PostgreSQL integration covers owned detail, A/B owner isolation, active/removed Attachment ordering, and safe 404 behavior.
 - Hosted evidence is provided by GitHub Actions workflow `Server CI` in `.github/workflows/server-ci.yml`; the post-fix run will execute on PR #23 after this branch is pushed.
+
+### Feature 12 Evidence
+
+- `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx`: **8 client tests passed** including Lab 1 regression coverage.
+- `npm run build` from `client/`: **passed**.
+- Coverage includes route guard, active Requester loading/empty/failure states, disabled Continue, sessionStorage restore, current identity, and Change Requester reset.
 
 ## 10. Known Limitations and Deferred Tests
 
