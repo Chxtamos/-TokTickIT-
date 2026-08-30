@@ -28,6 +28,30 @@ type TicketCreateInput = {
   description: string;
 };
 
+type TicketListQuery = {
+  search: string;
+  categoryId: number | null;
+  relatedSystemId: number | null;
+  requestedPriority: RequestedPriority | null;
+  currentStatus: "NEW" | null;
+  sortBy: "createdAt" | "updatedAt" | "ticketNumber";
+  sortDirection: "asc" | "desc";
+  page: number;
+  pageSize: 10 | 20 | 50;
+};
+
+const ticketListQueryFields = new Set([
+  "search",
+  "categoryId",
+  "relatedSystemId",
+  "requestedPriority",
+  "currentStatus",
+  "sortBy",
+  "sortDirection",
+  "page",
+  "pageSize",
+]);
+
 function errorResponse(
   res: Response,
   status: number,
@@ -102,6 +126,113 @@ function validateTicketBody(body: unknown): { input?: TicketCreateInput; fieldEr
   };
 }
 
+function parseTicketListQuery(query: Request["query"]): { input?: TicketListQuery; fieldErrors: Record<string, string[]> } {
+  const fieldErrors: Record<string, string[]> = {};
+  const raw = query as Record<string, unknown>;
+  for (const key of Object.keys(raw)) {
+    if (!ticketListQueryFields.has(key)) fieldErrors[key] = ["This query parameter is not supported."];
+  }
+
+  const read = (field: string): string | undefined => {
+    const value = raw[field];
+    if (value === undefined) return undefined;
+    if (typeof value !== "string") {
+      fieldErrors[field] = ["This query parameter must be provided once."];
+      return undefined;
+    }
+    return value;
+  };
+
+  const searchValue = read("search");
+  const search = searchValue?.trim() ?? "";
+  if (search.length > 120) fieldErrors.search = ["Search must contain at most 120 characters."];
+
+  const parseId = (field: "categoryId" | "relatedSystemId"): number | null => {
+    const value = read(field);
+    if (value === undefined) return null;
+    if (!/^[1-9]\d*$/.test(value)) {
+      fieldErrors[field] = ["Must be a positive integer."];
+      return null;
+    }
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed)) {
+      fieldErrors[field] = ["Must be a safe positive integer."];
+      return null;
+    }
+    return parsed;
+  };
+
+  const categoryId = parseId("categoryId");
+  const relatedSystemId = parseId("relatedSystemId");
+  const priorityValue = read("requestedPriority");
+  const requestedPriority = priorityValue === undefined ? null : requestedPriorities.includes(priorityValue as (typeof requestedPriorities)[number])
+    ? (priorityValue as RequestedPriority)
+    : null;
+  if (priorityValue !== undefined && requestedPriority === null) {
+    fieldErrors.requestedPriority = ["Requested priority is invalid."];
+  }
+
+  const statusValue = read("currentStatus");
+  const currentStatus = statusValue === undefined ? null : statusValue === "NEW" ? "NEW" : null;
+  if (statusValue !== undefined && currentStatus === null) fieldErrors.currentStatus = ["Current status is invalid."];
+
+  const sortByValue = read("sortBy");
+  const sortBy = sortByValue === undefined ? "updatedAt" : ["createdAt", "updatedAt", "ticketNumber"].includes(sortByValue)
+    ? (sortByValue as TicketListQuery["sortBy"])
+    : null;
+  if (sortByValue !== undefined && sortBy === null) fieldErrors.sortBy = ["Sort field is invalid."];
+
+  const sortDirectionValue = read("sortDirection");
+  const sortDirection = sortDirectionValue === undefined ? "desc" : ["asc", "desc"].includes(sortDirectionValue)
+    ? (sortDirectionValue as TicketListQuery["sortDirection"])
+    : null;
+  if (sortDirectionValue !== undefined && sortDirection === null) fieldErrors.sortDirection = ["Sort direction is invalid."];
+
+  const parsePage = (): number => {
+    const value = read("page");
+    if (value === undefined) return 1;
+    if (!/^[1-9]\d*$/.test(value)) {
+      fieldErrors.page = ["Page must be a positive integer."];
+      return 1;
+    }
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed)) {
+      fieldErrors.page = ["Page must be a safe positive integer."];
+      return 1;
+    }
+    return parsed;
+  };
+
+  const parsePageSize = (): 10 | 20 | 50 => {
+    const value = read("pageSize");
+    if (value === undefined) return 10;
+    if (value !== "10" && value !== "20" && value !== "50") {
+      fieldErrors.pageSize = ["Page size must be 10, 20, or 50."];
+      return 10;
+    }
+    return Number(value) as 10 | 20 | 50;
+  };
+
+  const page = parsePage();
+  const pageSize = parsePageSize();
+  if (Object.keys(fieldErrors).length > 0 || sortBy === null || sortDirection === null) return { fieldErrors };
+
+  return {
+    fieldErrors,
+    input: {
+      search,
+      categoryId,
+      relatedSystemId,
+      requestedPriority,
+      currentStatus,
+      sortBy,
+      sortDirection,
+      page,
+      pageSize,
+    },
+  };
+}
+
 function ticketResponse(ticket: {
   id: number;
   ticketNumber: string;
@@ -125,6 +256,30 @@ function ticketResponse(ticket: {
     summary: ticket.summary,
     requestedPriority: ticket.requestedPriority,
     description: ticket.description,
+    currentStatus: ticket.currentStatus,
+    createdAt: ticket.createdAt.toISOString(),
+    updatedAt: ticket.updatedAt.toISOString(),
+  };
+}
+
+function ticketSummaryResponse(ticket: {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  requestedPriority: RequestedPriority;
+  currentStatus: string;
+  createdAt: Date;
+  updatedAt: Date;
+  category: { id: number; name: string };
+  relatedSystem: { id: number; name: string };
+}) {
+  return {
+    id: ticket.id,
+    ticketNumber: ticket.ticketNumber,
+    summary: ticket.summary,
+    category: ticket.category,
+    relatedSystem: ticket.relatedSystem,
+    requestedPriority: ticket.requestedPriority,
     currentStatus: ticket.currentStatus,
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
@@ -195,6 +350,88 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       res.status(200).json(requesters);
     } catch {
       res.status(500).json({ error: "REFERENCE_DATA_UNAVAILABLE" });
+    }
+  });
+
+  app.get("/api/tickets", async (req: Request, res: Response) => {
+    const requesterId = parseRequesterId(req);
+    if (!requesterId) {
+      return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+    }
+
+    const { input, fieldErrors } = parseTicketListQuery(req.query);
+    if (!input) return errorResponse(res, 400, "INVALID_QUERY", "Please correct the query parameters.", fieldErrors);
+
+    try {
+      const requester = await prisma.requesterUser.findFirst({
+        where: { id: requesterId, isActive: true },
+        select: { id: true },
+      });
+      if (!requester) {
+        return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+      }
+
+      const where: Prisma.TicketWhereInput = { requesterId };
+      if (input.search) {
+        where.OR = [
+          { ticketNumber: { contains: input.search, mode: "insensitive" } },
+          { summary: { contains: input.search, mode: "insensitive" } },
+        ];
+      }
+      if (input.categoryId !== null) where.categoryId = input.categoryId;
+      if (input.relatedSystemId !== null) where.relatedSystemId = input.relatedSystemId;
+      if (input.requestedPriority !== null) where.requestedPriority = input.requestedPriority;
+      if (input.currentStatus !== null) where.currentStatus = input.currentStatus;
+
+      const direction = input.sortDirection;
+      const orderBy: Prisma.TicketOrderByWithRelationInput[] = [
+        { [input.sortBy]: direction },
+        { id: direction },
+      ];
+      const [tickets, totalItems] = await Promise.all([
+        prisma.ticket.findMany({
+          where,
+          orderBy,
+          skip: (input.page - 1) * input.pageSize,
+          take: input.pageSize,
+          select: {
+            id: true,
+            ticketNumber: true,
+            summary: true,
+            requestedPriority: true,
+            currentStatus: true,
+            createdAt: true,
+            updatedAt: true,
+            category: { select: { id: true, name: true } },
+            relatedSystem: { select: { id: true, name: true } },
+          },
+        }),
+        prisma.ticket.count({ where }),
+      ]);
+
+      const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / input.pageSize);
+      return res.status(200).json({
+        items: tickets.map(ticketSummaryResponse),
+        pagination: {
+          page: input.page,
+          pageSize: input.pageSize,
+          totalItems,
+          totalPages,
+          hasPreviousPage: input.page > 1,
+          hasNextPage: input.page < totalPages,
+        },
+        applied: {
+          search: input.search,
+          categoryId: input.categoryId,
+          relatedSystemId: input.relatedSystemId,
+          requestedPriority: input.requestedPriority,
+          currentStatus: input.currentStatus,
+          sortBy: input.sortBy,
+          sortDirection: input.sortDirection,
+        },
+      });
+    } catch {
+      return errorResponse(res, 500, "TICKET_LIST_FAILED", "Unable to load Tickets.");
     }
   });
 
