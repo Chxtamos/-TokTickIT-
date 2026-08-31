@@ -76,13 +76,13 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | UI-01 | FR-01, AC-01 | Route guard without Requester | Selector shown; protected screen absent | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | PASS |
 | UI-02 | FR-02-FR-03, AC-02-AC-03 | Selector ready/loading/empty/failure | Correct accessible states/Retry | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | PASS |
 | UI-03 | FR-04-FR-06, AC-04-AC-05 | Restore/current identity/Change Requester | Header updates; A state cleared; B is revalidated and rendered | `client/tests/lab-02/DevelopmentRequesterSelect.test.tsx` | PASS |
-| UI-04 | FR-07-FR-09, AC-06 | Create initial/reference/read-only fields | API data, current Requester, pending values | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
-| UI-05 | FR-10, BR-14-BR-17, AC-07 | Field validation/focus | Near-field errors; no API call; focus first invalid | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
-| UI-06 | FR-11, AC-08 | Successful creation | Backend Ticket Number/saved values/next actions | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
-| UI-07 | FR-12, AC-10 | Busy/disabled Submit | One request; visible busy text | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
-| UI-08 | FR-13, AC-11 | Create API failure | Safe alert; values/files retained; Retry | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
-| UI-09 | FR-14, AC-12 | Partial Attachment failure | Ticket success retained; failed file/retry shown | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
-| UI-10 | BR-29-BR-32, AC-23 | Invalid/sixth selected file | Per-file reason; invalid not submitted | `client/tests/lab-02/CreateTicket.test.tsx` | Planned |
+| UI-04 | FR-07-FR-09, AC-06 | Create initial/reference/read-only fields | API data, current Requester, pending values | `client/tests/lab-02/CreateTicket.test.tsx` | PASS |
+| UI-05 | FR-10, BR-14-BR-17, AC-07 | Field validation/focus | Near-field errors; no API call; focus first invalid | `client/tests/lab-02/CreateTicket.test.tsx` | PASS |
+| UI-06 | FR-11, AC-08 | Successful creation | Backend Ticket Number/saved values/next actions | `client/tests/lab-02/CreateTicket.test.tsx` | PASS |
+| UI-07 | FR-12, AC-10 | Busy/disabled Submit | One request; visible busy text | `client/tests/lab-02/CreateTicket.test.tsx` | PASS |
+| UI-08 | FR-13, AC-11 | Create API failure | Safe alert; values/files retained; Retry | `client/tests/lab-02/CreateTicket.test.tsx` | PASS |
+| UI-09 | FR-14, AC-12 | Partial Attachment failure | Ticket success retained; failed file/retry shown | `client/tests/lab-02/CreateTicket.test.tsx` | PASS |
+| UI-10 | BR-29-BR-32, AC-23 | Invalid/sixth selected file | Per-file reason; invalid not submitted | `client/tests/lab-02/CreateTicket.test.tsx` | PASS |
 | UI-11 | FR-15, AC-13 | My Tickets owner switch | A disappears; loading then B appears | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
 | UI-12 | FR-16-FR-17, AC-14-AC-15 | Search/filters/Clear | Correct query/page reset/preserved controls | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
 | UI-13 | FR-18-FR-19, AC-16-AC-17 | Sort/page/page size | Correct query and control states | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
@@ -192,7 +192,7 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Lab 2
 
-**Status:** Feature 12 Requester Selection and Application Shell implemented on branch `feature/12-lab2-requester-selection`; backend/API and later Ticket screens remain separate Features.
+**Status:** Feature 13 Create Ticket UI is implemented on branch `feature/13-lab2-create-ticket-ui`; My Tickets and Ticket Detail remain separate Features.
 
 ### Feature 10 Evidence
 
@@ -207,6 +207,13 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 - Client suite: **11 tests passed total** = 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests updated for the Lab 2 route guard.
 - `npm run build` from `client/`: **passed**.
 - Coverage includes route guard, active Requester loading/empty/failure states, disabled Continue, response-shape validation, sessionStorage restore, current identity, Change Requester A→B revalidation, and unavailable navigation placeholders.
+
+### Feature 13 Evidence
+
+- Client suite: **18 tests passed total** = 7 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
+- `npm test` from `client/`: **passed** (4 test files, 18 tests).
+- `npm run build` from `client/`: **passed**.
+- Coverage includes active Category/Related System loading, read-only Ticket fields, default Medium priority, field-level validation and first-invalid focus, authoritative Ticket Number, busy/duplicate-submit protection, safe create failure with retry, per-file Attachment validation/removal, invalid-file exclusion, and retryable partial Attachment failure.
 
 ## 10. Known Limitations and Deferred Tests
 
