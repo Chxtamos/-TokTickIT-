@@ -6,7 +6,14 @@ const REQUESTER_STORAGE_KEY = "toktickit.requesterId";
 type RequesterLoadState = "loading" | "ready" | "empty" | "error";
 
 function createClientRequestId() {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes);
+  else bytes.forEach((_, index) => { bytes[index] = Math.floor(Math.random() * 256); });
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function RequesterSelector({
@@ -68,6 +75,7 @@ function RequesterSelector({
 type CreateScreenProps = { requester: DevelopmentRequester; onBack: () => void };
 type AttachmentStatus = "pending" | "invalid" | "uploading" | "uploaded" | "failed";
 type SelectedFile = { id: string; file: File; status: AttachmentStatus; error?: string; message?: string };
+const EMPTY_TICKET_FORM = { categoryId: "", relatedSystemId: "", requestedPriority: "MEDIUM", summary: "", description: "" };
 
 function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
   const [categories, setCategories] = useState<ReferenceItem[]>([]);
@@ -75,13 +83,13 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
   const [referenceState, setReferenceState] = useState<"loading" | "ready" | "error">("loading");
   const [referenceError, setReferenceError] = useState<string | null>(null);
   const [referenceRetryToken, setReferenceRetryToken] = useState(0);
-  const [form, setForm] = useState({ categoryId: "", relatedSystemId: "", requestedPriority: "MEDIUM", summary: "", description: "" });
+  const [form, setForm] = useState(EMPTY_TICKET_FORM);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [files, setFiles] = useState<SelectedFile[]>([]);
   const [submitState, setSubmitState] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [ticket, setTicket] = useState<CreatedTicket | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const clientRequestId = useState(createClientRequestId)[0];
+  const [clientRequestId, setClientRequestId] = useState(() => createClientRequestId());
   const fileId = useRef(0);
 
   useEffect(() => {
@@ -103,9 +111,10 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
       let validCount = current.filter((item) => item.status !== "invalid").length;
       const additions = selected.map((file) => {
         const extension = file.name.toLowerCase().split(".").pop();
-        const validType = ["jpg", "jpeg", "png", "webp", "pdf"].includes(extension ?? "");
+        const expectedMime = extension === "jpg" || extension === "jpeg" ? "image/jpeg" : extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : extension === "pdf" ? "application/pdf" : null;
         let error: string | undefined;
-        if (!validType) error = "Unsupported file type.";
+        if (!expectedMime) error = "Unsupported file type.";
+        else if (file.type !== expectedMime) error = `MIME type must be ${expectedMime}.`;
         else if (file.size > 5_242_880) error = "File exceeds 5 MiB.";
         else if (validCount >= 5) error = "Maximum five valid files can be uploaded.";
         else validCount += 1;
@@ -118,6 +127,16 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
 
   function removeSelectedFile(index: number) {
     setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+  }
+
+  function startNewTicket() {
+    setForm(EMPTY_TICKET_FORM);
+    setFieldErrors({});
+    setFiles([]);
+    setTicket(null);
+    setSubmitError(null);
+    setSubmitState("idle");
+    setClientRequestId(createClientRequestId());
   }
 
   function validateForm() {
@@ -177,7 +196,7 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
     <main className="shell-content" id="create-ticket">
       <div className="alert alert-success" role="status"><h1>Ticket created</h1><p>Official Ticket Number: <strong>{ticket.ticketNumber}</strong></p></div>
       {files.length > 0 && <section className="context-card"><h2>Attachment results</h2><ul>{files.map((selected) => <li key={selected.id}>{selected.file.name}: {selected.status === "uploaded" ? "Uploaded" : selected.status === "invalid" ? selected.error : selected.status === "uploading" ? "Uploading…" : selected.message}{selected.status === "failed" && <button className="button button-secondary file-retry" type="button" onClick={() => retryAttachment(selected.id)}>Retry</button>}</li>)}</ul></section>}
-      <button className="button button-secondary" onClick={onBack}>Back to workspace</button>
+      <div className="form-actions"><button className="button button-secondary" onClick={onBack}>Back to workspace</button><button className="button button-primary" onClick={startNewTicket}>Create another Ticket</button></div>
     </main>
   );
 

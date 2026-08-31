@@ -210,10 +210,10 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Feature 13 Evidence
 
-- Client suite: **22 tests passed total** = 11 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
-- `npm test` from `client/`: **passed** (4 test files, 22 tests).
+- Client suite: **24 tests passed total** = 13 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
+- `npm test` from `client/`: **passed** (4 test files, 24 tests).
 - `npm run build` from `client/`: **passed**.
-- Coverage includes active Category/Related System loading, read-only Ticket fields, default Medium priority, field-level validation and first-invalid focus, authoritative Ticket Number, busy/duplicate-submit protection, stable clientRequestId across create retry, safe create failure with retained files, cumulative picker/quota behavior, per-file Attachment validation/removal, invalid-file exclusion, and individual retry for partial Attachment failure.
+- Coverage includes active Category/Related System loading, read-only Ticket fields, default Medium priority, field-level validation and first-invalid focus, authoritative Ticket Number, busy/duplicate-submit protection, stable clientRequestId across create retry, fresh clientRequestId for a new Ticket, safe create failure with retained files, cumulative picker/quota behavior, extension/MIME validation, per-file Attachment validation/removal, invalid-file exclusion, and individual retry for partial Attachment failure.
 
 ## 10. Known Limitations and Deferred Tests
 

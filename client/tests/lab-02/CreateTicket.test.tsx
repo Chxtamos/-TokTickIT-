@@ -72,6 +72,22 @@ describe("Create Ticket screen", () => {
     expect(screen.getByText("TKT-2026-000042")).toBeInTheDocument();
   });
 
+  it("generates a new clientRequestId when starting a fresh Ticket", async () => {
+    const create = vi.spyOn(api, "createTicket").mockResolvedValue({ ticket, replayed: false });
+    await renderCreateTicket();
+    fillValidForm();
+    fireEvent.click(screen.getByRole("button", { name: "Submit Ticket" }));
+    await screen.findByRole("heading", { name: "Ticket created" });
+    fireEvent.click(screen.getByRole("button", { name: "Create another Ticket" }));
+    await screen.findByRole("heading", { name: "Create Ticket" });
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Category/ })).toBeEnabled());
+    fillValidForm();
+    fireEvent.click(screen.getByRole("button", { name: "Submit Ticket" }));
+    await screen.findByRole("heading", { name: "Ticket created" });
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create.mock.calls[0][1].clientRequestId).not.toBe(create.mock.calls[1][1].clientRequestId);
+  });
+
   it("disables repeated submission and shows a busy label", async () => {
     let resolveCreate!: (value: { ticket: typeof ticket; replayed: boolean }) => void;
     vi.spyOn(api, "createTicket").mockImplementation(() => new Promise((resolve) => { resolveCreate = resolve; }));
@@ -149,8 +165,8 @@ describe("Create Ticket screen", () => {
   it("appends picker selections and keeps every over-quota file visible", async () => {
     await renderCreateTicket();
     const input = screen.getByLabelText(/Attachments/);
-    fireEvent.change(input, { target: { files: [new File(["a"], "one.pdf"), new File(["b"], "two.pdf")] } });
-    fireEvent.change(input, { target: { files: [new File(["c"], "three.pdf"), new File(["d"], "four.pdf"), new File(["e"], "five.pdf"), new File(["f"], "six.pdf")] } });
+    fireEvent.change(input, { target: { files: [new File(["a"], "one.pdf", { type: "application/pdf" }), new File(["b"], "two.pdf", { type: "application/pdf" })] } });
+    fireEvent.change(input, { target: { files: [new File(["c"], "three.pdf", { type: "application/pdf" }), new File(["d"], "four.pdf", { type: "application/pdf" }), new File(["e"], "five.pdf", { type: "application/pdf" }), new File(["f"], "six.pdf", { type: "application/pdf" })] } });
     expect(screen.getAllByRole("listitem")).toHaveLength(6);
     expect(screen.getAllByRole("listitem")[5]).toHaveTextContent("Maximum five valid files");
   });
@@ -160,12 +176,19 @@ describe("Create Ticket screen", () => {
     const upload = vi.spyOn(api, "uploadTicketAttachment").mockResolvedValue({});
     await renderCreateTicket();
     const input = screen.getByLabelText(/Attachments/);
-    fireEvent.change(input, { target: { files: [new File(["x"], "notes.txt", { type: "text/plain" }), new File(["1"], "one.pdf"), new File(["2"], "two.pdf"), new File(["3"], "three.pdf"), new File(["4"], "four.pdf"), new File(["5"], "five.pdf")] } });
+    fireEvent.change(input, { target: { files: [new File(["x"], "notes.txt", { type: "text/plain" }), new File(["1"], "one.pdf", { type: "application/pdf" }), new File(["2"], "two.pdf", { type: "application/pdf" }), new File(["3"], "three.pdf", { type: "application/pdf" }), new File(["4"], "four.pdf", { type: "application/pdf" }), new File(["5"], "five.pdf", { type: "application/pdf" })] } });
     expect(screen.getAllByRole("listitem")).toHaveLength(6);
     fillValidForm();
     fireEvent.click(screen.getByRole("button", { name: "Submit Ticket" }));
     await screen.findByRole("heading", { name: "Ticket created" });
     expect(upload).toHaveBeenCalledTimes(5);
+  });
+
+  it("rejects an Attachment when extension and MIME type do not match", async () => {
+    await renderCreateTicket();
+    const input = screen.getByLabelText(/Attachments/);
+    fireEvent.change(input, { target: { files: [new File(["x"], "wrong.pdf", { type: "image/png" })] } });
+    expect(screen.getByRole("listitem")).toHaveTextContent("MIME type must be application/pdf.");
   });
 
   it("removes a selected file before submission", async () => {
