@@ -1,9 +1,13 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { createTicket, CreatedTicket, DevelopmentRequester, getCategories, getDevelopmentRequesters, getRelatedSystems, ReferenceItem, uploadTicketAttachment } from "./api.js";
 import "./App.css";
 
 const REQUESTER_STORAGE_KEY = "toktickit.requesterId";
 type RequesterLoadState = "loading" | "ready" | "empty" | "error";
+
+function createClientRequestId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 function RequesterSelector({
   requesters,
@@ -62,7 +66,8 @@ function RequesterSelector({
 }
 
 type CreateScreenProps = { requester: DevelopmentRequester; onBack: () => void };
-type SelectedFile = { file: File; error?: string };
+type AttachmentStatus = "pending" | "invalid" | "uploading" | "uploaded" | "failed";
+type SelectedFile = { id: string; file: File; status: AttachmentStatus; error?: string; message?: string };
 
 function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
   const [categories, setCategories] = useState<ReferenceItem[]>([]);
@@ -75,10 +80,9 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
   const [files, setFiles] = useState<SelectedFile[]>([]);
   const [submitState, setSubmitState] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [ticket, setTicket] = useState<CreatedTicket | null>(null);
-  const [attachmentResults, setAttachmentResults] = useState<{ name: string; ok: boolean; message?: string }[]>([]);
-  const [failedUploadFiles, setFailedUploadFiles] = useState<File[]>([]);
-  const [retryingAttachments, setRetryingAttachments] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const clientRequestId = useState(createClientRequestId)[0];
+  const fileId = useRef(0);
 
   useEffect(() => {
     setReferenceState("loading");
@@ -95,15 +99,20 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
 
   function selectFiles(event: ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.target.files ?? []);
-    const next = selected.slice(0, 5).map((file) => {
-      const extension = file.name.toLowerCase().split(".").pop();
-      const validType = ["jpg", "jpeg", "png", "webp", "pdf"].includes(extension ?? "");
-      if (!validType) return { file, error: "Unsupported file type." };
-      if (file.size > 5_242_880) return { file, error: "File exceeds 5 MiB." };
-      return { file };
+    setFiles((current) => {
+      let validCount = current.filter((item) => item.status !== "invalid").length;
+      const additions = selected.map((file) => {
+        const extension = file.name.toLowerCase().split(".").pop();
+        const validType = ["jpg", "jpeg", "png", "webp", "pdf"].includes(extension ?? "");
+        let error: string | undefined;
+        if (!validType) error = "Unsupported file type.";
+        else if (file.size > 5_242_880) error = "File exceeds 5 MiB.";
+        else if (validCount >= 5) error = "Maximum five valid files can be uploaded.";
+        else validCount += 1;
+        return { id: `${file.name}-${file.lastModified}-${fileId.current++}`, file, status: error ? "invalid" as const : "pending" as const, error };
+      });
+      return [...current, ...additions];
     });
-    if (selected.length > 5) next.push({ file: selected[5], error: "Maximum five files can be selected." });
-    setFiles(next);
     event.target.value = "";
   }
 
@@ -128,11 +137,9 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
     if (!validateForm()) return;
     setSubmitState("submitting");
     setSubmitError(null);
-    setAttachmentResults([]);
-    setFailedUploadFiles([]);
     try {
       const created = await createTicket(requester.id, {
-        clientRequestId: globalThis.crypto.randomUUID(),
+        clientRequestId,
         categoryId: Number(form.categoryId),
         relatedSystemId: Number(form.relatedSystemId),
         requestedPriority: form.requestedPriority as "LOW" | "MEDIUM" | "HIGH" | "URGENT",
@@ -140,13 +147,8 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
         description: form.description.trim(),
       });
       setTicket(created.ticket);
-      const results = await Promise.all(files.filter((item) => !item.error).map(async ({ file }) => {
-        try { await uploadTicketAttachment(requester.id, created.ticket.id, file); return { name: file.name, ok: true }; }
-        catch (error) { return { name: file.name, ok: false, message: error instanceof Error ? error.message : "Upload failed." }; }
-      }));
-      setAttachmentResults([...files.filter((item) => item.error).map(({ file, error }) => ({ name: file.name, ok: false, message: error })), ...results]);
-      setFailedUploadFiles(files.filter((item) => !item.error).map(({ file }, index) => results[index]?.ok ? null : file).filter((file): file is File => file !== null));
       setSubmitState("success");
+      await Promise.all(files.filter((item) => item.status !== "invalid").map((item) => uploadAttachment(item, created.ticket.id)));
     } catch (error) {
       setSubmitState("error");
       const apiError = error as { message?: string; fieldErrors?: Record<string, string[]> };
@@ -155,22 +157,26 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
     }
   }
 
-  async function retryFailedAttachments() {
-    if (!ticket || failedUploadFiles.length === 0) return;
-    setRetryingAttachments(true);
-    const retryResults = await Promise.all(failedUploadFiles.map(async (file) => {
-      try { await uploadTicketAttachment(requester.id, ticket.id, file); return { name: file.name, ok: true }; }
-      catch (error) { return { name: file.name, ok: false, message: error instanceof Error ? error.message : "Upload failed." }; }
-    }));
-    setAttachmentResults((current) => current.map((result) => retryResults.find((retry) => retry.name === result.name) ?? result));
-    setFailedUploadFiles(failedUploadFiles.filter((file, index) => !retryResults[index].ok));
-    setRetryingAttachments(false);
+  async function uploadAttachment(selected: SelectedFile, ticketId: number) {
+    setFiles((current) => current.map((item) => item.id === selected.id ? { ...item, status: "uploading", message: undefined } : item));
+    try {
+      await uploadTicketAttachment(requester.id, ticketId, selected.file);
+      setFiles((current) => current.map((item) => item.id === selected.id ? { ...item, status: "uploaded", message: undefined } : item));
+    } catch (error) {
+      setFiles((current) => current.map((item) => item.id === selected.id ? { ...item, status: "failed", message: error instanceof Error ? error.message : "Upload failed." } : item));
+    }
+  }
+
+  async function retryAttachment(id: string) {
+    if (!ticket) return;
+    const selected = files.find((item) => item.id === id);
+    if (selected?.status === "failed") await uploadAttachment(selected, ticket.id);
   }
 
   if (submitState === "success" && ticket) return (
     <main className="shell-content" id="create-ticket">
       <div className="alert alert-success" role="status"><h1>Ticket created</h1><p>Official Ticket Number: <strong>{ticket.ticketNumber}</strong></p></div>
-      {attachmentResults.length > 0 && <section className="context-card"><h2>Attachment results</h2><ul>{attachmentResults.map((result) => <li key={result.name}>{result.name}: {result.ok ? "Uploaded" : result.message}</li>)}</ul>{failedUploadFiles.length > 0 && <button className="button button-secondary" type="button" onClick={retryFailedAttachments} disabled={retryingAttachments}>{retryingAttachments ? "Retrying uploads…" : "Retry failed uploads"}</button>}</section>}
+      {files.length > 0 && <section className="context-card"><h2>Attachment results</h2><ul>{files.map((selected) => <li key={selected.id}>{selected.file.name}: {selected.status === "uploaded" ? "Uploaded" : selected.status === "invalid" ? selected.error : selected.status === "uploading" ? "Uploading…" : selected.message}{selected.status === "failed" && <button className="button button-secondary file-retry" type="button" onClick={() => retryAttachment(selected.id)}>Retry</button>}</li>)}</ul></section>}
       <button className="button button-secondary" onClick={onBack}>Back to workspace</button>
     </main>
   );
@@ -194,8 +200,8 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
         <label htmlFor="summary">Summary <span aria-hidden="true">*</span><input id="summary" value={form.summary} maxLength={120} onChange={(event) => updateField("summary", event.target.value)} disabled={submitState === "submitting"} aria-invalid={Boolean(fieldErrors.summary)} aria-describedby={fieldErrors.summary ? "summary-error summary-count" : "summary-count"} required />{fieldErrors.summary && <small id="summary-error" className="field-error">{fieldErrors.summary}</small>}<small id="summary-count">{form.summary.length}/120</small></label>
         <label htmlFor="description">Description <span aria-hidden="true">*</span><textarea id="description" value={form.description} maxLength={5000} onChange={(event) => updateField("description", event.target.value)} disabled={submitState === "submitting"} aria-invalid={Boolean(fieldErrors.description)} aria-describedby={fieldErrors.description ? "description-error description-count" : "description-count"} required />{fieldErrors.description && <small id="description-error" className="field-error">{fieldErrors.description}</small>}<small id="description-count">{form.description.length}/5000</small></label>
         <label htmlFor="attachments">Attachments<input id="attachments" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={selectFiles} disabled={submitState === "submitting"} /><small>JPG, JPEG, PNG, WEBP, or PDF; maximum 5 MiB each; maximum 5 files</small></label>
-        {files.length > 0 && <ul className="file-list">{files.map(({ file, error }, index) => <li key={`${file.name}-${file.lastModified}`}>{file.name} ({Math.ceil(file.size / 1024)} KiB){error && <span className="field-error"> — {error}</span>}<button type="button" className="file-remove" onClick={() => removeSelectedFile(index)} disabled={submitState === "submitting"}>Remove</button></li>)}</ul>}
-        <div className="form-actions"><button type="button" className="button button-secondary" onClick={onBack} disabled={submitState === "submitting"}>Cancel</button><button type="submit" className="button button-primary submit-button" disabled={submitState === "submitting"}>{submitState === "submitting" ? "Submitting…" : "Submit Ticket"}</button></div>
+        {files.length > 0 && <ul className="file-list">{files.map(({ id, file, error }, index) => <li key={id}>{file.name} ({Math.ceil(file.size / 1024)} KiB){error && <span className="field-error"> — {error}</span>}<button type="button" className="file-remove" onClick={() => removeSelectedFile(index)} disabled={submitState === "submitting"}>Remove</button></li>)}</ul>}
+        <div className="form-actions"><button type="button" className="button button-secondary" onClick={onBack} disabled={submitState === "submitting"}>Cancel</button><button type="submit" className="button button-primary submit-button" disabled={referenceState !== "ready" || submitState === "submitting"}>{submitState === "submitting" ? "Submitting…" : "Submit Ticket"}</button></div>
       </form>
     </main>
   );

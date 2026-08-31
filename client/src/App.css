@@ -60,6 +60,7 @@ nav a:hover { text-decoration: underline; }
 .ticket-form small { display: block; margin-top: 5px; color: var(--color-text-muted); font-size: 13px; font-weight: 400; }
 .field-error { color: var(--color-error) !important; }
 .file-list { margin: -8px 0 20px; padding: 12px 12px 12px 28px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-page); }
+.file-remove, .file-retry { margin-left: 12px; padding: 4px 8px; font-size: 0.875rem; }
 .form-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
 .form-actions .button-primary { width: auto; margin-top: 0; }
 .form-actions .button-secondary { min-width: 100px; }
