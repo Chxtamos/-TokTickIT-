@@ -43,7 +43,7 @@ describe("Development Requester selection and context", () => {
     await waitFor(() => expect(screen.getByText("Requester: Bob Requester")).toBeInTheDocument());
     expect(sessionStorage.getItem("toktickit.requesterId")).toBe("2");
     expect(screen.getByRole("button", { name: /My Tickets \(coming soon\)/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Create Ticket \(coming soon\)/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create Ticket" })).toBeEnabled();
   });
 
   it("restores a valid Requester and allows changing context", async () => {

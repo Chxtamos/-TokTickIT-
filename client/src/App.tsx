@@ -1,9 +1,20 @@
-import { useEffect, useState } from "react";
-import { DevelopmentRequester, getDevelopmentRequesters } from "./api.js";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { createTicket, CreatedTicket, DevelopmentRequester, getCategories, getDevelopmentRequesters, getRelatedSystems, ReferenceItem, uploadTicketAttachment } from "./api.js";
 import "./App.css";
 
 const REQUESTER_STORAGE_KEY = "toktickit.requesterId";
 type RequesterLoadState = "loading" | "ready" | "empty" | "error";
+
+function createClientRequestId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes);
+  else bytes.forEach((_, index) => { bytes[index] = Math.floor(Math.random() * 256); });
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 function RequesterSelector({
   requesters,
@@ -61,7 +72,162 @@ function RequesterSelector({
   );
 }
 
+type CreateScreenProps = { requester: DevelopmentRequester; onBack: () => void };
+type AttachmentStatus = "pending" | "invalid" | "uploading" | "uploaded" | "failed";
+type SelectedFile = { id: string; file: File; status: AttachmentStatus; error?: string; message?: string };
+const EMPTY_TICKET_FORM = { categoryId: "", relatedSystemId: "", requestedPriority: "MEDIUM", summary: "", description: "" };
+
+function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
+  const [categories, setCategories] = useState<ReferenceItem[]>([]);
+  const [relatedSystems, setRelatedSystems] = useState<ReferenceItem[]>([]);
+  const [referenceState, setReferenceState] = useState<"loading" | "ready" | "error">("loading");
+  const [referenceError, setReferenceError] = useState<string | null>(null);
+  const [referenceRetryToken, setReferenceRetryToken] = useState(0);
+  const [form, setForm] = useState(EMPTY_TICKET_FORM);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [files, setFiles] = useState<SelectedFile[]>([]);
+  const [submitState, setSubmitState] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [ticket, setTicket] = useState<CreatedTicket | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [clientRequestId, setClientRequestId] = useState(() => createClientRequestId());
+  const fileId = useRef(0);
+
+  useEffect(() => {
+    setReferenceState("loading");
+    setReferenceError(null);
+    Promise.all([getCategories(), getRelatedSystems()])
+      .then(([loadedCategories, loadedSystems]) => { setCategories(loadedCategories); setRelatedSystems(loadedSystems); setReferenceState("ready"); })
+      .catch(() => { setCategories([]); setRelatedSystems([]); setReferenceState("error"); setReferenceError("Unable to load Ticket reference data. Please try again."); });
+  }, [referenceRetryToken]);
+
+  function updateField(field: keyof typeof form, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => ({ ...current, [field]: "" }));
+  }
+
+  function selectFiles(event: ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(event.target.files ?? []);
+    setFiles((current) => {
+      let validCount = current.filter((item) => item.status !== "invalid").length;
+      const additions = selected.map((file) => {
+        const extension = file.name.toLowerCase().split(".").pop();
+        const expectedMime = extension === "jpg" || extension === "jpeg" ? "image/jpeg" : extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : extension === "pdf" ? "application/pdf" : null;
+        let error: string | undefined;
+        if (!expectedMime) error = "Unsupported file type.";
+        else if (file.type !== expectedMime) error = `MIME type must be ${expectedMime}.`;
+        else if (file.size > 5_242_880) error = "File exceeds 5 MiB.";
+        else if (validCount >= 5) error = "Maximum five valid files can be uploaded.";
+        else validCount += 1;
+        return { id: `${file.name}-${file.lastModified}-${fileId.current++}`, file, status: error ? "invalid" as const : "pending" as const, error };
+      });
+      return [...current, ...additions];
+    });
+    event.target.value = "";
+  }
+
+  function removeSelectedFile(index: number) {
+    setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+  }
+
+  function startNewTicket() {
+    setForm(EMPTY_TICKET_FORM);
+    setFieldErrors({});
+    setFiles([]);
+    setTicket(null);
+    setSubmitError(null);
+    setSubmitState("idle");
+    setClientRequestId(createClientRequestId());
+  }
+
+  function validateForm() {
+    const errors: Record<string, string> = {};
+    if (!form.categoryId) errors.categoryId = "Category is required.";
+    if (!form.relatedSystemId) errors.relatedSystemId = "Related System is required.";
+    if (form.summary.trim().length < 5 || form.summary.trim().length > 120) errors.summary = "Summary must contain 5 to 120 characters.";
+    if (form.description.trim().length < 10 || form.description.trim().length > 5000) errors.description = "Description must contain 10 to 5,000 characters.";
+    setFieldErrors(errors);
+    const firstInvalid = ["categoryId", "relatedSystemId", "summary", "description"].find((field) => errors[field]);
+    if (firstInvalid) window.setTimeout(() => document.getElementById(firstInvalid)?.focus(), 0);
+    return Object.keys(errors).length === 0;
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!validateForm()) return;
+    setSubmitState("submitting");
+    setSubmitError(null);
+    try {
+      const created = await createTicket(requester.id, {
+        clientRequestId,
+        categoryId: Number(form.categoryId),
+        relatedSystemId: Number(form.relatedSystemId),
+        requestedPriority: form.requestedPriority as "LOW" | "MEDIUM" | "HIGH" | "URGENT",
+        summary: form.summary.trim(),
+        description: form.description.trim(),
+      });
+      setTicket(created.ticket);
+      setSubmitState("success");
+      await Promise.all(files.filter((item) => item.status !== "invalid").map((item) => uploadAttachment(item, created.ticket.id)));
+    } catch (error) {
+      setSubmitState("error");
+      const apiError = error as { message?: string; fieldErrors?: Record<string, string[]> };
+      setSubmitError(apiError.message ?? "Unable to create Ticket. Please try again.");
+      if (apiError.fieldErrors) setFieldErrors(Object.fromEntries(Object.entries(apiError.fieldErrors).map(([key, messages]) => [key, messages[0]])));
+    }
+  }
+
+  async function uploadAttachment(selected: SelectedFile, ticketId: number) {
+    setFiles((current) => current.map((item) => item.id === selected.id ? { ...item, status: "uploading", message: undefined } : item));
+    try {
+      await uploadTicketAttachment(requester.id, ticketId, selected.file);
+      setFiles((current) => current.map((item) => item.id === selected.id ? { ...item, status: "uploaded", message: undefined } : item));
+    } catch (error) {
+      setFiles((current) => current.map((item) => item.id === selected.id ? { ...item, status: "failed", message: error instanceof Error ? error.message : "Upload failed." } : item));
+    }
+  }
+
+  async function retryAttachment(id: string) {
+    if (!ticket) return;
+    const selected = files.find((item) => item.id === id);
+    if (selected?.status === "failed") await uploadAttachment(selected, ticket.id);
+  }
+
+  if (submitState === "success" && ticket) return (
+    <main className="shell-content" id="create-ticket">
+      <div className="alert alert-success" role="status"><h1>Ticket created</h1><p>Official Ticket Number: <strong>{ticket.ticketNumber}</strong></p></div>
+      {files.length > 0 && <section className="context-card"><h2>Attachment results</h2><ul>{files.map((selected) => <li key={selected.id}>{selected.file.name}: {selected.status === "uploaded" ? "Uploaded" : selected.status === "invalid" ? selected.error : selected.status === "uploading" ? "Uploading…" : selected.message}{selected.status === "failed" && <button className="button button-secondary file-retry" type="button" onClick={() => retryAttachment(selected.id)}>Retry</button>}</li>)}</ul></section>}
+      <div className="form-actions"><button className="button button-secondary" onClick={onBack}>Back to workspace</button><button className="button button-primary" onClick={startNewTicket}>Create another Ticket</button></div>
+    </main>
+  );
+
+  return (
+    <main className="shell-content" id="create-ticket">
+      <button className="back-button" onClick={onBack}>← Back to workspace</button>
+      <p className="eyebrow">Requester workspace</p>
+      <h1>Create Ticket</h1>
+      <p className="intro">Describe your IT request. Fields marked <span aria-hidden="true">*</span> are required.</p>
+      {referenceState === "loading" && <div className="alert" role="status">Loading Ticket reference data…</div>}
+      {referenceError && <div className="alert alert-error" role="alert">{referenceError}<button className="button button-secondary retry-button" type="button" onClick={() => setReferenceRetryToken((token) => token + 1)}>Retry</button></div>}
+      {submitError && <div className="alert alert-error" role="alert">{submitError}<button className="button button-secondary retry-button" type="button" onClick={() => { setSubmitError(null); setSubmitState("idle"); }}>Retry</button></div>}
+      <form className="ticket-form" onSubmit={submit} noValidate aria-busy={referenceState === "loading" || submitState === "submitting"}>
+        <div className="readonly-grid"><label>Ticket Number<input value="Generated after submission" readOnly /></label><label>Ticket Date<input value="Recorded after submission" readOnly /></label><label>Requester<input value={requester.name} readOnly /></label></div>
+        <div className="form-grid">
+          <label htmlFor="category-id">Category <span aria-hidden="true">*</span><select id="category-id" value={form.categoryId} onChange={(event) => updateField("categoryId", event.target.value)} disabled={referenceState !== "ready" || submitState === "submitting"} aria-invalid={Boolean(fieldErrors.categoryId)} aria-describedby={fieldErrors.categoryId ? "category-error" : undefined} required><option value="">Select Category</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{fieldErrors.categoryId && <small id="category-error" className="field-error">{fieldErrors.categoryId}</small>}</label>
+          <label htmlFor="related-system-id">Related System <span aria-hidden="true">*</span><select id="related-system-id" value={form.relatedSystemId} onChange={(event) => updateField("relatedSystemId", event.target.value)} disabled={referenceState !== "ready" || submitState === "submitting"} aria-invalid={Boolean(fieldErrors.relatedSystemId)} aria-describedby={fieldErrors.relatedSystemId ? "related-system-error" : undefined} required><option value="">Select Related System</option>{relatedSystems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{fieldErrors.relatedSystemId && <small id="related-system-error" className="field-error">{fieldErrors.relatedSystemId}</small>}</label>
+          <label htmlFor="requested-priority">Requested Priority <select id="requested-priority" value={form.requestedPriority} onChange={(event) => updateField("requestedPriority", event.target.value)} disabled={submitState === "submitting"}><option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>URGENT</option></select></label>
+        </div>
+        <label htmlFor="summary">Summary <span aria-hidden="true">*</span><input id="summary" value={form.summary} maxLength={120} onChange={(event) => updateField("summary", event.target.value)} disabled={submitState === "submitting"} aria-invalid={Boolean(fieldErrors.summary)} aria-describedby={fieldErrors.summary ? "summary-error summary-count" : "summary-count"} required />{fieldErrors.summary && <small id="summary-error" className="field-error">{fieldErrors.summary}</small>}<small id="summary-count">{form.summary.length}/120</small></label>
+        <label htmlFor="description">Description <span aria-hidden="true">*</span><textarea id="description" value={form.description} maxLength={5000} onChange={(event) => updateField("description", event.target.value)} disabled={submitState === "submitting"} aria-invalid={Boolean(fieldErrors.description)} aria-describedby={fieldErrors.description ? "description-error description-count" : "description-count"} required />{fieldErrors.description && <small id="description-error" className="field-error">{fieldErrors.description}</small>}<small id="description-count">{form.description.length}/5000</small></label>
+        <label htmlFor="attachments">Attachments<input id="attachments" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={selectFiles} disabled={submitState === "submitting"} /><small>JPG, JPEG, PNG, WEBP, or PDF; maximum 5 MiB each; maximum 5 files</small></label>
+        {files.length > 0 && <ul className="file-list">{files.map(({ id, file, error }, index) => <li key={id}>{file.name} ({Math.ceil(file.size / 1024)} KiB){error && <span className="field-error"> — {error}</span>}<button type="button" className="file-remove" onClick={() => removeSelectedFile(index)} disabled={submitState === "submitting"}>Remove</button></li>)}</ul>}
+        <div className="form-actions"><button type="button" className="button button-secondary" onClick={onBack} disabled={submitState === "submitting"}>Cancel</button><button type="submit" className="button button-primary submit-button" disabled={referenceState !== "ready" || submitState === "submitting"}>{submitState === "submitting" ? "Submitting…" : "Submit Ticket"}</button></div>
+      </form>
+    </main>
+  );
+}
+
 function ApplicationShell({ requester, onChangeRequester }: { requester: DevelopmentRequester; onChangeRequester: () => void }) {
+  const [screen, setScreen] = useState<"home" | "create">("home");
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -70,7 +236,7 @@ function ApplicationShell({ requester, onChangeRequester }: { requester: Develop
           <nav aria-label="Primary navigation">
             <a href="#home" aria-current="page">Workspace</a>
             <button className="nav-unavailable" type="button" disabled title="Available in a later Lab 2 feature">My Tickets <span>(coming soon)</span></button>
-            <button className="nav-unavailable" type="button" disabled title="Available in a later Lab 2 feature">Create Ticket <span>(coming soon)</span></button>
+            <button className={screen === "create" ? "nav-create active" : "nav-create"} type="button" onClick={() => setScreen("create")} aria-current={screen === "create" ? "page" : undefined}>Create Ticket</button>
           </nav>
           <div className="requester-context">
             <span>Requester: {requester.name}</span>
@@ -78,12 +244,12 @@ function ApplicationShell({ requester, onChangeRequester }: { requester: Develop
           </div>
         </div>
       </header>
-      <main className="shell-content" id="home">
+      {screen === "create" ? <CreateTicketScreen requester={requester} onBack={() => setScreen("home")} /> : <main className="shell-content" id="home">
         <p className="eyebrow">Requester workspace</p>
         <h1>Welcome to TokTickIT</h1>
         <p>Your requester context is ready. Choose an action from the navigation when the corresponding Lab 2 screen is available.</p>
         <div className="context-card" role="status">Testing as <strong>{requester.name}</strong></div>
-      </main>
+      </main>}
     </div>
   );
 }
