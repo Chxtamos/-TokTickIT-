@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import App from "../../src/App.js";
 import * as api from "../../src/api.js";
 
 const requester = { id: 1, name: "Alice Requester" };
+const secondRequester = { id: 2, name: "Bob Requester" };
 const ticket = {
   id: 42,
   ticketNumber: "TKT-2026-000042",
@@ -42,11 +43,37 @@ afterEach(() => {
 describe("My Tickets screen", () => {
   it("loads owner-scoped summaries in a semantic table", async () => {
     const getTickets = await renderMyTickets();
-    expect(await screen.findByText("TKT-2026-000042")).toBeInTheDocument();
-    expect(screen.getByText("Laptop battery issue")).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Ticket Number" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "View Ticket" })).toBeDisabled();
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("TKT-2026-000042")).toBeInTheDocument();
+    expect(within(table).getByText("Laptop battery issue")).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Ticket Number" })).toBeInTheDocument();
+    expect(within(table).getByRole("button", { name: "View Ticket" })).toBeDisabled();
+    expect(within(table).getByRole("columnheader", { name: "Last Updated" })).toHaveAttribute("aria-sort", "descending");
+    expect(document.querySelector(".tickets-cards .ticket-card")).toHaveTextContent("TKT-2026-000042");
+    expect(document.querySelector(".tickets-cards .ticket-card")).toHaveTextContent("View Ticket");
     expect(getTickets).toHaveBeenCalledWith(1, expect.objectContaining({ page: 1, pageSize: 10, sortBy: "updatedAt", sortDirection: "desc" }));
+  });
+
+  it("clears requester A data and loads requester B data after a context switch", async () => {
+    const bobTicket = { ...ticket, id: 84, ticketNumber: "TKT-2026-000084", summary: "Bob VPN issue" };
+    const getRequesters = vi.spyOn(api, "getDevelopmentRequesters").mockResolvedValue([requester, secondRequester]);
+    const getTickets = vi.spyOn(api, "getTickets").mockImplementation(async (requesterId) => requesterId === 1 ? response() : response([bobTicket]));
+    vi.spyOn(api, "getCategories").mockResolvedValue([{ id: 1, name: "Hardware" }]);
+    vi.spyOn(api, "getRelatedSystems").mockResolvedValue([{ id: 1, name: "Corporate Laptop" }]);
+    sessionStorage.setItem("toktickit.requesterId", "1");
+    render(<App />);
+    await screen.findByText("Requester: Alice Requester");
+    fireEvent.click(screen.getByRole("button", { name: "My Tickets" }));
+    expect(within(await screen.findByRole("table")).getByText("TKT-2026-000042")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Change Requester" }));
+    fireEvent.change(await screen.findByLabelText("Development Requester"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(screen.getByText("Requester: Bob Requester")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "My Tickets" }));
+    expect(within(await screen.findByRole("table")).getByText("TKT-2026-000084")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).queryByText("TKT-2026-000042")).not.toBeInTheDocument();
+    expect(getRequesters).toHaveBeenCalledTimes(2);
+    expect(getTickets).toHaveBeenCalledWith(2, expect.objectContaining({ page: 1 }));
   });
 
   it("shows a labelled loading state without stale ticket rows", async () => {
@@ -55,9 +82,9 @@ describe("My Tickets screen", () => {
     await renderMyTickets(getTickets);
     expect(screen.getByText("Loading Tickets…")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
-    expect(screen.queryByText("TKT-2026-000042")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
     resolveTickets(response());
-    expect(await screen.findByText("TKT-2026-000042")).toBeInTheDocument();
+    expect(within(await screen.findByRole("table")).getByText("TKT-2026-000042")).toBeInTheDocument();
   });
 
   it("updates search and filters, resets to page one, and supports clear", async () => {
@@ -92,7 +119,7 @@ describe("My Tickets screen", () => {
     await renderMyTickets(getTickets);
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load Tickets");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByText("TKT-2026-000042")).toBeInTheDocument();
+    expect(within(await screen.findByRole("table")).getByText("TKT-2026-000042")).toBeInTheDocument();
     expect(getTickets).toHaveBeenCalledTimes(2);
   });
 

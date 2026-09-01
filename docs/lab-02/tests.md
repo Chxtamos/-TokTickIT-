@@ -217,10 +217,10 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Feature 14 Evidence
 
-- Client suite: **30 tests passed total** = 6 Feature 14 My Tickets tests + 13 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
-- `npm test` from `client/`: **passed** (5 test files, 30 tests).
+- Client suite: **31 tests passed total** = 7 Feature 14 My Tickets tests + 13 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
+- `npm test` from `client/`: **passed** (5 test files, 31 tests).
 - `npm run build` from `client/`: **passed**.
-- Coverage includes owner-scoped Ticket loading, semantic table rendering, labelled loading/no-stale-data state, search/filter AND query reset, clear filters, owner-empty and filtered no-results states, safe retry, page size, and pagination controls.
+- Coverage includes owner-scoped Ticket loading, A→B requester switching without stale data, semantic desktop table and mobile card rendering, `aria-sort` state, labelled loading/no-stale-data state, search/filter AND query reset, clear filters, owner-empty and filtered no-results states, safe retry, page size, and pagination controls.
 
 ## 10. Known Limitations and Deferred Tests
 
