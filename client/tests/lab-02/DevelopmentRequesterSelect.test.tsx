@@ -42,7 +42,7 @@ describe("Development Requester selection and context", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() => expect(screen.getByText("Requester: Bob Requester")).toBeInTheDocument());
     expect(sessionStorage.getItem("toktickit.requesterId")).toBe("2");
-    expect(screen.getByRole("button", { name: /My Tickets \(coming soon\)/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "My Tickets" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Create Ticket" })).toBeEnabled();
   });
 

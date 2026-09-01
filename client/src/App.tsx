@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { createTicket, CreatedTicket, DevelopmentRequester, getCategories, getDevelopmentRequesters, getRelatedSystems, ReferenceItem, uploadTicketAttachment } from "./api.js";
+import { createTicket, CreatedTicket, DevelopmentRequester, getCategories, getDevelopmentRequesters, getRelatedSystems, getTickets, ReferenceItem, TicketListQuery, TicketListResponse, TicketSummary, uploadTicketAttachment } from "./api.js";
 import "./App.css";
 
 const REQUESTER_STORAGE_KEY = "toktickit.requesterId";
@@ -226,8 +226,75 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
   );
 }
 
+const DEFAULT_TICKET_QUERY: TicketListQuery = { search: "", categoryId: null, relatedSystemId: null, requestedPriority: null, currentStatus: null, sortBy: "updatedAt", sortDirection: "desc", page: 1, pageSize: 10 };
+
+function MyTicketsScreen({ requester, onCreate }: { requester: DevelopmentRequester; onCreate: () => void }) {
+  const [query, setQuery] = useState(DEFAULT_TICKET_QUERY);
+  const [categories, setCategories] = useState<ReferenceItem[]>([]);
+  const [relatedSystems, setRelatedSystems] = useState<ReferenceItem[]>([]);
+  const [data, setData] = useState<TicketListResponse | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [error, setError] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState("loading");
+    setData(null);
+    setError(null);
+    Promise.all([getCategories(), getRelatedSystems(), getTickets(requester.id, query)])
+      .then(([loadedCategories, loadedSystems, loadedTickets]) => {
+        if (cancelled) return;
+        setCategories(loadedCategories);
+        setRelatedSystems(loadedSystems);
+        setData(loadedTickets);
+        setState("ready");
+      })
+      .catch((cause) => {
+        if (!cancelled) { setState("error"); setError(cause instanceof Error ? cause.message : "Unable to load Tickets. Please try again."); }
+      });
+    return () => { cancelled = true; };
+  }, [requester.id, query, retryToken]);
+
+  const updateQuery = (change: Partial<TicketListQuery>) => setQuery((current) => ({ ...current, ...change, page: 1 }));
+  const clearFilters = () => setQuery(DEFAULT_TICKET_QUERY);
+  const hasFilters = query.search !== "" || query.categoryId !== null || query.relatedSystemId !== null || query.requestedPriority !== null || query.currentStatus !== null || query.sortBy !== "updatedAt" || query.sortDirection !== "desc" || query.pageSize !== 10;
+  const formatDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  const sortAria = (field: TicketListQuery["sortBy"]): "ascending" | "descending" | "none" => query.sortBy === field ? (query.sortDirection === "asc" ? "ascending" : "descending") : "none";
+  const renderTicket = (ticket: TicketSummary) => <tr key={ticket.id}><td><strong>{ticket.ticketNumber}</strong></td><td>{ticket.summary}</td><td>{ticket.category.name}</td><td>{ticket.relatedSystem.name}</td><td>{ticket.requestedPriority}</td><td>{ticket.currentStatus}</td><td>{formatDate(ticket.updatedAt)}</td><td><button type="button" className="button button-secondary" disabled title="Ticket Detail is available in the next Lab 2 feature">View Ticket</button></td></tr>;
+  const renderTicketCard = (ticket: TicketSummary) => <article className="ticket-card" key={ticket.id}><h2>{ticket.ticketNumber}</h2><dl><div><dt>Summary</dt><dd>{ticket.summary}</dd></div><div><dt>Category</dt><dd>{ticket.category.name}</dd></div><div><dt>Related System</dt><dd>{ticket.relatedSystem.name}</dd></div><div><dt>Requested Priority</dt><dd>{ticket.requestedPriority}</dd></div><div><dt>Current Status</dt><dd>{ticket.currentStatus}</dd></div><div><dt>Last Updated</dt><dd>{formatDate(ticket.updatedAt)}</dd></div></dl><button type="button" className="button button-secondary" disabled title="Ticket Detail is available in the next Lab 2 feature">View Ticket</button></article>;
+
+  return (
+    <main className="shell-content tickets-page" id="my-tickets" aria-busy={state === "loading"}>
+      <p className="eyebrow">Requester workspace</p>
+      <div className="page-heading"><div><h1>My Tickets</h1><p>Tickets created by {requester.name}.</p></div><button className="button button-primary" type="button" onClick={onCreate}>Create Ticket</button></div>
+      <form className="ticket-filters" onSubmit={(event) => event.preventDefault()}>
+        <label htmlFor="ticket-search">Search<input id="ticket-search" value={query.search} maxLength={120} placeholder="Ticket number or summary" onChange={(event) => updateQuery({ search: event.target.value })} /></label>
+        <label htmlFor="ticket-category">Category<select id="ticket-category" value={query.categoryId ?? ""} onChange={(event) => updateQuery({ categoryId: event.target.value ? Number(event.target.value) : null })}><option value="">All Categories</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label htmlFor="ticket-system">Related System<select id="ticket-system" value={query.relatedSystemId ?? ""} onChange={(event) => updateQuery({ relatedSystemId: event.target.value ? Number(event.target.value) : null })}><option value="">All Systems</option>{relatedSystems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label htmlFor="ticket-priority">Requested Priority<select id="ticket-priority" value={query.requestedPriority ?? ""} onChange={(event) => updateQuery({ requestedPriority: (event.target.value || null) as TicketListQuery["requestedPriority"] })}><option value="">All Priorities</option>{["LOW", "MEDIUM", "HIGH", "URGENT"].map((priority) => <option key={priority}>{priority}</option>)}</select></label>
+        <label htmlFor="ticket-status">Current Status<select id="ticket-status" value={query.currentStatus ?? ""} onChange={(event) => updateQuery({ currentStatus: event.target.value || null })}><option value="">All Statuses</option><option>NEW</option></select></label>
+        <label htmlFor="ticket-sort">Sort by<select id="ticket-sort" value={query.sortBy} onChange={(event) => updateQuery({ sortBy: event.target.value as TicketListQuery["sortBy"] })}><option value="updatedAt">Last updated</option><option value="createdAt">Created date</option><option value="ticketNumber">Ticket number</option></select></label>
+        <label htmlFor="ticket-direction">Direction<select id="ticket-direction" value={query.sortDirection} onChange={(event) => updateQuery({ sortDirection: event.target.value as TicketListQuery["sortDirection"] })}><option value="desc">Newest first</option><option value="asc">Oldest first</option></select></label>
+        <label htmlFor="ticket-page-size">Page size<select id="ticket-page-size" value={query.pageSize} onChange={(event) => updateQuery({ pageSize: Number(event.target.value) as TicketListQuery["pageSize"] })}><option value="10">10</option><option value="20">20</option><option value="50">50</option></select></label>
+        {hasFilters && <button type="button" className="button button-secondary clear-filters" onClick={clearFilters}>Clear Filters</button>}
+      </form>
+      {state === "loading" && <p className="loading-message" role="status">Loading Tickets…</p>}
+      {state === "error" && <div className="alert alert-error" role="alert">{error ?? "Unable to load Tickets. Please try again."}<button type="button" className="button button-secondary retry-button" onClick={() => setRetryToken((token) => token + 1)}>Retry</button>{hasFilters && <button type="button" className="button button-secondary retry-button" onClick={clearFilters}>Reset filters</button>}</div>}
+      {state === "ready" && data && data.items.length === 0 && data.pagination.totalItems === 0 && <div className="alert alert-warning" role="status">You have not created any tickets yet.<button type="button" className="button button-primary" onClick={onCreate}>Create Ticket</button></div>}
+      {state === "ready" && data && data.items.length === 0 && data.pagination.totalItems > 0 && <div className="alert alert-warning" role="status">No tickets match the current search or filters.<button type="button" className="button button-secondary" onClick={clearFilters}>Clear Filters</button></div>}
+      {state === "ready" && data && data.items.length > 0 && <>
+        <p className="result-count" role="status">Showing {data.items.length} of {data.pagination.totalItems} Tickets</p>
+        <div className="tickets-table-wrap"><table className="tickets-table"><caption className="visually-hidden">Tickets created by {requester.name}. Sorted by {query.sortBy}, {query.sortDirection === "asc" ? "ascending" : "descending"}.</caption><thead><tr><th scope="col" aria-sort={sortAria("ticketNumber")}>Ticket Number</th><th scope="col">Summary</th><th scope="col">Category</th><th scope="col">Related System</th><th scope="col">Requested Priority</th><th scope="col">Current Status</th><th scope="col" aria-sort={query.sortBy === "createdAt" ? sortAria("createdAt") : sortAria("updatedAt")}>Last Updated</th><th scope="col"><span className="visually-hidden">Actions</span></th></tr></thead><tbody>{data.items.map(renderTicket)}</tbody></table></div>
+        <div className="tickets-cards" aria-label={`Tickets created by ${requester.name}`}>{data.items.map(renderTicketCard)}</div>
+        <nav className="pagination" aria-label="Ticket pagination"><button type="button" className="button button-secondary" disabled={!data.pagination.hasPreviousPage} onClick={() => setQuery((current) => ({ ...current, page: current.page - 1 }))}>Previous</button><span>Page {data.pagination.page} of {Math.max(data.pagination.totalPages, 1)}</span><button type="button" className="button button-secondary" disabled={!data.pagination.hasNextPage} onClick={() => setQuery((current) => ({ ...current, page: current.page + 1 }))}>Next</button></nav>
+      </>}
+    </main>
+  );
+}
+
 function ApplicationShell({ requester, onChangeRequester }: { requester: DevelopmentRequester; onChangeRequester: () => void }) {
-  const [screen, setScreen] = useState<"home" | "create">("home");
+  const [screen, setScreen] = useState<"home" | "create" | "tickets">("home");
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -235,7 +302,7 @@ function ApplicationShell({ requester, onChangeRequester }: { requester: Develop
           <a className="brand" href="#home">TokTickIT</a>
           <nav aria-label="Primary navigation">
             <a href="#home" aria-current="page">Workspace</a>
-            <button className="nav-unavailable" type="button" disabled title="Available in a later Lab 2 feature">My Tickets <span>(coming soon)</span></button>
+            <button className={screen === "tickets" ? "nav-create active" : "nav-create"} type="button" onClick={() => setScreen("tickets")} aria-current={screen === "tickets" ? "page" : undefined}>My Tickets</button>
             <button className={screen === "create" ? "nav-create active" : "nav-create"} type="button" onClick={() => setScreen("create")} aria-current={screen === "create" ? "page" : undefined}>Create Ticket</button>
           </nav>
           <div className="requester-context">
@@ -244,7 +311,7 @@ function ApplicationShell({ requester, onChangeRequester }: { requester: Develop
           </div>
         </div>
       </header>
-      {screen === "create" ? <CreateTicketScreen requester={requester} onBack={() => setScreen("home")} /> : <main className="shell-content" id="home">
+      {screen === "create" ? <CreateTicketScreen requester={requester} onBack={() => setScreen("home")} /> : screen === "tickets" ? <MyTicketsScreen requester={requester} onCreate={() => setScreen("create")} /> : <main className="shell-content" id="home">
         <p className="eyebrow">Requester workspace</p>
         <h1>Welcome to TokTickIT</h1>
         <p>Your requester context is ready. Choose an action from the navigation when the corresponding Lab 2 screen is available.</p>
