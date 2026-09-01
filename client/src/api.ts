@@ -39,6 +39,36 @@ export interface CreatedTicket {
   updatedAt: string;
 }
 
+export interface TicketSummary {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  category: ReferenceItem;
+  relatedSystem: ReferenceItem;
+  requestedPriority: CreateTicketInput["requestedPriority"];
+  currentStatus: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TicketListQuery {
+  search: string;
+  categoryId: number | null;
+  relatedSystemId: number | null;
+  requestedPriority: CreateTicketInput["requestedPriority"] | null;
+  currentStatus: string | null;
+  sortBy: "createdAt" | "updatedAt" | "ticketNumber";
+  sortDirection: "asc" | "desc";
+  page: number;
+  pageSize: 10 | 20 | 50;
+}
+
+export interface TicketListResponse {
+  items: TicketSummary[];
+  pagination: { page: number; pageSize: number; totalItems: number; totalPages: number; hasPreviousPage: boolean; hasNextPage: boolean };
+  applied: Omit<TicketListQuery, "page" | "pageSize">;
+}
+
 export interface ApiValidationError extends Error {
   fieldErrors?: Record<string, string[]>;
 }
@@ -109,6 +139,28 @@ export async function getRelatedSystems(): Promise<ReferenceItem[]> {
   const response = await fetch(`${API_URL}/api/related-systems`);
   if (!response.ok) return throwApiError(response, "Unable to load Related Systems");
   return parseReferenceItems(await response.json());
+}
+
+export async function getTickets(requesterId: number, query: TicketListQuery): Promise<TicketListResponse> {
+  const params = new URLSearchParams();
+  if (query.search.trim()) params.set("search", query.search.trim());
+  if (query.categoryId !== null) params.set("categoryId", String(query.categoryId));
+  if (query.relatedSystemId !== null) params.set("relatedSystemId", String(query.relatedSystemId));
+  if (query.requestedPriority !== null) params.set("requestedPriority", query.requestedPriority);
+  if (query.currentStatus !== null) params.set("currentStatus", query.currentStatus);
+  if (query.sortBy !== "updatedAt") params.set("sortBy", query.sortBy);
+  if (query.sortDirection !== "desc") params.set("sortDirection", query.sortDirection);
+  if (query.page !== 1) params.set("page", String(query.page));
+  if (query.pageSize !== 10) params.set("pageSize", String(query.pageSize));
+  const response = await fetch(`${API_URL}/api/tickets${params.toString() ? `?${params}` : ""}`, {
+    headers: { "X-Requester-Id": String(requesterId) },
+  });
+  if (!response.ok) return throwApiError(response, "Unable to load Tickets");
+  const value = await response.json() as TicketListResponse;
+  if (!value || !Array.isArray(value.items) || !value.pagination || typeof value.pagination.totalItems !== "number") {
+    throw new Error("TokTickIT API returned invalid Ticket list data");
+  }
+  return value;
 }
 
 function parseReferenceItems(value: unknown): ReferenceItem[] {

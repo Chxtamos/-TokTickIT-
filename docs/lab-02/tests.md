@@ -83,10 +83,10 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | UI-08 | FR-13, AC-11 | Create API failure | Safe alert; values/files retained; Retry | `client/tests/lab-02/CreateTicket.test.tsx` | PASS |
 | UI-09 | FR-14, AC-12 | Partial Attachment failure | Ticket success retained; failed file/retry shown | `client/tests/lab-02/CreateTicket.test.tsx` | PASS |
 | UI-10 | BR-29-BR-32, AC-23 | Invalid/sixth selected file | Per-file reason; invalid not submitted | `client/tests/lab-02/CreateTicket.test.tsx` | PASS |
-| UI-11 | FR-15, AC-13 | My Tickets owner switch | A disappears; loading then B appears | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
-| UI-12 | FR-16-FR-17, AC-14-AC-15 | Search/filters/Clear | Correct query/page reset/preserved controls | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
-| UI-13 | FR-18-FR-19, AC-16-AC-17 | Sort/page/page size | Correct query and control states | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
-| UI-14 | FR-20, AC-18-AC-19 | Loading/empty/no-results/query/failure | Distinct messages/actions | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
+| UI-11 | FR-15, AC-13 | My Tickets owner switch | A disappears; loading then B appears | `client/tests/lab-02/MyTickets.test.tsx` | PASS |
+| UI-12 | FR-16-FR-17, AC-14-AC-15 | Search/filters/Clear | Correct query/page reset/preserved controls | `client/tests/lab-02/MyTickets.test.tsx` | PASS |
+| UI-13 | FR-18-FR-19, AC-16-AC-17 | Sort/page/page size | Correct query and control states | `client/tests/lab-02/MyTickets.test.tsx` | PASS |
+| UI-14 | FR-20, AC-18-AC-19 | Loading/empty/no-results/query/failure | Distinct messages/actions | `client/tests/lab-02/MyTickets.test.tsx` | PASS |
 | UI-15 | FR-21, AC-20 | Open Ticket Detail | Correct owned route/action | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
 | UI-16 | FR-22-FR-24, AC-20-AC-21 | Read-only detail/denied state | Approved fields/metadata or safe not found | `client/tests/lab-02/RequesterTicketDetail.test.tsx` | Planned |
 | UI-17 | FR-25-FR-26, AC-22-AC-24 | Upload/download states | Busy/success/error/active controls | `client/tests/lab-02/AttachmentSection.test.tsx` | Planned |
@@ -192,7 +192,7 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Lab 2
 
-**Status:** Feature 13 Create Ticket UI is implemented on branch `feature/13-lab2-create-ticket-ui`; My Tickets and Ticket Detail remain separate Features.
+**Status:** Feature 14 My Tickets UI is implemented on branch `feature/14-lab2-my-tickets`; Ticket Detail and Attachment UI remain separate Features.
 
 ### Feature 10 Evidence
 
@@ -214,6 +214,13 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 - `npm test` from `client/`: **passed** (4 test files, 24 tests).
 - `npm run build` from `client/`: **passed**.
 - Coverage includes active Category/Related System loading, read-only Ticket fields, default Medium priority, field-level validation and first-invalid focus, authoritative Ticket Number, busy/duplicate-submit protection, stable clientRequestId across create retry, fresh clientRequestId for a new Ticket, safe create failure with retained files, cumulative picker/quota behavior, extension/MIME validation, per-file Attachment validation/removal, invalid-file exclusion, and individual retry for partial Attachment failure.
+
+### Feature 14 Evidence
+
+- Client suite: **30 tests passed total** = 6 Feature 14 My Tickets tests + 13 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
+- `npm test` from `client/`: **passed** (5 test files, 30 tests).
+- `npm run build` from `client/`: **passed**.
+- Coverage includes owner-scoped Ticket loading, semantic table rendering, labelled loading/no-stale-data state, search/filter AND query reset, clear filters, owner-empty and filtered no-results states, safe retry, page size, and pagination controls.
 
 ## 10. Known Limitations and Deferred Tests
 
