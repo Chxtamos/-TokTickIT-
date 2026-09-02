@@ -93,6 +93,12 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
   const fileId = useRef(0);
 
   useEffect(() => {
+    const firstInvalid = ["categoryId", "relatedSystemId", "summary", "description"].find((field) => fieldErrors[field]);
+    const controlId = firstInvalid === "categoryId" ? "category-id" : firstInvalid === "relatedSystemId" ? "related-system-id" : firstInvalid;
+    if (controlId) document.getElementById(controlId)?.focus();
+  }, [fieldErrors]);
+
+  useEffect(() => {
     setReferenceState("loading");
     setReferenceError(null);
     Promise.all([getCategories(), getRelatedSystems()])
@@ -146,8 +152,6 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
     if (form.summary.trim().length < 5 || form.summary.trim().length > 120) errors.summary = "Summary must contain 5 to 120 characters.";
     if (form.description.trim().length < 10 || form.description.trim().length > 5000) errors.description = "Description must contain 10 to 5,000 characters.";
     setFieldErrors(errors);
-    const firstInvalid = ["categoryId", "relatedSystemId", "summary", "description"].find((field) => errors[field]);
-    if (firstInvalid) window.setTimeout(() => document.getElementById(firstInvalid)?.focus(), 0);
     return Object.keys(errors).length === 0;
   }
 
@@ -498,7 +502,7 @@ function ApplicationShell({ requester, onChangeRequester }: { requester: Develop
         <div className="header-inner">
           <a className="brand" href="#home">TokTickIT</a>
           <nav aria-label="Primary navigation">
-            <a href="#home" aria-current="page">Workspace</a>
+            <a href="#home" aria-current={screen === "home" ? "page" : undefined} onClick={(event) => { event.preventDefault(); setScreen("home"); }}>Workspace</a>
             <button className={screen === "tickets" || screen === "detail" ? "nav-create active" : "nav-create"} type="button" onClick={() => setScreen("tickets")} aria-current={screen === "tickets" || screen === "detail" ? "page" : undefined}>My Tickets</button>
             <button className={screen === "create" ? "nav-create active" : "nav-create"} type="button" onClick={() => setScreen("create")} aria-current={screen === "create" ? "page" : undefined}>Create Ticket</button>
           </nav>
