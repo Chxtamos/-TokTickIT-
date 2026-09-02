@@ -93,7 +93,7 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | UI-18 | FR-27-FR-28, AC-25-AC-26 | Removal dialog/reason/removed state | Accessible confirm; metadata; actions absent | `client/tests/lab-02/AttachmentSection.test.tsx` | PASS |
 | UI-19 | FR-29, AC-27 | Removed/unauthorized/unavailable errors | Safe state; no file/action exposure | `client/tests/lab-02/AttachmentSection.test.tsx` | PASS |
 | UI-20 | FR-30-FR-32, AC-28 | Labels/markers/field/button states | Required semantics/classes/text indicators | `client/tests/lab-02/ZenGreenStyle.test.tsx` | PASS |
-| UI-21 | AC-28 | Keyboard and automated accessibility checks | Logical focus; no serious/critical violations | `client/tests/lab-02/accessibility.test.tsx` | PASS |
+| UI-21 | AC-28 | Keyboard and semantic accessibility checks | Logical focus, labels, announcements, and text states | `client/tests/lab-02/accessibility.test.tsx` | PASS |
 
 ## 5. Planned E2E, Responsive, and Visual Tests
 
@@ -192,7 +192,7 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Lab 2
 
-**Status:** Feature 17 Zen Green style and accessibility evidence is implemented on branch `feature/17-lab2-style-accessibility`; UI-20/UI-21 coverage, keyboard semantics, responsive safeguards, and reduced-motion behavior are included.
+**Status:** Feature 17 Zen Green style and accessibility evidence is implemented on branch `feature/17-lab2-style-accessibility`; UI-20/UI-21 coverage, keyboard semantics, responsive card/table behavior, and reduced-motion behavior are included.
 
 ### Feature 10 Evidence
 
@@ -241,7 +241,7 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 - Client suite: **54 tests passed total** = 9 Feature 17 Zen Green style/accessibility tests + 9 Feature 16 Attachment UI tests + 5 Feature 15 Ticket Detail tests + 7 Feature 14 My Tickets tests + 13 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
 - `npm test` from `client/`: **passed** (9 test files, 54 tests).
 - `npm run build` from `client/`: **passed**.
-- Coverage includes required markers and programmatic labels, read-only/editable distinction, primary/secondary/busy button states, equivalent desktop table/mobile card content, semantic sort state, active navigation `aria-current`, first-invalid focus, loading `aria-busy`/status announcements, text-labelled priority/status/actions, no page-level horizontal overflow safeguard, and reduced-motion support.
+- Coverage includes required markers and programmatic labels, read-only/editable distinction, primary/secondary/busy button states, equivalent desktop table/mobile card content, semantic sort state, active navigation `aria-current`, first-invalid focus, loading `aria-busy`/status announcements, text-labelled priority/status/actions, focus-visible styles, and reduced-motion support.
 
 ## 10. Known Limitations and Deferred Tests
 
