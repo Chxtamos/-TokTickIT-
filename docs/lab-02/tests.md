@@ -92,8 +92,8 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | UI-17 | FR-25-FR-26, AC-22-AC-24 | Upload/download states | Busy/success/error/active controls | `client/tests/lab-02/AttachmentSection.test.tsx` | PASS |
 | UI-18 | FR-27-FR-28, AC-25-AC-26 | Removal dialog/reason/removed state | Accessible confirm; metadata; actions absent | `client/tests/lab-02/AttachmentSection.test.tsx` | PASS |
 | UI-19 | FR-29, AC-27 | Removed/unauthorized/unavailable errors | Safe state; no file/action exposure | `client/tests/lab-02/AttachmentSection.test.tsx` | PASS |
-| UI-20 | FR-30-FR-32, AC-28 | Labels/markers/field/button states | Required semantics/classes/text indicators | `client/tests/lab-02/ZenGreenStyle.test.tsx` | Planned |
-| UI-21 | AC-28 | Keyboard and automated accessibility checks | Logical focus; no serious/critical violations | `client/tests/lab-02/accessibility.test.tsx` | Planned |
+| UI-20 | FR-30-FR-32, AC-28 | Labels/markers/field/button states | Required semantics/classes/text indicators | `client/tests/lab-02/ZenGreenStyle.test.tsx` | PASS |
+| UI-21 | AC-28 | Keyboard and automated accessibility checks | Logical focus; no serious/critical violations | `client/tests/lab-02/accessibility.test.tsx` | PASS |
 
 ## 5. Planned E2E, Responsive, and Visual Tests
 
@@ -192,7 +192,7 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Lab 2
 
-**Status:** Feature 16 Attachment UI is implemented on branch `feature/16-lab2-attachment-ui`; upload, download, soft removal, validation, retry, and safe error states are included.
+**Status:** Feature 17 Zen Green style and accessibility evidence is implemented on branch `feature/17-lab2-style-accessibility`; UI-20/UI-21 coverage, keyboard semantics, responsive safeguards, and reduced-motion behavior are included.
 
 ### Feature 10 Evidence
 
@@ -235,6 +235,13 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 - `npm test` from `client/`: **passed** (7 test files, 45 tests).
 - `npm run build` from `client/`: **passed**.
 - Coverage includes active Attachment download with requester context, per-file upload success/failure/retry, cumulative client validation for MIME/type/duplicate files, same-name different-content acceptance, real sixth-file quota visibility, focus trap/Escape/trigger-focus restoration, Removing busy state and duplicate activation prevention, accessible removal dialog with 5-250 character reason validation, removed Attachment action suppression, and safe storage-unavailable messaging.
+
+### Feature 17 Evidence
+
+- Client suite: **54 tests passed total** = 9 Feature 17 Zen Green style/accessibility tests + 9 Feature 16 Attachment UI tests + 5 Feature 15 Ticket Detail tests + 7 Feature 14 My Tickets tests + 13 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
+- `npm test` from `client/`: **passed** (9 test files, 54 tests).
+- `npm run build` from `client/`: **passed**.
+- Coverage includes required markers and programmatic labels, read-only/editable distinction, primary/secondary/busy button states, equivalent desktop table/mobile card content, semantic sort state, active navigation `aria-current`, first-invalid focus, loading `aria-busy`/status announcements, text-labelled priority/status/actions, no page-level horizontal overflow safeguard, and reduced-motion support.
 
 ## 10. Known Limitations and Deferred Tests
 
