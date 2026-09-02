@@ -295,7 +295,7 @@ function MyTicketsScreen({ requester, onCreate, onViewTicket, initialQuery, onQu
 }
 
 function TicketDetailScreen({ requester, ticketId, onBack }: { requester: DevelopmentRequester; ticketId: number; onBack: () => void }) {
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [state, setState] = useState<"loading" | "ready" | "error" | "not-found">("loading");
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
@@ -307,7 +307,17 @@ function TicketDetailScreen({ requester, ticketId, onBack }: { requester: Develo
     setError(null);
     getTicketDetail(requester.id, ticketId)
       .then((loaded) => { if (!cancelled) { setDetail(loaded); setState("ready"); } })
-      .catch((cause) => { if (!cancelled) { setState("error"); setError(cause instanceof Error ? cause.message : "Unable to load Ticket Detail."); } });
+      .catch((cause) => {
+        if (cancelled) return;
+        const statusCode = typeof cause === "object" && cause !== null && "statusCode" in cause ? cause.statusCode : undefined;
+        if (statusCode === 404) {
+          setState("not-found");
+          setError("Ticket not found or unavailable.");
+        } else {
+          setState("error");
+          setError(cause instanceof Error ? cause.message : "Unable to load Ticket Detail.");
+        }
+      });
     return () => { cancelled = true; };
   }, [requester.id, ticketId, retryToken]);
 
@@ -319,10 +329,11 @@ function TicketDetailScreen({ requester, ticketId, onBack }: { requester: Develo
       <button type="button" className="back-button" onClick={onBack}>← Back to My Tickets</button>
       {state === "loading" && <p className="loading-message" role="status">Loading Ticket Detail…</p>}
       {state === "error" && <div className="alert alert-error" role="alert">{error ?? "Unable to load Ticket Detail."}<button type="button" className="button button-secondary retry-button" onClick={() => setRetryToken((token) => token + 1)}>Retry</button></div>}
+      {state === "not-found" && <div className="alert alert-warning" role="alert">{error ?? "Ticket not found or unavailable."}<button type="button" className="button button-secondary retry-button" onClick={() => setRetryToken((token) => token + 1)}>Retry</button></div>}
       {state === "ready" && detail && <>
         <div className="page-heading detail-heading"><div><p className="eyebrow">Requester workspace</p><h1>{detail.ticketNumber}</h1><p>Ticket Detail for {requester.name}</p></div><span className="status-badge">{detail.currentStatus}</span></div>
         <section className="detail-card" aria-labelledby="ticket-information-heading"><h2 id="ticket-information-heading">Ticket Information</h2><dl className="detail-grid"><div><dt>Ticket Number</dt><dd>{detail.ticketNumber}</dd></div><div><dt>Ticket Date</dt><dd>{formatDate(detail.ticketDate)}</dd></div><div><dt>Requester</dt><dd>{detail.requester.name} ({detail.requester.email})</dd></div><div><dt>Category</dt><dd>{detail.category.name}</dd></div><div><dt>Related System</dt><dd>{detail.relatedSystem.name}</dd></div><div><dt>Requested Priority</dt><dd>{detail.requestedPriority}</dd></div><div><dt>Current Status</dt><dd>{detail.currentStatus}</dd></div><div><dt>Last Updated</dt><dd>{formatDate(detail.updatedAt)}</dd></div><div className="detail-wide"><dt>Summary</dt><dd>{detail.summary}</dd></div><div className="detail-wide"><dt>Description</dt><dd className="preserve-whitespace">{detail.description}</dd></div></dl></section>
-        <section className="detail-card" aria-labelledby="attachment-metadata-heading"><h2 id="attachment-metadata-heading">Attachments</h2>{detail.attachments.length === 0 ? <p className="empty-detail">No Attachments on this Ticket.</p> : <ul className="attachment-metadata-list">{detail.attachments.map((attachment) => <li key={attachment.id}><div><strong>{attachment.originalName}</strong><span>{attachment.mimeType} · {formatSize(attachment.sizeBytes)}</span><span>Uploaded {formatDate(attachment.uploadedAt)}</span>{attachment.state === "REMOVED" && <span className="status-badge status-removed">Removed · {attachment.removedReason ?? "No reason provided"}</span>}{attachment.state === "ACTIVE" && <span className="status-badge">Active</span>}</div></li>)}</ul>}</section>
+        <section className="detail-card" aria-labelledby="attachment-metadata-heading"><h2 id="attachment-metadata-heading">Attachments</h2>{detail.attachments.length === 0 ? <p className="empty-detail">No Attachments on this Ticket.</p> : <ul className="attachment-metadata-list">{detail.attachments.map((attachment) => <li key={attachment.id}><div><strong>{attachment.originalName}</strong><span>{attachment.mimeType} · {formatSize(attachment.sizeBytes)}</span><span>Uploaded {formatDate(attachment.uploadedAt)}</span>{attachment.state === "REMOVED" && <><span className="status-badge status-removed">Removed · {attachment.removedReason ?? "No reason provided"}</span>{attachment.removedAt && <span>Removed at {formatDate(attachment.removedAt)}</span>}</>}{attachment.state === "ACTIVE" && <span className="status-badge">Active</span>}</div></li>)}</ul>}</section>
       </>}
     </main>
   );

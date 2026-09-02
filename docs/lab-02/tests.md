@@ -224,10 +224,10 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Feature 15 Evidence
 
-- Client suite: **35 tests passed total** = 4 Feature 15 Ticket Detail tests + 7 Feature 14 My Tickets tests + 13 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
-- `npm test` from `client/`: **passed** (6 test files, 35 tests).
+- Client suite: **36 tests passed total** = 5 Feature 15 Ticket Detail tests + 7 Feature 14 My Tickets tests + 13 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
+- `npm test` from `client/`: **passed** (6 test files, 36 tests).
 - `npm run build` from `client/`: **passed**.
-- Coverage includes View Ticket navigation, owned read-only Ticket fields, Requester context, loading/no-stale-data, safe failure/retry, active/removed Attachment metadata, no download action before Attachment UI, and back-navigation preserving My Tickets query.
+- Coverage includes View Ticket navigation, owned read-only Ticket fields, Requester context, loading/no-stale-data, safe failure/retry, safe 404 not-found handling without Ticket-data leakage, active/removed Attachment metadata with removal timestamp, no download action before Attachment UI, and back-navigation preserving non-default My Tickets query values.
 
 ## 10. Known Limitations and Deferred Tests
 

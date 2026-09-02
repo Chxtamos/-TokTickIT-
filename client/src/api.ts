@@ -98,6 +98,7 @@ export interface TicketDetail {
 }
 
 export interface ApiValidationError extends Error {
+  statusCode?: number;
   fieldErrors?: Record<string, string[]>;
 }
 
@@ -153,6 +154,7 @@ export async function getDevelopmentRequesters(): Promise<DevelopmentRequester[]
 async function throwApiError(response: Response, fallback: string): Promise<never> {
   const body = await response.json().catch(() => null) as { error?: { message?: string; fieldErrors?: Record<string, string[]> } } | null;
   const error = new Error(body?.error?.message ?? fallback) as ApiValidationError;
+  error.statusCode = response.status;
   error.fieldErrors = body?.error?.fieldErrors;
   throw error;
 }

@@ -29,12 +29,11 @@ const listResponse: api.TicketListResponse = {
   applied: { search: "", categoryId: null, relatedSystemId: null, requestedPriority: null, currentStatus: null, sortBy: "updatedAt", sortDirection: "desc" },
 };
 
-async function renderDetail(getDetail = vi.spyOn(api, "getTicketDetail").mockResolvedValue(ticket), waitForScreen = true) {
+async function renderDetail(getDetail = vi.spyOn(api, "getTicketDetail").mockResolvedValue(ticket), waitForScreen = true, getTickets = vi.spyOn(api, "getTickets").mockResolvedValue(listResponse)) {
   sessionStorage.setItem("toktickit.requesterId", "1");
   vi.spyOn(api, "getDevelopmentRequesters").mockResolvedValue([requester]);
   vi.spyOn(api, "getCategories").mockResolvedValue([ticket.category]);
   vi.spyOn(api, "getRelatedSystems").mockResolvedValue([ticket.relatedSystem]);
-  vi.spyOn(api, "getTickets").mockResolvedValue(listResponse);
   render(<App />);
   await screen.findByText("Requester: Alice Requester");
   fireEvent.click(screen.getByRole("button", { name: "My Tickets" }));
@@ -60,6 +59,7 @@ describe("Requester Ticket Detail screen", () => {
     expect(screen.getByText("old-photo.jpg")).toBeInTheDocument();
     expect(screen.getByText(/Duplicate file/)).toBeInTheDocument();
     expect(screen.getByText("Removed · Duplicate file")).toBeInTheDocument();
+    expect(screen.getByText(/Removed at/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Download" })).not.toBeInTheDocument();
     expect(getDetail).toHaveBeenCalledWith(1, 42);
   });
@@ -94,12 +94,37 @@ describe("Requester Ticket Detail screen", () => {
     expect(getDetail).toHaveBeenCalledTimes(2);
   });
 
+  it("shows a safe not-found state for a missing or non-owned Ticket", async () => {
+    const notFound = Object.assign(new Error("Ticket not found."), { statusCode: 404 });
+    const getDetail = vi.spyOn(api, "getTicketDetail").mockRejectedValue(notFound);
+    await renderDetail(getDetail, false);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Ticket not found or unavailable.");
+    expect(screen.queryByText(ticket.ticketNumber)).not.toBeInTheDocument();
+    expect(screen.queryByText(ticket.summary)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
   it("returns to My Tickets with the previous list query preserved", async () => {
-    await renderDetail();
+    const getTickets = vi.spyOn(api, "getTickets").mockImplementation(async (_requesterId, query) => ({
+      ...listResponse,
+      pagination: { ...listResponse.pagination, page: query.page, pageSize: query.pageSize },
+      applied: { ...listResponse.applied, search: query.search, requestedPriority: query.requestedPriority },
+    }));
+    await renderDetail(undefined, true, getTickets);
+    fireEvent.click(screen.getByRole("button", { name: "← Back to My Tickets" }));
+    await screen.findByRole("heading", { name: "My Tickets" });
+    fireEvent.change(screen.getByLabelText("Search"), { target: { value: "battery" } });
+    fireEvent.change(screen.getByLabelText("Requested Priority"), { target: { value: "HIGH" } });
+    fireEvent.change(screen.getByLabelText("Page size"), { target: { value: "20" } });
+    await waitFor(() => expect(getTickets).toHaveBeenLastCalledWith(1, expect.objectContaining({ search: "battery", requestedPriority: "HIGH", page: 1, pageSize: 20 })));
+    fireEvent.click(within(await screen.findByRole("table")).getByRole("button", { name: "View Ticket" }));
     await screen.findByRole("heading", { name: ticket.ticketNumber });
     fireEvent.click(screen.getByRole("button", { name: "← Back to My Tickets" }));
     await screen.findByRole("heading", { name: "My Tickets" });
-    expect(screen.getByLabelText("Search")).toHaveValue("");
+    expect(screen.getByLabelText("Search")).toHaveValue("battery");
+    expect(screen.getByLabelText("Requested Priority")).toHaveValue("HIGH");
+    expect(screen.getByLabelText("Page size")).toHaveValue("20");
+    expect(getTickets).toHaveBeenLastCalledWith(1, expect.objectContaining({ search: "battery", requestedPriority: "HIGH", page: 1, pageSize: 20 }));
     expect(within(await screen.findByRole("table")).getByText(ticket.ticketNumber)).toBeInTheDocument();
   });
 });
