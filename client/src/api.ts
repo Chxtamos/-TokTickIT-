@@ -235,5 +235,31 @@ export async function uploadTicketAttachment(requesterId: number, ticketId: numb
     body: form,
   });
   if (!response.ok) return throwApiError(response, "Unable to upload Attachment");
-  return response.json();
+  const value = await response.json() as TicketAttachmentMetadata;
+  if (!value || typeof value.id !== "number" || typeof value.originalName !== "string" || typeof value.mimeType !== "string" || typeof value.sizeBytes !== "number" || (value.state !== "ACTIVE" && value.state !== "REMOVED")) {
+    throw new Error("TokTickIT API returned invalid Attachment data");
+  }
+  return value;
+}
+
+export async function downloadTicketAttachment(requesterId: number, ticketId: number, attachmentId: number): Promise<Blob> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments/${attachmentId}/download`, {
+    headers: { "X-Requester-Id": String(requesterId) },
+  });
+  if (!response.ok) return throwApiError(response, "Unable to download Attachment");
+  return response.blob();
+}
+
+export async function removeTicketAttachment(requesterId: number, ticketId: number, attachmentId: number, reason: string): Promise<TicketAttachmentMetadata> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments/${attachmentId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", "X-Requester-Id": String(requesterId) },
+    body: JSON.stringify({ reason }),
+  });
+  if (!response.ok) return throwApiError(response, "Unable to remove Attachment");
+  const value = await response.json() as TicketAttachmentMetadata;
+  if (!value || typeof value.id !== "number" || value.state !== "REMOVED" || value.downloadUrl !== null) {
+    throw new Error("TokTickIT API returned invalid removed Attachment data");
+  }
+  return value;
 }

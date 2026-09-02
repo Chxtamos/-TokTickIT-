@@ -60,7 +60,9 @@ describe("Requester Ticket Detail screen", () => {
     expect(screen.getByText(/Duplicate file/)).toBeInTheDocument();
     expect(screen.getByText("Removed · Duplicate file")).toBeInTheDocument();
     expect(screen.getByText(/Removed at/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Download" })).not.toBeInTheDocument();
+    const removedRow = screen.getByText("old-photo.jpg").closest("li");
+    expect(removedRow).not.toBeNull();
+    expect(within(removedRow as HTMLElement).queryByRole("button", { name: "Download" })).not.toBeInTheDocument();
     expect(getDetail).toHaveBeenCalledWith(1, 42);
   });
 
