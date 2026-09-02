@@ -303,6 +303,10 @@ function attachmentQueueId(file: File): string {
   return `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`;
 }
 
+function attachmentFingerprint(file: File): string {
+  return `${file.name}\u0000${file.size}\u0000${file.lastModified}`;
+}
+
 function validateAttachmentFile(file: File): string | null {
   const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
   if (!attachmentRules[extension]) return "Unsupported file type. Use JPG, JPEG, PNG, WEBP, or PDF.";
@@ -328,6 +332,8 @@ function AttachmentSection({ requesterId, ticketId, attachments, onRefresh }: { 
   const [removeReason, setRemoveReason] = useState("");
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const removeDialogRef = useRef<HTMLElement | null>(null);
+  const removeTriggerRef = useRef<HTMLButtonElement | null>(null);
   const activeCount = attachments.filter((attachment) => attachment.state === "ACTIVE").length;
 
   const formatDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -337,8 +343,11 @@ function AttachmentSection({ requesterId, ticketId, attachments, onRefresh }: { 
     const selected = Array.from(event.target.files ?? []);
     event.target.value = "";
     let reserved = activeCount + queue.filter((item) => item.canUpload).length;
+    const fingerprints = new Set(queue.map((item) => attachmentFingerprint(item.file)));
     const next = selected.map((file): PendingAttachment => {
-      const duplicate = queue.some((item) => item.file.name === file.name && item.file.size === file.size && item.file.lastModified === file.lastModified) || attachments.some((item) => item.state === "ACTIVE" && item.originalName === file.name);
+      const fingerprint = attachmentFingerprint(file);
+      const duplicate = fingerprints.has(fingerprint);
+      if (!duplicate) fingerprints.add(fingerprint);
       const validationError = duplicate ? "This file is already selected." : validateAttachmentFile(file);
       const quotaError = !validationError && reserved >= 5 ? "Maximum 5 active Attachments reached." : null;
       if (!validationError && !quotaError) reserved += 1;
@@ -383,8 +392,28 @@ function AttachmentSection({ requesterId, ticketId, attachments, onRefresh }: { 
     }
   };
 
-  const openRemove = (attachment: TicketAttachmentMetadata) => { setRemoveTarget(attachment); setRemoveReason(""); setRemoveError(null); setActionError(null); };
-  const closeRemove = () => { if (removingId === null) { setRemoveTarget(null); setRemoveReason(""); setRemoveError(null); } };
+  const openRemove = (attachment: TicketAttachmentMetadata, trigger: HTMLButtonElement) => { removeTriggerRef.current = trigger; setRemoveTarget(attachment); setRemoveReason(""); setRemoveError(null); setActionError(null); };
+  const restoreRemoveFocus = () => { removeTriggerRef.current?.focus(); };
+  const closeRemove = () => { if (removingId === null) { setRemoveTarget(null); setRemoveReason(""); setRemoveError(null); restoreRemoveFocus(); } };
+
+  useEffect(() => {
+    if (!removeTarget || !removeDialogRef.current) return;
+    const dialog = removeDialogRef.current;
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>("button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex=\"-1\"])"));
+    dialog.querySelector<HTMLElement>("#remove-reason")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); closeRemove(); return; }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      if (elements.length === 0) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    dialog.addEventListener("keydown", onKeyDown);
+    return () => dialog.removeEventListener("keydown", onKeyDown);
+  }, [removeTarget, removingId]);
   const confirmRemove = async () => {
     if (!removeTarget) return;
     const trimmed = removeReason.trim();
@@ -395,6 +424,7 @@ function AttachmentSection({ requesterId, ticketId, attachments, onRefresh }: { 
       await removeTicketAttachment(requesterId, ticketId, removeTarget.id, trimmed);
       setRemoveTarget(null);
       setRemoveReason("");
+      restoreRemoveFocus();
       onRefresh();
     } catch (cause) {
       setActionError(formatAttachmentError(cause, "Unable to remove Attachment."));
@@ -408,8 +438,8 @@ function AttachmentSection({ requesterId, ticketId, attachments, onRefresh }: { 
     {actionError && <div className="alert alert-error" role="alert">{actionError}</div>}
     <label htmlFor="detail-attachments">Add Attachment<input id="detail-attachments" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple onChange={selectFiles} /><small>JPG, JPEG, PNG, WEBP, or PDF; maximum 5 MiB each; maximum 5 active files</small></label>
     {queue.length > 0 && <ul className="attachment-queue" aria-label="Pending Attachments">{queue.map((item) => <li key={item.id}><strong>{item.file.name}</strong><span>{formatSize(item.file.size)}</span>{item.status === "uploading" && <span role="status">Uploading…</span>}{item.error && <span className="field-error">{item.error}</span>}<span className="attachment-actions">{item.canUpload && item.status !== "uploading" && <button type="button" className="button button-secondary" onClick={() => upload(item)}>{item.status === "error" ? "Retry" : "Upload"}</button>}<button type="button" className="file-remove" onClick={() => removeQueued(item.id)} disabled={item.status === "uploading"}>Remove</button></span></li>)}</ul>}
-    {attachments.length === 0 ? <p className="empty-detail">No Attachments on this Ticket.</p> : <ul className="attachment-metadata-list">{attachments.map((attachment) => <li key={attachment.id}><div><strong>{attachment.originalName}</strong><span>{attachment.mimeType} · {formatSize(attachment.sizeBytes)}</span><span>Uploaded {formatDate(attachment.uploadedAt)}</span>{attachment.state === "REMOVED" ? <><span className="status-badge status-removed">Removed · {attachment.removedReason ?? "No reason provided"}</span>{attachment.removedAt && <span>Removed at {formatDate(attachment.removedAt)}</span>}</> : <><span className="status-badge">Active</span><span className="attachment-actions"><button type="button" className="button button-secondary" onClick={() => download(attachment)} disabled={downloadingId === attachment.id}>{downloadingId === attachment.id ? "Downloading…" : "Download"}</button><button type="button" className="button button-secondary" onClick={() => openRemove(attachment)}>Remove</button></span></>}</div></li>)}</ul>}
-    {removeTarget && <div className="dialog-backdrop"><section className="remove-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-dialog-heading"><h2 id="remove-dialog-heading">Remove {removeTarget.originalName}?</h2><p>This will hide the file while retaining its metadata.</p><label htmlFor="remove-reason">Reason<textarea id="remove-reason" value={removeReason} minLength={5} maxLength={250} autoFocus onChange={(event) => setRemoveReason(event.target.value)} aria-invalid={removeError ? "true" : "false"} /></label>{removeError && <p className="field-error" role="alert">{removeError}</p>}<div className="form-actions"><button type="button" className="button button-secondary" onClick={closeRemove} disabled={removingId !== null}>Cancel</button><button type="button" className="button button-primary remove-confirm" onClick={confirmRemove} disabled={removingId !== null}>{removingId !== null ? "Removing…" : "Confirm removal"}</button></div></section></div>}
+    {attachments.length === 0 ? <p className="empty-detail">No Attachments on this Ticket.</p> : <ul className="attachment-metadata-list">{attachments.map((attachment) => <li key={attachment.id}><div><strong>{attachment.originalName}</strong><span>{attachment.mimeType} · {formatSize(attachment.sizeBytes)}</span><span>Uploaded {formatDate(attachment.uploadedAt)}</span>{attachment.state === "REMOVED" ? <><span className="status-badge status-removed">Removed · {attachment.removedReason ?? "No reason provided"}</span>{attachment.removedAt && <span>Removed at {formatDate(attachment.removedAt)}</span>}</> : <><span className="status-badge">Active</span><span className="attachment-actions"><button type="button" className="button button-secondary" onClick={() => download(attachment)} disabled={downloadingId === attachment.id}>{downloadingId === attachment.id ? "Downloading…" : "Download"}</button><button type="button" className="button button-secondary" onClick={(event) => openRemove(attachment, event.currentTarget)}>Remove</button></span></>}</div></li>)}</ul>}
+    {removeTarget && <div className="dialog-backdrop"><section ref={removeDialogRef} className="remove-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-dialog-heading"><h2 id="remove-dialog-heading">Remove {removeTarget.originalName}?</h2><p>This will hide the file while retaining its metadata.</p><label htmlFor="remove-reason">Reason<textarea id="remove-reason" value={removeReason} minLength={5} maxLength={250} onChange={(event) => setRemoveReason(event.target.value)} aria-invalid={removeError ? "true" : "false"} /></label>{removeError && <p className="field-error" role="alert">{removeError}</p>}<div className="form-actions"><button type="button" className="button button-secondary" onClick={closeRemove} disabled={removingId !== null}>Cancel</button><button type="button" className="button button-primary remove-confirm" onClick={confirmRemove} disabled={removingId !== null}>{removingId !== null ? "Removing…" : "Confirm removal"}</button></div></section></div>}
   </section>;
 }
 

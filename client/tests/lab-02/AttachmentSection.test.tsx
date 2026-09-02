@@ -66,11 +66,32 @@ describe("Attachment section", () => {
   it("shows invalid MIME, duplicate, and over-limit files instead of dropping them", async () => {
     await renderDetail();
     const input = screen.getByLabelText(/Add Attachment/);
-    fireEvent.change(input, { target: { files: [new File(["x"], "bad.txt", { type: "text/plain" }), new File(["x"], "wrong.pdf", { type: "image/png" }), new File(["x"], "battery.pdf", { type: "application/pdf" })] } });
+    const duplicateA = new File(["x"], "same.pdf", { type: "application/pdf", lastModified: 1 });
+    const duplicateB = new File(["x"], "same.pdf", { type: "application/pdf", lastModified: 1 });
+    fireEvent.change(input, { target: { files: [new File(["x"], "bad.txt", { type: "text/plain" }), new File(["x"], "wrong.pdf", { type: "image/png" }), duplicateA, duplicateB, new File(["different content"], "battery.pdf", { type: "application/pdf" })] } });
     expect(screen.getByText(/Unsupported file type/)).toBeInTheDocument();
     expect(screen.getByText(/extension and MIME type/)).toBeInTheDocument();
     expect(screen.getByText("This file is already selected.")).toBeInTheDocument();
-    expect(within(screen.getByRole("list", { name: "Pending Attachments" })).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(screen.getByRole("list", { name: "Pending Attachments" })).getAllByRole("listitem")).toHaveLength(5);
+  });
+
+  it("traps focus in the removal dialog, closes on Escape, and restores the trigger focus", async () => {
+    await renderDetail();
+    const trigger = screen.getByRole("button", { name: "Remove" });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    const reason = screen.getByLabelText("Reason");
+    const confirm = screen.getByRole("button", { name: "Confirm removal" });
+    expect(document.activeElement).toBe(reason);
+    confirm.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(document.activeElement).toBe(reason);
+    reason.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(confirm);
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("requires a valid removal reason and soft-removes an active Attachment", async () => {
@@ -83,6 +104,32 @@ describe("Attachment section", () => {
     fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "No longer needed" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm removal" }));
     await waitFor(() => expect(remove).toHaveBeenCalledWith(1, 42, 10, "No longer needed"));
+  });
+
+  it("shows Removing busy state and prevents repeated removal while the request is pending", async () => {
+    let resolveRemove!: (value: api.TicketAttachmentMetadata) => void;
+    const remove = vi.spyOn(api, "removeTicketAttachment").mockImplementation(() => new Promise((resolve) => { resolveRemove = resolve; }));
+    const getDetail = vi.spyOn(api, "getTicketDetail").mockResolvedValue(ticket);
+    await renderDetail(getDetail);
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "No longer needed" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm removal" }));
+    expect(await screen.findByRole("button", { name: "Removing…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(remove).toHaveBeenCalledTimes(1);
+    resolveRemove({ ...activeAttachment, state: "REMOVED", removedAt: "2026-09-01T10:00:00.000Z", removedReason: "No longer needed", downloadUrl: null });
+    await waitFor(() => expect(getDetail).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps a real sixth selection visible and marks it over quota when four active files already exist", async () => {
+    const fourActive: api.TicketAttachmentMetadata[] = [activeAttachment, 12, 13, 14].map((entry, index) => index === 0 ? activeAttachment : { ...activeAttachment, id: entry as number, originalName: `existing-${entry as number}.pdf` });
+    const getDetail = vi.spyOn(api, "getTicketDetail").mockResolvedValue({ ...ticket, attachments: fourActive });
+    await renderDetail(getDetail);
+    fireEvent.change(screen.getByLabelText(/Add Attachment/), { target: { files: [new File(["a"], "fifth.pdf", { type: "application/pdf" }), new File(["b"], "sixth.pdf", { type: "application/pdf" })] } });
+    const pending = screen.getByRole("list", { name: "Pending Attachments" });
+    expect(within(pending).getByText("fifth.pdf")).toBeInTheDocument();
+    expect(within(pending).getByText("sixth.pdf")).toBeInTheDocument();
+    expect(within(pending).getByText("Maximum 5 active Attachments reached.")).toBeInTheDocument();
   });
 
   it("does not expose actions for removed Attachments and maps storage failures safely", async () => {

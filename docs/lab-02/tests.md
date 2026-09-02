@@ -231,10 +231,10 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Feature 16 Evidence
 
-- Client suite: **42 tests passed total** = 6 Feature 16 Attachment UI tests + 5 Feature 15 Ticket Detail tests + 7 Feature 14 My Tickets tests + 13 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
-- `npm test` from `client/`: **passed** (7 test files, 42 tests).
+- Client suite: **45 tests passed total** = 9 Feature 16 Attachment UI tests + 5 Feature 15 Ticket Detail tests + 7 Feature 14 My Tickets tests + 13 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
+- `npm test` from `client/`: **passed** (7 test files, 45 tests).
 - `npm run build` from `client/`: **passed**.
-- Coverage includes active Attachment download with requester context, per-file upload success/failure/retry, cumulative client validation for MIME/type/duplicate files, accessible removal dialog with 5-250 character reason validation, removed Attachment action suppression, and safe storage-unavailable messaging.
+- Coverage includes active Attachment download with requester context, per-file upload success/failure/retry, cumulative client validation for MIME/type/duplicate files, same-name different-content acceptance, real sixth-file quota visibility, focus trap/Escape/trigger-focus restoration, Removing busy state and duplicate activation prevention, accessible removal dialog with 5-250 character reason validation, removed Attachment action suppression, and safe storage-unavailable messaging.
 
 ## 10. Known Limitations and Deferred Tests
 
