@@ -87,8 +87,8 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | UI-12 | FR-16-FR-17, AC-14-AC-15 | Search/filters/Clear | Correct query/page reset/preserved controls | `client/tests/lab-02/MyTickets.test.tsx` | PASS |
 | UI-13 | FR-18-FR-19, AC-16-AC-17 | Sort/page/page size | Correct query and control states | `client/tests/lab-02/MyTickets.test.tsx` | PASS |
 | UI-14 | FR-20, AC-18-AC-19 | Loading/empty/no-results/query/failure | Distinct messages/actions | `client/tests/lab-02/MyTickets.test.tsx` | PASS |
-| UI-15 | FR-21, AC-20 | Open Ticket Detail | Correct owned route/action | `client/tests/lab-02/MyTickets.test.tsx` | Planned |
-| UI-16 | FR-22-FR-24, AC-20-AC-21 | Read-only detail/denied state | Approved fields/metadata or safe not found | `client/tests/lab-02/RequesterTicketDetail.test.tsx` | Planned |
+| UI-15 | FR-21, AC-20 | Open Ticket Detail | View Ticket opens the owned Ticket Detail screen | `client/tests/lab-02/MyTickets.test.tsx`, `client/tests/lab-02/RequesterTicketDetail.test.tsx` | PASS |
+| UI-16 | FR-22-FR-24, AC-20-AC-21 | Read-only detail/denied state | Approved read-only fields and active/removed Attachment metadata, or safe failure | `client/tests/lab-02/RequesterTicketDetail.test.tsx` | PASS |
 | UI-17 | FR-25-FR-26, AC-22-AC-24 | Upload/download states | Busy/success/error/active controls | `client/tests/lab-02/AttachmentSection.test.tsx` | Planned |
 | UI-18 | FR-27-FR-28, AC-25-AC-26 | Removal dialog/reason/removed state | Accessible confirm; metadata; actions absent | `client/tests/lab-02/AttachmentSection.test.tsx` | Planned |
 | UI-19 | FR-29, AC-27 | Removed/unauthorized/unavailable errors | Safe state; no file/action exposure | `client/tests/lab-02/AttachmentSection.test.tsx` | Planned |
@@ -192,7 +192,7 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Lab 2
 
-**Status:** Feature 14 My Tickets UI is implemented on branch `feature/14-lab2-my-tickets`; Ticket Detail and Attachment UI remain separate Features.
+**Status:** Feature 15 Ticket Detail UI is implemented on branch `feature/15-lab2-ticket-detail`; Attachment upload/download/removal UI remains a separate Feature.
 
 ### Feature 10 Evidence
 
@@ -221,6 +221,13 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 - `npm test` from `client/`: **passed** (5 test files, 31 tests).
 - `npm run build` from `client/`: **passed**.
 - Coverage includes owner-scoped Ticket loading, A→B requester switching without stale data, semantic desktop table and mobile card rendering, `aria-sort` state, labelled loading/no-stale-data state, search/filter AND query reset, clear filters, owner-empty and filtered no-results states, safe retry, page size, and pagination controls.
+
+### Feature 15 Evidence
+
+- Client suite: **36 tests passed total** = 5 Feature 15 Ticket Detail tests + 7 Feature 14 My Tickets tests + 13 Feature 13 Create Ticket tests + 6 Feature 12 requester-selection tests + 2 Requester API shape tests + 3 Lab 1 regression tests.
+- `npm test` from `client/`: **passed** (6 test files, 36 tests).
+- `npm run build` from `client/`: **passed**.
+- Coverage includes View Ticket navigation, owned read-only Ticket fields, Requester context, loading/no-stale-data, safe failure/retry, safe 404 not-found handling without Ticket-data leakage, active/removed Attachment metadata with removal timestamp, no download action before Attachment UI, and back-navigation preserving non-default My Tickets query values.
 
 ## 10. Known Limitations and Deferred Tests
 

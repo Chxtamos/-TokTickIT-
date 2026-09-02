@@ -69,7 +69,36 @@ export interface TicketListResponse {
   applied: Omit<TicketListQuery, "page" | "pageSize">;
 }
 
+export interface TicketAttachmentMetadata {
+  id: number;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  state: "ACTIVE" | "REMOVED";
+  uploadedAt: string;
+  removedAt: string | null;
+  removedReason: string | null;
+  downloadUrl: string | null;
+}
+
+export interface TicketDetail {
+  id: number;
+  ticketNumber: string;
+  ticketDate: string;
+  requester: DevelopmentRequester & { email: string };
+  category: ReferenceItem;
+  relatedSystem: ReferenceItem;
+  summary: string;
+  requestedPriority: CreateTicketInput["requestedPriority"];
+  description: string;
+  currentStatus: string;
+  createdAt: string;
+  updatedAt: string;
+  attachments: TicketAttachmentMetadata[];
+}
+
 export interface ApiValidationError extends Error {
+  statusCode?: number;
   fieldErrors?: Record<string, string[]>;
 }
 
@@ -125,6 +154,7 @@ export async function getDevelopmentRequesters(): Promise<DevelopmentRequester[]
 async function throwApiError(response: Response, fallback: string): Promise<never> {
   const body = await response.json().catch(() => null) as { error?: { message?: string; fieldErrors?: Record<string, string[]> } } | null;
   const error = new Error(body?.error?.message ?? fallback) as ApiValidationError;
+  error.statusCode = response.status;
   error.fieldErrors = body?.error?.fieldErrors;
   throw error;
 }
@@ -159,6 +189,18 @@ export async function getTickets(requesterId: number, query: TicketListQuery): P
   const value = await response.json() as TicketListResponse;
   if (!value || !Array.isArray(value.items) || !value.pagination || typeof value.pagination.totalItems !== "number") {
     throw new Error("TokTickIT API returned invalid Ticket list data");
+  }
+  return value;
+}
+
+export async function getTicketDetail(requesterId: number, ticketId: number): Promise<TicketDetail> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}`, {
+    headers: { "X-Requester-Id": String(requesterId) },
+  });
+  if (!response.ok) return throwApiError(response, "Unable to load Ticket Detail");
+  const value = await response.json() as TicketDetail;
+  if (!value || typeof value.id !== "number" || typeof value.ticketNumber !== "string" || !value.requester || !value.category || !value.relatedSystem || typeof value.summary !== "string" || typeof value.description !== "string" || !Array.isArray(value.attachments)) {
+    throw new Error("TokTickIT API returned invalid Ticket Detail data");
   }
   return value;
 }

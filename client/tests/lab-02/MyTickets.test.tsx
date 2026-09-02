@@ -47,7 +47,7 @@ describe("My Tickets screen", () => {
     expect(within(table).getByText("TKT-2026-000042")).toBeInTheDocument();
     expect(within(table).getByText("Laptop battery issue")).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: "Ticket Number" })).toBeInTheDocument();
-    expect(within(table).getByRole("button", { name: "View Ticket" })).toBeDisabled();
+    expect(within(table).getByRole("button", { name: "View Ticket" })).toBeEnabled();
     expect(within(table).getByRole("columnheader", { name: "Last Updated" })).toHaveAttribute("aria-sort", "descending");
     expect(document.querySelector(".tickets-cards .ticket-card")).toHaveTextContent("TKT-2026-000042");
     expect(document.querySelector(".tickets-cards .ticket-card")).toHaveTextContent("View Ticket");

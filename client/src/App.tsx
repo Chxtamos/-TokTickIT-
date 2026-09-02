@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { createTicket, CreatedTicket, DevelopmentRequester, getCategories, getDevelopmentRequesters, getRelatedSystems, getTickets, ReferenceItem, TicketListQuery, TicketListResponse, TicketSummary, uploadTicketAttachment } from "./api.js";
+import { createTicket, CreatedTicket, DevelopmentRequester, getCategories, getDevelopmentRequesters, getRelatedSystems, getTicketDetail, getTickets, ReferenceItem, TicketDetail, TicketListQuery, TicketListResponse, TicketSummary, uploadTicketAttachment } from "./api.js";
 import "./App.css";
 
 const REQUESTER_STORAGE_KEY = "toktickit.requesterId";
@@ -228,8 +228,8 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
 
 const DEFAULT_TICKET_QUERY: TicketListQuery = { search: "", categoryId: null, relatedSystemId: null, requestedPriority: null, currentStatus: null, sortBy: "updatedAt", sortDirection: "desc", page: 1, pageSize: 10 };
 
-function MyTicketsScreen({ requester, onCreate }: { requester: DevelopmentRequester; onCreate: () => void }) {
-  const [query, setQuery] = useState(DEFAULT_TICKET_QUERY);
+function MyTicketsScreen({ requester, onCreate, onViewTicket, initialQuery, onQueryChange }: { requester: DevelopmentRequester; onCreate: () => void; onViewTicket: (ticketId: number) => void; initialQuery: TicketListQuery; onQueryChange: (query: TicketListQuery) => void }) {
+  const [query, setQueryState] = useState(initialQuery);
   const [categories, setCategories] = useState<ReferenceItem[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<ReferenceItem[]>([]);
   const [data, setData] = useState<TicketListResponse | null>(null);
@@ -256,13 +256,14 @@ function MyTicketsScreen({ requester, onCreate }: { requester: DevelopmentReques
     return () => { cancelled = true; };
   }, [requester.id, query, retryToken]);
 
-  const updateQuery = (change: Partial<TicketListQuery>) => setQuery((current) => ({ ...current, ...change, page: 1 }));
-  const clearFilters = () => setQuery(DEFAULT_TICKET_QUERY);
+  const applyQuery = (next: TicketListQuery) => { setQueryState(next); onQueryChange(next); };
+  const updateQuery = (change: Partial<TicketListQuery>) => applyQuery({ ...query, ...change, page: 1 });
+  const clearFilters = () => applyQuery(DEFAULT_TICKET_QUERY);
   const hasFilters = query.search !== "" || query.categoryId !== null || query.relatedSystemId !== null || query.requestedPriority !== null || query.currentStatus !== null || query.sortBy !== "updatedAt" || query.sortDirection !== "desc" || query.pageSize !== 10;
   const formatDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
   const sortAria = (field: TicketListQuery["sortBy"]): "ascending" | "descending" | "none" => query.sortBy === field ? (query.sortDirection === "asc" ? "ascending" : "descending") : "none";
-  const renderTicket = (ticket: TicketSummary) => <tr key={ticket.id}><td><strong>{ticket.ticketNumber}</strong></td><td>{ticket.summary}</td><td>{ticket.category.name}</td><td>{ticket.relatedSystem.name}</td><td>{ticket.requestedPriority}</td><td>{ticket.currentStatus}</td><td>{formatDate(ticket.updatedAt)}</td><td><button type="button" className="button button-secondary" disabled title="Ticket Detail is available in the next Lab 2 feature">View Ticket</button></td></tr>;
-  const renderTicketCard = (ticket: TicketSummary) => <article className="ticket-card" key={ticket.id}><h2>{ticket.ticketNumber}</h2><dl><div><dt>Summary</dt><dd>{ticket.summary}</dd></div><div><dt>Category</dt><dd>{ticket.category.name}</dd></div><div><dt>Related System</dt><dd>{ticket.relatedSystem.name}</dd></div><div><dt>Requested Priority</dt><dd>{ticket.requestedPriority}</dd></div><div><dt>Current Status</dt><dd>{ticket.currentStatus}</dd></div><div><dt>Last Updated</dt><dd>{formatDate(ticket.updatedAt)}</dd></div></dl><button type="button" className="button button-secondary" disabled title="Ticket Detail is available in the next Lab 2 feature">View Ticket</button></article>;
+  const renderTicket = (ticket: TicketSummary) => <tr key={ticket.id}><td><strong>{ticket.ticketNumber}</strong></td><td>{ticket.summary}</td><td>{ticket.category.name}</td><td>{ticket.relatedSystem.name}</td><td>{ticket.requestedPriority}</td><td>{ticket.currentStatus}</td><td>{formatDate(ticket.updatedAt)}</td><td><button type="button" className="button button-secondary" onClick={() => onViewTicket(ticket.id)}>View Ticket</button></td></tr>;
+  const renderTicketCard = (ticket: TicketSummary) => <article className="ticket-card" key={ticket.id}><h2>{ticket.ticketNumber}</h2><dl><div><dt>Summary</dt><dd>{ticket.summary}</dd></div><div><dt>Category</dt><dd>{ticket.category.name}</dd></div><div><dt>Related System</dt><dd>{ticket.relatedSystem.name}</dd></div><div><dt>Requested Priority</dt><dd>{ticket.requestedPriority}</dd></div><div><dt>Current Status</dt><dd>{ticket.currentStatus}</dd></div><div><dt>Last Updated</dt><dd>{formatDate(ticket.updatedAt)}</dd></div></dl><button type="button" className="button button-secondary" onClick={() => onViewTicket(ticket.id)}>View Ticket</button></article>;
 
   return (
     <main className="shell-content tickets-page" id="my-tickets" aria-busy={state === "loading"}>
@@ -287,14 +288,61 @@ function MyTicketsScreen({ requester, onCreate }: { requester: DevelopmentReques
         <p className="result-count" role="status">Showing {data.items.length} of {data.pagination.totalItems} Tickets</p>
         <div className="tickets-table-wrap"><table className="tickets-table"><caption className="visually-hidden">Tickets created by {requester.name}. Sorted by {query.sortBy}, {query.sortDirection === "asc" ? "ascending" : "descending"}.</caption><thead><tr><th scope="col" aria-sort={sortAria("ticketNumber")}>Ticket Number</th><th scope="col">Summary</th><th scope="col">Category</th><th scope="col">Related System</th><th scope="col">Requested Priority</th><th scope="col">Current Status</th><th scope="col" aria-sort={query.sortBy === "createdAt" ? sortAria("createdAt") : sortAria("updatedAt")}>Last Updated</th><th scope="col"><span className="visually-hidden">Actions</span></th></tr></thead><tbody>{data.items.map(renderTicket)}</tbody></table></div>
         <div className="tickets-cards" aria-label={`Tickets created by ${requester.name}`}>{data.items.map(renderTicketCard)}</div>
-        <nav className="pagination" aria-label="Ticket pagination"><button type="button" className="button button-secondary" disabled={!data.pagination.hasPreviousPage} onClick={() => setQuery((current) => ({ ...current, page: current.page - 1 }))}>Previous</button><span>Page {data.pagination.page} of {Math.max(data.pagination.totalPages, 1)}</span><button type="button" className="button button-secondary" disabled={!data.pagination.hasNextPage} onClick={() => setQuery((current) => ({ ...current, page: current.page + 1 }))}>Next</button></nav>
+        <nav className="pagination" aria-label="Ticket pagination"><button type="button" className="button button-secondary" disabled={!data.pagination.hasPreviousPage} onClick={() => applyQuery({ ...query, page: query.page - 1 })}>Previous</button><span>Page {data.pagination.page} of {Math.max(data.pagination.totalPages, 1)}</span><button type="button" className="button button-secondary" disabled={!data.pagination.hasNextPage} onClick={() => applyQuery({ ...query, page: query.page + 1 })}>Next</button></nav>
+      </>}
+    </main>
+  );
+}
+
+function TicketDetailScreen({ requester, ticketId, onBack }: { requester: DevelopmentRequester; ticketId: number; onBack: () => void }) {
+  const [state, setState] = useState<"loading" | "ready" | "error" | "not-found">("loading");
+  const [detail, setDetail] = useState<TicketDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState("loading");
+    setDetail(null);
+    setError(null);
+    getTicketDetail(requester.id, ticketId)
+      .then((loaded) => { if (!cancelled) { setDetail(loaded); setState("ready"); } })
+      .catch((cause) => {
+        if (cancelled) return;
+        const statusCode = typeof cause === "object" && cause !== null && "statusCode" in cause ? cause.statusCode : undefined;
+        if (statusCode === 404) {
+          setState("not-found");
+          setError("Ticket not found or unavailable.");
+        } else {
+          setState("error");
+          setError(cause instanceof Error ? cause.message : "Unable to load Ticket Detail.");
+        }
+      });
+    return () => { cancelled = true; };
+  }, [requester.id, ticketId, retryToken]);
+
+  const formatDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  const formatSize = (bytes: number) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KiB` : `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
+
+  return (
+    <main className="shell-content detail-page" id="ticket-detail" aria-busy={state === "loading"}>
+      <button type="button" className="back-button" onClick={onBack}>← Back to My Tickets</button>
+      {state === "loading" && <p className="loading-message" role="status">Loading Ticket Detail…</p>}
+      {state === "error" && <div className="alert alert-error" role="alert">{error ?? "Unable to load Ticket Detail."}<button type="button" className="button button-secondary retry-button" onClick={() => setRetryToken((token) => token + 1)}>Retry</button></div>}
+      {state === "not-found" && <div className="alert alert-warning" role="alert">{error ?? "Ticket not found or unavailable."}<button type="button" className="button button-secondary retry-button" onClick={() => setRetryToken((token) => token + 1)}>Retry</button></div>}
+      {state === "ready" && detail && <>
+        <div className="page-heading detail-heading"><div><p className="eyebrow">Requester workspace</p><h1>{detail.ticketNumber}</h1><p>Ticket Detail for {requester.name}</p></div><span className="status-badge">{detail.currentStatus}</span></div>
+        <section className="detail-card" aria-labelledby="ticket-information-heading"><h2 id="ticket-information-heading">Ticket Information</h2><dl className="detail-grid"><div><dt>Ticket Number</dt><dd>{detail.ticketNumber}</dd></div><div><dt>Ticket Date</dt><dd>{formatDate(detail.ticketDate)}</dd></div><div><dt>Requester</dt><dd>{detail.requester.name} ({detail.requester.email})</dd></div><div><dt>Category</dt><dd>{detail.category.name}</dd></div><div><dt>Related System</dt><dd>{detail.relatedSystem.name}</dd></div><div><dt>Requested Priority</dt><dd>{detail.requestedPriority}</dd></div><div><dt>Current Status</dt><dd>{detail.currentStatus}</dd></div><div><dt>Last Updated</dt><dd>{formatDate(detail.updatedAt)}</dd></div><div className="detail-wide"><dt>Summary</dt><dd>{detail.summary}</dd></div><div className="detail-wide"><dt>Description</dt><dd className="preserve-whitespace">{detail.description}</dd></div></dl></section>
+        <section className="detail-card" aria-labelledby="attachment-metadata-heading"><h2 id="attachment-metadata-heading">Attachments</h2>{detail.attachments.length === 0 ? <p className="empty-detail">No Attachments on this Ticket.</p> : <ul className="attachment-metadata-list">{detail.attachments.map((attachment) => <li key={attachment.id}><div><strong>{attachment.originalName}</strong><span>{attachment.mimeType} · {formatSize(attachment.sizeBytes)}</span><span>Uploaded {formatDate(attachment.uploadedAt)}</span>{attachment.state === "REMOVED" && <><span className="status-badge status-removed">Removed · {attachment.removedReason ?? "No reason provided"}</span>{attachment.removedAt && <span>Removed at {formatDate(attachment.removedAt)}</span>}</>}{attachment.state === "ACTIVE" && <span className="status-badge">Active</span>}</div></li>)}</ul>}</section>
       </>}
     </main>
   );
 }
 
 function ApplicationShell({ requester, onChangeRequester }: { requester: DevelopmentRequester; onChangeRequester: () => void }) {
-  const [screen, setScreen] = useState<"home" | "create" | "tickets">("home");
+  const [screen, setScreen] = useState<"home" | "create" | "tickets" | "detail">("home");
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [ticketQuery, setTicketQuery] = useState(DEFAULT_TICKET_QUERY);
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -302,7 +350,7 @@ function ApplicationShell({ requester, onChangeRequester }: { requester: Develop
           <a className="brand" href="#home">TokTickIT</a>
           <nav aria-label="Primary navigation">
             <a href="#home" aria-current="page">Workspace</a>
-            <button className={screen === "tickets" ? "nav-create active" : "nav-create"} type="button" onClick={() => setScreen("tickets")} aria-current={screen === "tickets" ? "page" : undefined}>My Tickets</button>
+            <button className={screen === "tickets" || screen === "detail" ? "nav-create active" : "nav-create"} type="button" onClick={() => setScreen("tickets")} aria-current={screen === "tickets" || screen === "detail" ? "page" : undefined}>My Tickets</button>
             <button className={screen === "create" ? "nav-create active" : "nav-create"} type="button" onClick={() => setScreen("create")} aria-current={screen === "create" ? "page" : undefined}>Create Ticket</button>
           </nav>
           <div className="requester-context">
@@ -311,7 +359,7 @@ function ApplicationShell({ requester, onChangeRequester }: { requester: Develop
           </div>
         </div>
       </header>
-      {screen === "create" ? <CreateTicketScreen requester={requester} onBack={() => setScreen("home")} /> : screen === "tickets" ? <MyTicketsScreen requester={requester} onCreate={() => setScreen("create")} /> : <main className="shell-content" id="home">
+      {screen === "create" ? <CreateTicketScreen requester={requester} onBack={() => setScreen("home")} /> : screen === "tickets" ? <MyTicketsScreen requester={requester} onCreate={() => setScreen("create")} onViewTicket={(ticketId) => { setSelectedTicketId(ticketId); setScreen("detail"); }} initialQuery={ticketQuery} onQueryChange={setTicketQuery} /> : screen === "detail" && selectedTicketId !== null ? <TicketDetailScreen requester={requester} ticketId={selectedTicketId} onBack={() => setScreen("tickets")} /> : <main className="shell-content" id="home">
         <p className="eyebrow">Requester workspace</p>
         <h1>Welcome to TokTickIT</h1>
         <p>Your requester context is ready. Choose an action from the navigation when the corresponding Lab 2 screen is available.</p>
