@@ -110,6 +110,22 @@ nav a:hover { text-decoration: underline; }
 .attachment-metadata-list li > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .attachment-metadata-list li strong { flex-basis: 100%; overflow-wrap: anywhere; }
 .attachment-metadata-list li span:not(.status-badge) { color: var(--color-text-muted); font-size: 14px; }
+.attachment-section > label { margin-top: 8px; }
+.attachment-section input[type="file"] { display: block; width: 100%; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-text); }
+.attachment-queue { display: grid; gap: 10px; margin: 16px 0; padding: 0; list-style: none; }
+.attachment-queue li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-page); }
+.attachment-queue li strong { overflow-wrap: anywhere; }
+.attachment-queue li > span:not(.field-error):not(.attachment-actions) { color: var(--color-text-muted); font-size: 14px; }
+.attachment-actions { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.attachment-actions .button { min-height: 36px; padding: 6px 10px; font-size: 13px; }
+.attachment-section .attachment-metadata-list .attachment-actions { flex-basis: 100%; margin-left: 0; }
+.dialog-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgb(23 59 44 / 45%); }
+.remove-dialog { width: min(100%, 520px); padding: 24px; border: 1px solid var(--color-border); border-radius: 12px; background: #fff; box-shadow: 0 18px 50px rgb(23 59 44 / 25%); }
+.remove-dialog h2 { margin: 0 0 8px; font-size: 22px; }
+.remove-dialog p { color: var(--color-text-muted); }
+.remove-dialog textarea { display: block; width: 100%; min-height: 100px; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; resize: vertical; }
+.remove-dialog .form-actions { justify-content: flex-end; }
+.remove-dialog .button-primary { width: auto; }
 @media (max-width: 900px) { .ticket-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .selector-card { padding: 24px 20px; } .header-inner { align-items: flex-start; flex-direction: column; gap: 12px; } .requester-context { margin-left: 0; flex-wrap: wrap; } nav { width: 100%; } }
 @media (max-width: 760px) { .readonly-grid, .form-grid { grid-template-columns: 1fr; } .ticket-form { padding: 18px; } .form-actions { flex-direction: column-reverse; } .form-actions button { width: 100% !important; } }

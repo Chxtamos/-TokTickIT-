@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { createTicket, CreatedTicket, DevelopmentRequester, getCategories, getDevelopmentRequesters, getRelatedSystems, getTicketDetail, getTickets, ReferenceItem, TicketDetail, TicketListQuery, TicketListResponse, TicketSummary, uploadTicketAttachment } from "./api.js";
+import { createTicket, CreatedTicket, DevelopmentRequester, downloadTicketAttachment, getCategories, getDevelopmentRequesters, getRelatedSystems, getTicketDetail, getTickets, ReferenceItem, removeTicketAttachment, TicketAttachmentMetadata, TicketDetail, TicketListQuery, TicketListResponse, TicketSummary, uploadTicketAttachment } from "./api.js";
 import "./App.css";
 
 const REQUESTER_STORAGE_KEY = "toktickit.requesterId";
@@ -294,6 +294,125 @@ function MyTicketsScreen({ requester, onCreate, onViewTicket, initialQuery, onQu
   );
 }
 
+type PendingAttachment = { id: string; file: File; status: "queued" | "uploading" | "error"; error: string | null; canUpload: boolean };
+
+const attachmentRules: Record<string, string> = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".pdf": "application/pdf" };
+
+function attachmentQueueId(file: File): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`;
+}
+
+function validateAttachmentFile(file: File): string | null {
+  const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+  if (!attachmentRules[extension]) return "Unsupported file type. Use JPG, JPEG, PNG, WEBP, or PDF.";
+  if (file.type !== attachmentRules[extension]) return "File extension and MIME type do not match.";
+  if (file.size > 5 * 1024 * 1024) return "File exceeds the 5 MiB limit.";
+  return null;
+}
+
+function formatAttachmentError(cause: unknown, fallback: string): string {
+  const statusCode = typeof cause === "object" && cause !== null && "statusCode" in cause ? cause.statusCode : undefined;
+  if (statusCode === 409) return "Maximum 5 active Attachments reached.";
+  if (statusCode === 413) return "File exceeds the 5 MiB limit.";
+  if (statusCode === 415) return "Unsupported Attachment type.";
+  if (statusCode === 500) return "File temporarily unavailable.";
+  return cause instanceof Error ? cause.message : fallback;
+}
+
+function AttachmentSection({ requesterId, ticketId, attachments, onRefresh }: { requesterId: number; ticketId: number; attachments: TicketAttachmentMetadata[]; onRefresh: () => void }) {
+  const [queue, setQueue] = useState<PendingAttachment[]>([]);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [removingId, setRemovingId] = useState<number | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<TicketAttachmentMetadata | null>(null);
+  const [removeReason, setRemoveReason] = useState("");
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const activeCount = attachments.filter((attachment) => attachment.state === "ACTIVE").length;
+
+  const formatDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  const formatSize = (bytes: number) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KiB` : `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
+
+  const selectFiles = (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    let reserved = activeCount + queue.filter((item) => item.canUpload).length;
+    const next = selected.map((file): PendingAttachment => {
+      const duplicate = queue.some((item) => item.file.name === file.name && item.file.size === file.size && item.file.lastModified === file.lastModified) || attachments.some((item) => item.state === "ACTIVE" && item.originalName === file.name);
+      const validationError = duplicate ? "This file is already selected." : validateAttachmentFile(file);
+      const quotaError = !validationError && reserved >= 5 ? "Maximum 5 active Attachments reached." : null;
+      if (!validationError && !quotaError) reserved += 1;
+      const error = validationError ?? quotaError;
+      return { id: attachmentQueueId(file), file, status: error ? "error" as const : "queued" as const, error, canUpload: !error };
+    });
+    setQueue((current) => [...current, ...next]);
+  };
+
+  const removeQueued = (id: string) => setQueue((current) => current.filter((item) => item.id !== id));
+
+  const upload = async (item: PendingAttachment) => {
+    if (!item.canUpload || item.status === "uploading") return;
+    setActionError(null);
+    setQueue((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: "uploading", error: null } : entry));
+    try {
+      await uploadTicketAttachment(requesterId, ticketId, item.file);
+      setQueue((current) => current.filter((entry) => entry.id !== item.id));
+      onRefresh();
+    } catch (cause) {
+      setQueue((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: "error", error: formatAttachmentError(cause, "Unable to upload Attachment.") } : entry));
+    }
+  };
+
+  const download = async (attachment: TicketAttachmentMetadata) => {
+    setActionError(null);
+    setDownloadingId(attachment.id);
+    try {
+      const blob = await downloadTicketAttachment(requesterId, ticketId, attachment.id);
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = attachment.originalName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (cause) {
+      setActionError(formatAttachmentError(cause, "Unable to download Attachment."));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const openRemove = (attachment: TicketAttachmentMetadata) => { setRemoveTarget(attachment); setRemoveReason(""); setRemoveError(null); setActionError(null); };
+  const closeRemove = () => { if (removingId === null) { setRemoveTarget(null); setRemoveReason(""); setRemoveError(null); } };
+  const confirmRemove = async () => {
+    if (!removeTarget) return;
+    const trimmed = removeReason.trim();
+    if (trimmed.length < 5 || trimmed.length > 250) { setRemoveError("Reason must be between 5 and 250 characters."); return; }
+    setRemovingId(removeTarget.id);
+    setRemoveError(null);
+    try {
+      await removeTicketAttachment(requesterId, ticketId, removeTarget.id, trimmed);
+      setRemoveTarget(null);
+      setRemoveReason("");
+      onRefresh();
+    } catch (cause) {
+      setActionError(formatAttachmentError(cause, "Unable to remove Attachment."));
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  return <section className="detail-card attachment-section" aria-labelledby="attachment-heading">
+    <h2 id="attachment-heading">Attachments</h2>
+    {actionError && <div className="alert alert-error" role="alert">{actionError}</div>}
+    <label htmlFor="detail-attachments">Add Attachment<input id="detail-attachments" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple onChange={selectFiles} /><small>JPG, JPEG, PNG, WEBP, or PDF; maximum 5 MiB each; maximum 5 active files</small></label>
+    {queue.length > 0 && <ul className="attachment-queue" aria-label="Pending Attachments">{queue.map((item) => <li key={item.id}><strong>{item.file.name}</strong><span>{formatSize(item.file.size)}</span>{item.status === "uploading" && <span role="status">Uploading…</span>}{item.error && <span className="field-error">{item.error}</span>}<span className="attachment-actions">{item.canUpload && item.status !== "uploading" && <button type="button" className="button button-secondary" onClick={() => upload(item)}>{item.status === "error" ? "Retry" : "Upload"}</button>}<button type="button" className="file-remove" onClick={() => removeQueued(item.id)} disabled={item.status === "uploading"}>Remove</button></span></li>)}</ul>}
+    {attachments.length === 0 ? <p className="empty-detail">No Attachments on this Ticket.</p> : <ul className="attachment-metadata-list">{attachments.map((attachment) => <li key={attachment.id}><div><strong>{attachment.originalName}</strong><span>{attachment.mimeType} · {formatSize(attachment.sizeBytes)}</span><span>Uploaded {formatDate(attachment.uploadedAt)}</span>{attachment.state === "REMOVED" ? <><span className="status-badge status-removed">Removed · {attachment.removedReason ?? "No reason provided"}</span>{attachment.removedAt && <span>Removed at {formatDate(attachment.removedAt)}</span>}</> : <><span className="status-badge">Active</span><span className="attachment-actions"><button type="button" className="button button-secondary" onClick={() => download(attachment)} disabled={downloadingId === attachment.id}>{downloadingId === attachment.id ? "Downloading…" : "Download"}</button><button type="button" className="button button-secondary" onClick={() => openRemove(attachment)}>Remove</button></span></>}</div></li>)}</ul>}
+    {removeTarget && <div className="dialog-backdrop"><section className="remove-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-dialog-heading"><h2 id="remove-dialog-heading">Remove {removeTarget.originalName}?</h2><p>This will hide the file while retaining its metadata.</p><label htmlFor="remove-reason">Reason<textarea id="remove-reason" value={removeReason} minLength={5} maxLength={250} autoFocus onChange={(event) => setRemoveReason(event.target.value)} aria-invalid={removeError ? "true" : "false"} /></label>{removeError && <p className="field-error" role="alert">{removeError}</p>}<div className="form-actions"><button type="button" className="button button-secondary" onClick={closeRemove} disabled={removingId !== null}>Cancel</button><button type="button" className="button button-primary remove-confirm" onClick={confirmRemove} disabled={removingId !== null}>{removingId !== null ? "Removing…" : "Confirm removal"}</button></div></section></div>}
+  </section>;
+}
+
 function TicketDetailScreen({ requester, ticketId, onBack }: { requester: DevelopmentRequester; ticketId: number; onBack: () => void }) {
   const [state, setState] = useState<"loading" | "ready" | "error" | "not-found">("loading");
   const [detail, setDetail] = useState<TicketDetail | null>(null);
@@ -333,7 +452,7 @@ function TicketDetailScreen({ requester, ticketId, onBack }: { requester: Develo
       {state === "ready" && detail && <>
         <div className="page-heading detail-heading"><div><p className="eyebrow">Requester workspace</p><h1>{detail.ticketNumber}</h1><p>Ticket Detail for {requester.name}</p></div><span className="status-badge">{detail.currentStatus}</span></div>
         <section className="detail-card" aria-labelledby="ticket-information-heading"><h2 id="ticket-information-heading">Ticket Information</h2><dl className="detail-grid"><div><dt>Ticket Number</dt><dd>{detail.ticketNumber}</dd></div><div><dt>Ticket Date</dt><dd>{formatDate(detail.ticketDate)}</dd></div><div><dt>Requester</dt><dd>{detail.requester.name} ({detail.requester.email})</dd></div><div><dt>Category</dt><dd>{detail.category.name}</dd></div><div><dt>Related System</dt><dd>{detail.relatedSystem.name}</dd></div><div><dt>Requested Priority</dt><dd>{detail.requestedPriority}</dd></div><div><dt>Current Status</dt><dd>{detail.currentStatus}</dd></div><div><dt>Last Updated</dt><dd>{formatDate(detail.updatedAt)}</dd></div><div className="detail-wide"><dt>Summary</dt><dd>{detail.summary}</dd></div><div className="detail-wide"><dt>Description</dt><dd className="preserve-whitespace">{detail.description}</dd></div></dl></section>
-        <section className="detail-card" aria-labelledby="attachment-metadata-heading"><h2 id="attachment-metadata-heading">Attachments</h2>{detail.attachments.length === 0 ? <p className="empty-detail">No Attachments on this Ticket.</p> : <ul className="attachment-metadata-list">{detail.attachments.map((attachment) => <li key={attachment.id}><div><strong>{attachment.originalName}</strong><span>{attachment.mimeType} · {formatSize(attachment.sizeBytes)}</span><span>Uploaded {formatDate(attachment.uploadedAt)}</span>{attachment.state === "REMOVED" && <><span className="status-badge status-removed">Removed · {attachment.removedReason ?? "No reason provided"}</span>{attachment.removedAt && <span>Removed at {formatDate(attachment.removedAt)}</span>}</>}{attachment.state === "ACTIVE" && <span className="status-badge">Active</span>}</div></li>)}</ul>}</section>
+        <AttachmentSection requesterId={requester.id} ticketId={detail.id} attachments={detail.attachments} onRefresh={() => setRetryToken((token) => token + 1)} />
       </>}
     </main>
   );
