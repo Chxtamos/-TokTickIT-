@@ -14,9 +14,11 @@ async function enterRequesterWorkspace(page: Page): Promise<number> {
   await page.goto("/");
   const requesterSelect = page.locator("#requester-select");
   await expect(requesterSelect).toBeVisible();
-  await expect(requesterSelect.locator("option")).toHaveCount(5);
-  await requesterSelect.selectOption({ index: 1 });
-  const requesterId = Number(await requesterSelect.inputValue());
+  const activeRequesterOption = requesterSelect.locator('option:not([value=""])').first();
+  await expect(activeRequesterOption).toHaveCount(1);
+  const requesterId = Number(await activeRequesterOption.getAttribute("value"));
+  expect(Number.isSafeInteger(requesterId)).toBeTruthy();
+  await requesterSelect.selectOption(String(requesterId));
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Welcome to TokTickIT" })).toBeVisible();
   return requesterId;

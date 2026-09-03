@@ -245,8 +245,10 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Feature 18 Evidence
 
+- Scope is Issue #38 / E2E-01 only; E2E-02 through E2E-06 remain planned for the subsequent ownership, Attachment, responsive, visual-evidence, and final-release Issues.
 - Playwright E2E suite: **2 tests passed** for E2E-01.
 - `npm run e2e` from `client/`: **passed** (2 tests, Chromium; real Vite client, Express API, PostgreSQL, migrations, seed, and Attachment storage).
+- Hosted E2E CI runs the Prisma seed twice before Playwright to verify repeatable reference-data setup.
 - Coverage includes active Requester selection, real reference-data loading, valid Ticket creation with mixed PDF/PNG Attachments, backend-generated Ticket Number and `NEW` status, simulated ambiguous create response with form retention, idempotent retry without duplicate Ticket, partial Attachment failure, and individual Attachment retry.
 
 ## 10. Known Limitations and Deferred Tests

@@ -46,7 +46,9 @@ jobs:
         run: npx prisma migrate deploy
       - name: Seed reference data
         working-directory: server
-        run: npm run prisma:seed
+        run: |
+          npm run prisma:seed
+          npm run prisma:seed
       - name: Install Playwright browser
         working-directory: client
         run: npx playwright install --with-deps chromium
