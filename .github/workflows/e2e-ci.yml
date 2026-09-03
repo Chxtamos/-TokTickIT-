@@ -1,0 +1,55 @@
+name: E2E CI
+
+on:
+  pull_request:
+    branches: [main, lab2-staging]
+  push:
+    branches: [main, lab2-staging]
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: toktickit
+          POSTGRES_PASSWORD: toktickit
+          POSTGRES_DB: toktickit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U toktickit -d toktickit"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://toktickit:toktickit@localhost:5432/toktickit?schema=public
+      E2E_API_URL: http://127.0.0.1:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+      - name: Apply migrations
+        working-directory: server
+        run: npx prisma migrate deploy
+      - name: Seed reference data
+        working-directory: server
+        run: npm run prisma:seed
+      - name: Install Playwright browser
+        working-directory: client
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        working-directory: client
+        run: npm run e2e

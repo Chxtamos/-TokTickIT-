@@ -99,12 +99,12 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 
 | ID | Requirement / AC | What it tests | Expected result | Test file | Final |
 | --- | --- | --- | --- | --- | --- |
-| E2E-01 | AC-04, AC-06-AC-12 | Select Requester, create Ticket, mixed files, simulated failure | Backend values, one Ticket, documented recovery | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
-| E2E-02 | AC-13-AC-21 | Create as A, list controls, switch to B, direct A detail | A/B isolation and safe rejection | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
-| E2E-03 | AC-22-AC-27 | Add, download, remove, retained metadata, blocked retry | Complete Attachment lifecycle | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
-| E2E-04 | AC-28-AC-29 | Desktop 1440x900, tablet 820x1180, mobile 390x844 | No clipping/overlap/page scroll; usable controls | `e2e/lab-02/responsive-visual.spec.ts` | Planned |
-| E2E-05 | AC-29 | Required screenshots and Human checklist | Artifacts stored and Human-approved | `e2e/lab-02/responsive-visual.spec.ts` | Planned |
-| E2E-06 | AC-30 | Full builds/tests/seed/workflow on final main | All required commands pass, no skips | `e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
+| E2E-01 | AC-04, AC-06-AC-12 | Select Requester, create Ticket, mixed files, simulated failure | Backend values, one Ticket, documented recovery | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
+| E2E-02 | AC-13-AC-21 | Create as A, list controls, switch to B, direct A detail | A/B isolation and safe rejection | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
+| E2E-03 | AC-22-AC-27 | Add, download, remove, retained metadata, blocked retry | Complete Attachment lifecycle | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
+| E2E-04 | AC-28-AC-29 | Desktop 1440x900, tablet 820x1180, mobile 390x844 | No clipping/overlap/page scroll; usable controls | `client/e2e/lab-02/responsive-visual.spec.ts` | Planned |
+| E2E-05 | AC-29 | Required screenshots and Human checklist | Artifacts stored and Human-approved | `client/e2e/lab-02/responsive-visual.spec.ts` | Planned |
+| E2E-06 | AC-30 | Full builds/tests/seed/workflow on final main | All required commands pass, no skips | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
 
 ## 6. Acceptance-Criterion Traceability
 
@@ -176,7 +176,7 @@ Set-Location ..
 
 # Playwright configured through client/
 Set-Location client
-npx playwright test
+npm run e2e
 Set-Location ..
 ```
 
@@ -242,6 +242,12 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 - `npm test` from `client/`: **passed** (9 test files, 54 tests).
 - `npm run build` from `client/`: **passed**.
 - Coverage includes required markers and programmatic labels, read-only/editable distinction, primary/secondary/busy button states, equivalent desktop table/mobile card content, semantic sort state, active navigation `aria-current`, first-invalid focus, loading `aria-busy`/status announcements, text-labelled priority/status/actions, focus-visible styles, and reduced-motion support.
+
+### Feature 18 Evidence
+
+- Playwright E2E suite: **2 tests passed** for E2E-01.
+- `npm run e2e` from `client/`: **passed** (2 tests, Chromium; real Vite client, Express API, PostgreSQL, migrations, seed, and Attachment storage).
+- Coverage includes active Requester selection, real reference-data loading, valid Ticket creation with mixed PDF/PNG Attachments, backend-generated Ticket Number and `NEW` status, simulated ambiguous create response with form retention, idempotent retry without duplicate Ticket, partial Attachment failure, and individual Attachment retry.
 
 ## 10. Known Limitations and Deferred Tests
 
