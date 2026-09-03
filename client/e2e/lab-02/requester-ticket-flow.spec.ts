@@ -394,7 +394,27 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await page.getByRole("button", { name: "Download", exact: true }).click();
     expect((await downloadPromise).suggestedFilename()).toBe(fileName);
 
+    // Non-owner access must be rejected while the Attachment is still ACTIVE.
+    const unauthorizedDownload = await request.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`, {
+      headers: { "X-Requester-Id": String(requesterB.id) },
+    });
+    expect(unauthorizedDownload.status()).toBe(404);
+    expect(await unauthorizedDownload.text()).not.toContain(fileName);
     const removalReason = "Feature 20 lifecycle cleanup";
+    const unauthorizedRemove = await request.delete(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}`, {
+      headers: { "X-Requester-Id": String(requesterB.id), "Content-Type": "application/json" },
+      data: { reason: removalReason },
+    });
+    expect(unauthorizedRemove.status()).toBe(404);
+    const afterUnauthorizedResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
+      headers: { "X-Requester-Id": String(requesterA.id) },
+    });
+    const afterUnauthorized = await afterUnauthorizedResponse.json() as { attachments: Array<{ id: number; state: string; removedAt: string | null; removedReason: string | null }> };
+    const stillActive = afterUnauthorized.attachments.find((attachment) => attachment.id === attachmentId);
+    expect(stillActive?.state).toBe("ACTIVE");
+    expect(stillActive?.removedAt).toBeNull();
+    expect(stillActive?.removedReason).toBeNull();
+
     await page.getByRole("button", { name: "Remove", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByLabel("Reason").fill(removalReason);
@@ -424,15 +444,5 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
       data: { reason: removalReason },
     });
     expect(removedAgain.status()).toBe(404);
-
-    const unauthorizedDownload = await request.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`, {
-      headers: { "X-Requester-Id": String(requesterB.id) },
-    });
-    expect(unauthorizedDownload.status()).toBe(404);
-    const unauthorizedRemove = await request.delete(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}`, {
-      headers: { "X-Requester-Id": String(requesterB.id), "Content-Type": "application/json" },
-      data: { reason: removalReason },
-    });
-    expect(unauthorizedRemove.status()).toBe(404);
   });
 });
