@@ -100,7 +100,7 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | ID | Requirement / AC | What it tests | Expected result | Test file | Final |
 | --- | --- | --- | --- | --- | --- |
 | E2E-01 | AC-04, AC-06-AC-12 | Select Requester, create Ticket, mixed files, simulated failure | Backend values, one Ticket, documented recovery | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
-| E2E-02 | AC-13-AC-21 | Create as A, list controls, switch to B, direct A detail | A/B isolation and safe rejection | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
+| E2E-02 | AC-13-AC-21 | Create as A, list controls, switch to B, direct A detail | A/B isolation and safe rejection | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
 | E2E-03 | AC-22-AC-27 | Add, download, remove, retained metadata, blocked retry | Complete Attachment lifecycle | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
 | E2E-04 | AC-28-AC-29 | Desktop 1440x900, tablet 820x1180, mobile 390x844 | No clipping/overlap/page scroll; usable controls | `client/e2e/lab-02/responsive-visual.spec.ts` | Planned |
 | E2E-05 | AC-29 | Required screenshots and Human checklist | Artifacts stored and Human-approved | `client/e2e/lab-02/responsive-visual.spec.ts` | Planned |
@@ -250,6 +250,13 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 - `npm run e2e` from `client/`: **passed** (2 tests, Chromium; real Vite client, Express API, PostgreSQL, migrations, seed, and Attachment storage).
 - Hosted E2E CI runs the Prisma seed twice before Playwright to verify repeatable reference-data setup.
 - Coverage includes active Requester selection, real reference-data loading, valid Ticket creation with mixed PDF/PNG Attachments, backend-generated Ticket Number and `NEW` status, simulated ambiguous create response with form retention, idempotent retry without duplicate Ticket, partial Attachment failure, and individual Attachment retry.
+
+### Feature 19 Evidence
+
+- Scope is Issue #39 / E2E-02 only; E2E-03 through E2E-06 remain planned for the subsequent Attachment, responsive, visual-evidence, and final-release Issues.
+- Playwright E2E suite: **4 tests passed** (2 E2E-01 tests from Feature 18 + 2 E2E-02 tests from Feature 19).
+- `npm run e2e` from `client/`: **passed** (4 tests, Chromium; real Vite client, Express API, PostgreSQL, migrations, seed, and Attachment storage).
+- Coverage includes real Requester A/B ownership isolation, active Ticket creation for both contexts, My Tickets search, combined Category/System/Priority/Status filters, Ticket-number sorting and direction, page-size and next-page pagination, owned Ticket Detail rendering, preservation of non-default My Tickets query values after Back, and safe cross-owner/missing Ticket `404` responses without owner data leakage.
 
 ## 10. Known Limitations and Deferred Tests
 
