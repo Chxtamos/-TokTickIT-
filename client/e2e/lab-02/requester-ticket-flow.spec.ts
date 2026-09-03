@@ -331,4 +331,108 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await expect(page.getByRole("heading", { name: "Ticket Information" })).toHaveCount(0);
     await expect(page.getByText(aSummary, { exact: true })).toHaveCount(0);
   });
+
+  test("completes the Attachment lifecycle with real upload, retry, download, removal, and safe access checks", async ({ page, request }) => {
+    const requesters = await getActiveRequesters(request);
+    expect(requesters.length).toBeGreaterThanOrEqual(2);
+    const [requesterA, requesterB] = requesters;
+    const references = await getReferenceData(request);
+    const runId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const summary = `Feature 20 Attachment lifecycle ${runId}`;
+    const ticket = await createTicketForRequester(request, requesterA.id, summary, references, "HIGH");
+    const fileName = `feature-20-${runId}.pdf`;
+    const fileBuffer = pdfFixture();
+
+    await enterRequesterWorkspace(page, requesterA.id);
+    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.locator("#ticket-search").fill(summary);
+    await expect(page.locator(".tickets-table tbody").getByText(summary, { exact: true })).toBeVisible();
+    await page.locator(".tickets-table tbody tr").filter({ hasText: summary }).getByRole("button", { name: "View Ticket", exact: true }).click();
+    await expect(page.getByRole("heading", { name: ticket.ticketNumber, exact: true })).toBeVisible();
+
+    let uploadAttempts = 0;
+    await page.route("**/api/tickets/*/attachments", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      uploadAttempts += 1;
+      if (uploadAttempts === 1) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: { code: "ATTACHMENT_UPLOAD_FAILED", message: "Simulated lifecycle upload failure." } }),
+        });
+      }
+      return route.continue();
+    });
+
+    await page.locator("#detail-attachments").setInputFiles({ name: fileName, mimeType: "application/pdf", buffer: fileBuffer });
+    await page.getByRole("button", { name: "Upload", exact: true }).click();
+    await expect(page.getByText("File temporarily unavailable.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(page.getByText(fileName, { exact: true })).toBeVisible();
+    await expect(page.getByText("Active", { exact: true })).toBeVisible();
+    expect(uploadAttempts).toBe(2);
+
+    const detailResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
+      headers: { "X-Requester-Id": String(requesterA.id) },
+    });
+    expect(detailResponse.ok()).toBeTruthy();
+    const detail = await detailResponse.json() as { attachments: Array<{ id: number; originalName: string; state: string; removedAt: string | null; removedReason: string | null }> };
+    const uploaded = detail.attachments.find((attachment) => attachment.originalName === fileName);
+    expect(uploaded).toBeDefined();
+    expect(uploaded?.state).toBe("ACTIVE");
+    expect(uploaded?.removedAt).toBeNull();
+    const attachmentId = uploaded!.id;
+
+    const downloadResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`, {
+      headers: { "X-Requester-Id": String(requesterA.id) },
+    });
+    expect(downloadResponse.status()).toBe(200);
+    expect(downloadResponse.headers()["content-type"]).toContain("application/pdf");
+    expect(downloadResponse.headers()["x-content-type-options"]).toBe("nosniff");
+    expect(await downloadResponse.body()).toEqual(fileBuffer);
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download", exact: true }).click();
+    expect((await downloadPromise).suggestedFilename()).toBe(fileName);
+
+    const removalReason = "Feature 20 lifecycle cleanup";
+    await page.getByRole("button", { name: "Remove", exact: true }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByLabel("Reason").fill(removalReason);
+    await page.getByRole("button", { name: "Confirm removal", exact: true }).click();
+    await expect(page.getByText(`Removed · ${removalReason}`, { exact: true })).toBeVisible();
+    await expect(page.getByText("Removed at", { exact: false })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Download", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
+
+    const removedDetailResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
+      headers: { "X-Requester-Id": String(requesterA.id) },
+    });
+    const removedDetail = await removedDetailResponse.json() as { attachments: Array<{ id: number; state: string; removedAt: string | null; removedReason: string | null }> };
+    const removed = removedDetail.attachments.find((attachment) => attachment.id === attachmentId);
+    expect(removed?.state).toBe("REMOVED");
+    expect(removed?.removedAt).not.toBeNull();
+    expect(removed?.removedReason).toBe(removalReason);
+
+    const removedDownload = await request.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`, {
+      headers: { "X-Requester-Id": String(requesterA.id) },
+    });
+    expect(removedDownload.status()).toBe(404);
+    const removedDownloadBody = await removedDownload.text();
+    expect(removedDownloadBody).not.toContain(fileName);
+    const removedAgain = await request.delete(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}`, {
+      headers: { "X-Requester-Id": String(requesterA.id), "Content-Type": "application/json" },
+      data: { reason: removalReason },
+    });
+    expect(removedAgain.status()).toBe(404);
+
+    const unauthorizedDownload = await request.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`, {
+      headers: { "X-Requester-Id": String(requesterB.id) },
+    });
+    expect(unauthorizedDownload.status()).toBe(404);
+    const unauthorizedRemove = await request.delete(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}`, {
+      headers: { "X-Requester-Id": String(requesterB.id), "Content-Type": "application/json" },
+      data: { reason: removalReason },
+    });
+    expect(unauthorizedRemove.status()).toBe(404);
+  });
 });
