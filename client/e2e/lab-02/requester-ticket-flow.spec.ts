@@ -238,7 +238,15 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await page.locator("#ticket-page-size").selectOption("20");
     await expect(page.locator(".pagination")).toContainText("Page 1 of");
 
-    // Apply search, AND filters, sort, and direction through the real API.
+    // Verify ticket-number ordering across multiple rows through the real API.
+    await page.locator("#ticket-search").fill(runId);
+    await expect(page.locator(".result-count")).toHaveText("Showing 11 of 11 Tickets");
+    await page.locator("#ticket-sort").selectOption("ticketNumber");
+    await page.locator("#ticket-direction").selectOption("asc");
+    const ticketNumbers = await page.locator(".tickets-table tbody tr td:first-child strong").allTextContents();
+    expect(ticketNumbers).toEqual([...ticketNumbers].sort());
+
+    // Apply search, AND filters, and retain sort/direction for the owned Detail check.
     await page.locator("#ticket-search").fill(targetSummary);
     await expect(page.locator(".result-count")).toHaveText("Showing 1 of 1 Tickets");
     await page.locator("#ticket-category").selectOption(String(references.category.id));
@@ -311,11 +319,10 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await expect(page.locator(".tickets-table tbody").getByText(bSummary, { exact: true })).toBeVisible();
     await page.route("**/api/tickets/*", async (route) => {
       if (route.request().method() === "GET" && route.request().url().endsWith(`/api/tickets/${bTicket.id}`)) {
-        return route.fulfill({
-          status: 404,
-          contentType: "application/json",
-          body: JSON.stringify({ error: { code: "RESOURCE_NOT_FOUND", message: "Ticket not found." } }),
-        });
+        // Keep B's browser context/header, but request A's ID from the real backend.
+        const response = await route.fetch({ url: `${API_URL}/api/tickets/${aTicket.id}` });
+        expect(response.status()).toBe(404);
+        return route.fulfill({ response });
       }
       return route.continue();
     });
