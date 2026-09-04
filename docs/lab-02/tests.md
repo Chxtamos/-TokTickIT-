@@ -101,7 +101,7 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | --- | --- | --- | --- | --- | --- |
 | E2E-01 | AC-04, AC-06-AC-12 | Select Requester, create Ticket, mixed files, simulated failure | Backend values, one Ticket, documented recovery | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
 | E2E-02 | AC-13-AC-21 | Create as A, list controls, switch to B, direct A detail | A/B isolation and safe rejection | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
-| E2E-03 | AC-22-AC-27 | Add, download, remove, retained metadata, blocked retry | Complete Attachment lifecycle | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
+| E2E-03 | AC-22-AC-27 | Add, download, remove, retained metadata, blocked retry | Complete Attachment lifecycle | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
 | E2E-04 | AC-28-AC-29 | Desktop 1440x900, tablet 820x1180, mobile 390x844 | No clipping/overlap/page scroll; usable controls | `client/e2e/lab-02/responsive-visual.spec.ts` | Planned |
 | E2E-05 | AC-29 | Required screenshots and Human checklist | Artifacts stored and Human-approved | `client/e2e/lab-02/responsive-visual.spec.ts` | Planned |
 | E2E-06 | AC-30 | Full builds/tests/seed/workflow on final main | All required commands pass, no skips | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
@@ -257,6 +257,13 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 - Playwright E2E suite: **4 tests passed** (2 E2E-01 tests from Feature 18 + 2 E2E-02 tests from Feature 19).
 - `npm run e2e` from `client/`: **passed** (4 tests, Chromium; real Vite client, Express API, PostgreSQL, migrations, seed, and Attachment storage).
 - Coverage includes real Requester A/B ownership isolation, active Ticket creation for both contexts, My Tickets search, combined Category/System/Priority/Status filters, Ticket-number sorting and direction, page-size and next-page pagination, owned Ticket Detail rendering, preservation of non-default My Tickets query values after Back, and safe cross-owner/missing Ticket `404` responses without owner data leakage.
+
+### Feature 20 Evidence
+
+- Scope is Issue #40 / E2E-03 only; E2E-04 through E2E-06 remain planned for responsive, visual-evidence, and final-release verification.
+- Playwright E2E suite: **5 tests passed** (2 E2E-01 tests, 2 E2E-02 tests, and 1 E2E-03 test).
+- `npm run e2e` from `client/`: **passed** (5 tests, Chromium; real Vite client, Express API, PostgreSQL, migrations, seed, and isolated Attachment storage).
+- Coverage includes valid PDF upload, simulated failed upload with individual Retry, active metadata verification, real byte/MIME/`nosniff` download, valid removal reason, retained removed metadata/timestamp/reason, suppression of removed actions, safe 404 for removed download/re-removal, and unauthorized download/removal rejection.
 
 ## 10. Known Limitations and Deferred Tests
 
