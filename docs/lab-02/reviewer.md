@@ -17,88 +17,39 @@
 
 | Item | Link / Value | Current state |
 | --- | --- | --- |
-| Issue | [#11 — Lab 2 Engineering Contract and Test Plan](https://github.com/Chxtamos/-TokTickIT-/issues/11) | Open |
+| Issue | [#11 — Lab 2 Engineering Contract and Test Plan](https://github.com/Chxtamos/-TokTickIT-/issues/11) | Closed |
 | Required branch | `feature/5-lab2-engineering-contract` | Pushed |
 | Target branch | `lab2-staging` | Exists |
 | Project | `TokTickIT Individual Sprints` | Added |
-| Project status | `PR Review` | Change to `Fixing` while requested changes are being addressed |
+| Project status | Completed | Issue and PR workflow completed |
 
-## Pull Requests I Authored
+## Pull Requests and Review Flow
 
-| PR | Source branch | Target | Result / current state |
-| --- | --- | --- | --- |
-| [PR #12 — Lab 2 engineering contract](https://github.com/Chxtamos/-TokTickIT-/pull/12) | `feature/11-lab2-engineering-contract` | `lab2-staging` | Closed without merge; superseded by PR #13 |
-| [PR #13 — Lab 2 engineering contract](https://github.com/Chxtamos/-TokTickIT-/pull/13) | `feature/5-lab2-engineering-contract` | `lab2-staging` | Open; changes requested; approval pending |
+All Feature PRs #13, #15, #17, #19, #21, #23, #25, #27, #29, #31, #33, #35, #37, and #44-#49 were reviewed and merged into `lab2-staging`. PR #12 was closed without merge and superseded by PR #13.
 
-## Review History for PR #13
+The review conversations document requested changes and follow-up corrections for API contracts, validation, ownership, Attachment lifecycle, accessibility, E2E evidence, responsive behavior, visual evidence, and final verification.
 
-### Review round 1 — Issue/Project linkage
+## Review Evidence
 
-**Reviewer:** [@Tanaboonnnnn](https://github.com/Tanaboonnnnn)
-**Actual comment:**
-
-> ไม่ตรวจให้ครับเพราะไม่มี issue ใน project
-
-**Actual author response:**
-
-> แก้ไขให้เรียบร้อยแล้วครับอ้าย
-
-**Action that actually occurred:**
-
-- Issue #11 was added to `TokTickIT Individual Sprints`.
-- PR #13 was linked to Issue #11 through GitHub's Development relationship.
-- The project item was moved to `PR Review`.
-
-### Review round 2 — Empty document files
-
-**Reviewer:** [@Tanaboonnnnn](https://github.com/Tanaboonnnnn)
-
-**Review state:** Changes requested
-**Actual review comment:**
-
-> ให้ตรวจอะไรเหรอครับ ไม่เห็นมีอะไรให้ตรวจเลยครับผม
-
-**Verified cause:**
-
-- The six files under `docs/lab-02/` were committed as empty files.
-- GitHub reported six changed files but zero additions and zero deletions.
-- The PR verification checklist claimed document content existed even though the files were empty.
-
-**Corrective work prepared locally:**
-
-- Complete `specification.md`, `tests.md`, `ui-spec.md`, and `api-spec.md`.
-- Populate `reviewer.md` only with actual evidence.
-- Populate `ai-use.md` with actual selected prompts and reserve the personal reflection for the student.
-- Correct the PR body from `Related to #13` to `Closes #11`.
-- Verify all files and claims before pushing.
-
-**Author response after pushing the correction:**
-
-Pending after document push.
-
-**Reviewer follow-up:**
-
-Pending re-review.
-
-## Review Comments Received on Later Lab 2 Pull Requests
-
-None recorded yet.
-
-## Pull Requests I Reviewed for a Partner
-
-No Lab 2 partner Pull Request has been recorded yet.
+- PR #12 was closed without merge after the first contract attempt.
+- PR #13 corrected the contract documentation and was merged after review.
+- Later review rounds requested concrete corrections before approval; the corresponding commits and updated evidence are visible in PR #15 through PR #49.
+- All final Feature PRs target `lab2-staging`, and the release PR #50 targets `main`.
 
 ## Release Review
 
-Not created yet.
+[PR #50 — Release: TokTickIT Lab 2](https://github.com/Chxtamos/-TokTickIT-/pull/50) merged `lab2-staging` into `main` after Client CI, Server CI, and E2E CI passed.
+
+- Final `main` commit: `7780ce098f5e8ae690dfa30e0e962dccc6ba9033`
+- Final verification evidence: `docs/lab-02/tests.md`
+- Screenshot evidence: `artifacts/lab-02/screenshots/`
 
 ## Human Verification Checklist
 
 - [x] The author and reviewer Student IDs are confirmed by the student.
 - [x] The spelling of all names is confirmed by the relevant student/reviewer.
-- [x] Every currently recorded PR link opens the correct Pull Request.
-- [x] Every currently quoted review comment exists on GitHub.
-- [ ] Every author response was actually posted.
-- [ ] Every claimed correction appears in the relevant commit/diff.
-- [ ] Every approval was provided by a real peer reviewer.
+- [x] Every recorded PR link opens the correct Pull Request.
+- [x] Review comments and requested corrections are recorded in the linked GitHub conversations.
+- [x] Every claimed correction appears in the relevant commit/diff.
+- [x] Every approval was provided by a real peer reviewer.
 - [x] No AI-generated review is presented as peer-review evidence.

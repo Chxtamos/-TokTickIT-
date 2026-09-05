@@ -288,6 +288,7 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 - Client: `npm run build` passed; `npm test -- --run` passed (**9 files, 54 tests**).
 - E2E: `npm run e2e` passed (**9 tests**, including E2E-01 through E2E-05 and the 29-screenshot visual evidence test).
 - Final audit confirmed no `.env`/secret files, generated build output, Playwright report/test-results, or uploaded storage files are tracked. E2E-06 is now `PASS`; the release PR should use `lab2-staging` as base source and `main` as target.
+- Final delivery PDF: `output/pdf/67070507210_Lab2_Final.pdf` with `Answer Part 1` through `Answer Part 9` and working GitHub links.
 
 ## 10. Known Limitations and Deferred Tests
 

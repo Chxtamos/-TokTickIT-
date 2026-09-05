@@ -246,26 +246,26 @@ The normative contract is `api-spec.md`. It defines active reference-data retrie
 
 ### Product Completion
 
-- [ ] All approved FRs/BRs are implemented without excluded Lab 3 or IT Staff features.
-- [ ] Every AC maps to one or more passing tests.
-- [ ] Required unit, API, UI, style, responsive, visual, and E2E evidence passes on final `main`.
-- [ ] No required test is skipped, disabled, commented out, flaky, or unrelated.
-- [ ] Prisma schema, migrations, constraints, indexes, and idempotent seed match the contract.
-- [ ] API behavior matches `api-spec.md` and UI matches `ui-spec.md`.
-- [ ] Success, invalid, boundary, loading, empty, no-results, ownership, storage, and failure cases are demonstrated.
-- [ ] README setup, migration, seed, run, test, and storage instructions are current.
-- [ ] No secrets, `.env`, generated build output, or uploaded files are committed.
+- [x] All approved FRs/BRs are implemented without excluded Lab 3 or IT Staff features.
+- [x] Every AC maps to one or more passing tests.
+- [x] Required unit, API, UI, style, responsive, visual, and E2E evidence passes on final `main`.
+- [x] No required test is skipped, disabled, commented out, flaky, or unrelated.
+- [x] Prisma schema, migrations, constraints, indexes, and idempotent seed match the contract.
+- [x] API behavior matches `api-spec.md` and UI matches `ui-spec.md`.
+- [x] Success, invalid, boundary, loading, empty, no-results, ownership, storage, and failure cases are demonstrated.
+- [x] README setup, migration, seed, run, test, and storage instructions are current.
+- [x] No secrets, `.env`, generated build output, or uploaded files are committed.
 
 ### Course Delivery
 
-- [ ] GitHub Issues cover specifications, data, API, UI, tests, E2E, visual review, documents, and release.
+- [x] GitHub Issues cover specifications, data, API, UI, tests, E2E, visual review, documents, and release.
 - [x] `lab2-staging` was created from completed Lab 1 `main`.
-- [ ] Every Issue uses a feature branch and peer-reviewed PR into `lab2-staging`.
-- [ ] Real reviewer comments, responses, corrections, and approvals are recorded.
-- [ ] Release PR `lab2-staging -> main` passes integration tests and review.
+- [x] Every Issue uses a feature branch and peer-reviewed PR into `lab2-staging`.
+- [x] Real reviewer comments, responses, corrections, and approvals are recorded.
+- [x] Release PR `lab2-staging -> main` passes integration tests and review.
 - [x] `ai-use.md` contains 6-10 actual prompts and the student's own reflection.
-- [ ] Required screenshots are readable under `artifacts/lab-02/screenshots/`.
-- [ ] One concise PDF uses `Answer Part 1` through `Answer Part 9` in exact order with working links.
+- [x] Required screenshots are readable under `artifacts/lab-02/screenshots/`.
+- [x] One concise PDF uses `Answer Part 1` through `Answer Part 9` in exact order with working links.
 
 ## 11. Assumptions and Decisions Requiring Human Approval
 
