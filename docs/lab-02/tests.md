@@ -26,37 +26,37 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 
 | ID | Requirement / AC | What it tests | Expected result | Test file | Final |
 | --- | --- | --- | --- | --- | --- |
-| UNIT-01 | BR-11, AC-08 | Ticket Number formatting | Exact `TKT-YYYY-NNNNNN` with padding | `server/tests/lab-02/ticket-number.unit.test.ts` | Planned |
-| UNIT-02 | BR-15-BR-17, AC-07 | Summary/Description trimming and boundaries | Exact limits pass; outside/blank fail | `server/tests/lab-02/ticket-validation.unit.test.ts` | Planned |
-| UNIT-03 | BR-19-BR-20, AC-09 | Normalized payload hash/idempotency | Equivalent content hashes equally; changes differ | `server/tests/lab-02/ticket-idempotency.unit.test.ts` | Planned |
-| UNIT-04 | BR-21-BR-27, AC-14-AC-18 | Ticket-list query parsing/defaults | Valid normalized; invalid/unknown rejected | `server/tests/lab-02/ticket-query.unit.test.ts` | Planned |
-| UNIT-05 | BR-29-BR-32, AC-22-AC-23 | Extension/MIME/signature and 5 MiB boundary | Valid accepted; mismatch/oversize rejected | `server/tests/lab-02/attachment-validation.unit.test.ts` | Planned |
-| UNIT-06 | BR-33-BR-34, AC-22 | Filename sanitization/storage key | No traversal/control chars; generated UUID key | `server/tests/lab-02/attachment-storage.unit.test.ts` | Planned |
+| UNIT-01 | BR-11, AC-08 | Ticket Number formatting | Exact `TKT-YYYY-NNNNNN` with padding | `server/tests/lab-02/create-ticket.api.test.ts`, `create-ticket.postgres.integration.test.ts` | PASS |
+| UNIT-02 | BR-15-BR-17, AC-07 | Summary/Description trimming and boundaries | Exact limits pass; outside/blank fail | `server/tests/lab-02/create-ticket.api.test.ts` | PASS |
+| UNIT-03 | BR-19-BR-20, AC-09 | Normalized payload hash/idempotency | Equivalent content hashes equally; changes differ | `server/tests/lab-02/create-ticket.api.test.ts`, `create-ticket.postgres.integration.test.ts` | PASS |
+| UNIT-04 | BR-21-BR-27, AC-14-AC-18 | Ticket-list query parsing/defaults | Valid normalized; invalid/unknown rejected | `server/tests/lab-02/my-tickets.api.test.ts` | PASS |
+| UNIT-05 | BR-29-BR-32, AC-22-AC-23 | Extension/MIME/signature and 5 MiB boundary | Valid accepted; mismatch/oversize rejected | `server/tests/lab-02/attachments.api.test.ts`, `attachments.postgres.integration.test.ts` | PASS |
+| UNIT-06 | BR-33-BR-34, AC-22 | Filename sanitization/storage key | No traversal/control chars; generated UUID key | `server/tests/lab-02/attachments.api.test.ts` | PASS |
 
 ## 3. Planned API and Integration Tests
 
 | ID | Requirement / AC | What it tests | Expected result | Test file | Final |
 | --- | --- | --- | --- | --- | --- |
-| API-01 | FR-02, BR-04, AC-02 | Active Requester list | `200`, active only, deterministic order | `server/tests/lab-02/requester-context.api.test.ts` | Planned |
-| API-02 | FR-02, AC-03 | Empty/failing Requester API | Empty `200 []`; safe `500` | `server/tests/lab-02/requester-context.api.test.ts` | Planned |
-| API-03 | BR-05, AC-01, AC-04 | Missing/malformed/inactive/valid context | Invalid `400`; valid accepted | `server/tests/lab-02/requester-context.api.test.ts` | Planned |
-| API-04 | FR-08, BR-13, AC-06 | Active Categories/Related Systems | Correct shape, active only, deterministic | `server/tests/lab-02/reference-data.api.test.ts` | Planned |
-| API-05 | FR-11, BR-01-BR-02, AC-08 | Valid Ticket creation | `201`; one row; owner/number/`NEW` correct | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-06 | FR-10, BR-14-BR-17, AC-07 | Required fields, enum, trim, boundaries | `400` field errors; no row | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-07 | BR-06, AC-08 | Body attempts owner/system override | `400`; no generated/owner override | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-08 | BR-13, BR-44, AC-07 | Missing/inactive Category/System | `400`; no Ticket | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-09 | FR-12, BR-19-BR-20, AC-09-AC-10 | Same request ID/payload replay | First `201`, replay `200`, one Ticket | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-10 | BR-20, AC-09 | Same request ID/different payload | `409`; original unchanged | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-11 | BR-01, AC-08 | Concurrent Ticket creation | All committed Ticket Numbers unique | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-12 | FR-13, BR-41, AC-11 | Simulated database failure | Safe `500`; no partial Ticket | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-13 | FR-15, BR-07, AC-13 | A/B list isolation | Each response contains its owner only | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
-| API-14 | FR-16, BR-21, AC-14 | Case-insensitive Ticket Number/Summary search | Correct owner-scoped matches | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
-| API-15 | FR-17, BR-22-BR-23, AC-15 | Combined search/filters | AND semantics | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
-| API-16 | FR-18, BR-24-BR-25, AC-16 | Supported sorts/tie ordering | Deterministic exact order | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
-| API-17 | FR-19, BR-26, AC-17 | Page boundaries and sizes 10/20/50 | Correct slice/metadata | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
-| API-18 | BR-27-BR-28, AC-17, AC-19 | Page beyond final/owner empty | `200` empty with accurate totals | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
-| API-19 | FR-20, BR-27, AC-18 | Invalid/unknown query | Safe `400 INVALID_QUERY` | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
-| API-20 | FR-20, BR-41, AC-18 | Ticket-list database failure | Safe `500` with no internals | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
+| API-01 | FR-02, BR-04, AC-02 | Active Requester list | `200`, active only, deterministic order | `server/tests/lab-02/reference-data.api.test.ts` | PASS |
+| API-02 | FR-02, AC-03 | Empty/failing Requester API | Empty `200 []`; safe `500` | `server/tests/lab-02/reference-data.api.test.ts` | PASS |
+| API-03 | BR-05, AC-01, AC-04 | Missing/malformed/inactive/valid context | Invalid `400`; valid accepted | `server/tests/lab-02/reference-data.api.test.ts`, `create-ticket.api.test.ts` | PASS |
+| API-04 | FR-08, BR-13, AC-06 | Active Categories/Related Systems | Correct shape, active only, deterministic | `server/tests/lab-02/reference-data.api.test.ts` | PASS |
+| API-05 | FR-11, BR-01-BR-02, AC-08 | Valid Ticket creation | `201`; one row; owner/number/`NEW` correct | `server/tests/lab-02/create-ticket.api.test.ts`, `create-ticket.postgres.integration.test.ts` | PASS |
+| API-06 | FR-10, BR-14-BR-17, AC-07 | Required fields, enum, trim, boundaries | `400` field errors; no row | `server/tests/lab-02/create-ticket.api.test.ts` | PASS |
+| API-07 | BR-06, AC-08 | Body attempts owner/system override | `400`; no generated/owner override | `server/tests/lab-02/create-ticket.api.test.ts` | PASS |
+| API-08 | BR-13, BR-44, AC-07 | Missing/inactive Category/System | `400`; no Ticket | `server/tests/lab-02/create-ticket.api.test.ts` | PASS |
+| API-09 | FR-12, BR-19-BR-20, AC-09-AC-10 | Same request ID/payload replay | First `201`, replay `200`, one Ticket | `server/tests/lab-02/create-ticket.api.test.ts`, `create-ticket.postgres.integration.test.ts` | PASS |
+| API-10 | BR-20, AC-09 | Same request ID/different payload | `409`; original unchanged | `server/tests/lab-02/create-ticket.api.test.ts` | PASS |
+| API-11 | BR-01, AC-08 | Concurrent Ticket creation | All committed Ticket Numbers unique | `server/tests/lab-02/create-ticket.postgres.integration.test.ts` | PASS |
+| API-12 | FR-13, BR-41, AC-11 | Simulated database failure | Safe `500`; no partial Ticket | `server/tests/lab-02/create-ticket.api.test.ts` | PASS |
+| API-13 | FR-15, BR-07, AC-13 | A/B list isolation | Each response contains its owner only | `server/tests/lab-02/my-tickets.api.test.ts` | PASS |
+| API-14 | FR-16, BR-21, AC-14 | Case-insensitive Ticket Number/Summary search | Correct owner-scoped matches | `server/tests/lab-02/my-tickets.api.test.ts` | PASS |
+| API-15 | FR-17, BR-22-BR-23, AC-15 | Combined search/filters | AND semantics | `server/tests/lab-02/my-tickets.api.test.ts` | PASS |
+| API-16 | FR-18, BR-24-BR-25, AC-16 | Supported sorts/tie ordering | Deterministic exact order | `server/tests/lab-02/my-tickets.api.test.ts` | PASS |
+| API-17 | FR-19, BR-26, AC-17 | Page boundaries and sizes 10/20/50 | Correct slice/metadata | `server/tests/lab-02/my-tickets.api.test.ts` | PASS |
+| API-18 | BR-27-BR-28, AC-17, AC-19 | Page beyond final/owner empty | `200` empty with accurate totals | `server/tests/lab-02/my-tickets.api.test.ts` | PASS |
+| API-19 | FR-20, BR-27, AC-18 | Invalid/unknown query | Safe `400 INVALID_QUERY` | `server/tests/lab-02/my-tickets.api.test.ts` | PASS |
+| API-20 | FR-20, BR-41, AC-18 | Ticket-list database failure | Safe `500` with no internals | `server/tests/lab-02/my-tickets.api.test.ts` | PASS |
 | API-21 | FR-22, AC-20 | Owned Ticket Detail | `200`; approved detail/metadata shape | `server/tests/lab-02/ticket-detail.api.test.ts` | PASS |
 | API-22 | FR-23, BR-07-BR-08, AC-21 | Missing/cross-owner Ticket | Same safe `404`; no owner data | `server/tests/lab-02/ticket-detail.api.test.ts` | PASS |
 | API-23 | FR-25, BR-29-BR-35, AC-22 | Valid types and exact 5 MiB upload | `201`; one active row/file | `server/tests/lab-02/attachments.api.test.ts`, `attachments.postgres.integration.test.ts` | PASS |
@@ -104,7 +104,7 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | E2E-03 | AC-22-AC-27 | Add, download, remove, retained metadata, blocked retry | Complete Attachment lifecycle | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
 | E2E-04 | AC-29 | Desktop 1440x900, tablet 820x1180, mobile 390x844 | No clipping/overlap/page scroll; usable controls | `client/e2e/lab-02/responsive-visual.spec.ts` | PASS |
 | E2E-05 | AC-29 | Required screenshots and Human checklist | Artifacts stored and Human-approved | `client/e2e/lab-02/visual-evidence.spec.ts` | PASS |
-| E2E-06 | AC-30 | Full builds/tests/seed/workflow on final main | All required commands pass, no skips | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
+| E2E-06 | AC-30 | Full builds/tests/seed/workflow on final main | All required commands pass, no skips | `client/e2e/lab-02/requester-ticket-flow.spec.ts`, `client/e2e/lab-02/visual-evidence.spec.ts` | PASS |
 
 ## 6. Acceptance-Criterion Traceability
 
@@ -278,6 +278,16 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 - Visual evidence test: **1 test passed**, producing **29 screenshots** under `artifacts/lab-02/screenshots/` in the required requester-selection, create-ticket, my-tickets, and ticket-detail directories.
 - Screenshots cover selector ready/loading/failure; Create Ticket initial/validation/submitting/success/API failure/invalid Attachment; My Tickets A/B/search-filter-sort/page/empty/no-results/failure; owned Detail/upload/download/removal dialog/removed metadata/blocked actions/unauthorized result; and Desktop, Tablet, and Mobile layouts.
 - The approved visual checklist in Section 7 is complete: Zen Green tokens, field states, actions, badges, equivalent table/cards, Attachment states, focus, clipping, overlap, filename readability, and page overflow were inspected against `ui-spec.md`.
+
+### Feature 23 Evidence
+
+- Scope is Issue #43 / E2E-06 final verification and release preparation.
+- Verification baseline: `lab2-staging` commit `6b67a23` (Feature 22 merged); the final documentation commit is recorded in this branch and contains no production-code changes.
+- Server: `npm run build` passed; `RUN_DB_INTEGRATION=1 npm test` passed (**11 files, 62 tests**).
+- Database: `npx prisma migrate deploy` passed with no pending migrations; `npm run prisma:seed` passed twice with no duplicate reference data.
+- Client: `npm run build` passed; `npm test -- --run` passed (**9 files, 54 tests**).
+- E2E: `npm run e2e` passed (**9 tests**, including E2E-01 through E2E-05 and the 29-screenshot visual evidence test).
+- Final audit confirmed no `.env`/secret files, generated build output, Playwright report/test-results, or uploaded storage files are tracked. E2E-06 is now `PASS`; the release PR should use `lab2-staging` as base source and `main` as target.
 
 ## 10. Known Limitations and Deferred Tests
 
