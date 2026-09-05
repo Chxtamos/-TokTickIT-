@@ -102,7 +102,7 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | E2E-01 | AC-04, AC-06-AC-12 | Select Requester, create Ticket, mixed files, simulated failure | Backend values, one Ticket, documented recovery | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
 | E2E-02 | AC-13-AC-21 | Create as A, list controls, switch to B, direct A detail | A/B isolation and safe rejection | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
 | E2E-03 | AC-22-AC-27 | Add, download, remove, retained metadata, blocked retry | Complete Attachment lifecycle | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
-| E2E-04 | AC-28-AC-29 | Desktop 1440x900, tablet 820x1180, mobile 390x844 | No clipping/overlap/page scroll; usable controls | `client/e2e/lab-02/responsive-visual.spec.ts` | PASS |
+| E2E-04 | AC-29 | Desktop 1440x900, tablet 820x1180, mobile 390x844 | No clipping/overlap/page scroll; usable controls | `client/e2e/lab-02/responsive-visual.spec.ts` | PASS |
 | E2E-05 | AC-29 | Required screenshots and Human checklist | Artifacts stored and Human-approved | `client/e2e/lab-02/responsive-visual.spec.ts` | Planned |
 | E2E-06 | AC-30 | Full builds/tests/seed/workflow on final main | All required commands pass, no skips | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
 
@@ -137,7 +137,7 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | AC-25 | API-28-API-29, UI-18, E2E-03 |
 | AC-26 | API-28, API-31, UI-18, E2E-03 |
 | AC-27 | API-30, UI-19, E2E-03 |
-| AC-28 | UI-20-UI-21, E2E-04 |
+| AC-28 | UI-20-UI-21 |
 | AC-29 | E2E-04-E2E-05 and Human visual checklist |
 | AC-30 | E2E-06 and final command/traceability audit |
 

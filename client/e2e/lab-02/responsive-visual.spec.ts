@@ -65,6 +65,41 @@ async function assertNoPageOverflow(page: Page) {
   expect(widths.bodyScrollWidth).toBeLessThanOrEqual(widths.documentClientWidth);
 }
 
+async function assertNoClippingOrOverlap(page: Page) {
+  const layout = await page.locator("main").evaluate((main) => {
+    const viewportWidth = document.documentElement.clientWidth;
+    const children = Array.from(main.children)
+      .filter((element) => getComputedStyle(element).display !== "none" && getComputedStyle(element).visibility !== "hidden")
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { name: element.className || element.tagName, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+      });
+    const clipped = children.filter((box) => box.left < -1 || box.right > viewportWidth + 1).map((box) => box.name);
+    const overlaps: string[] = [];
+    for (let index = 0; index < children.length; index += 1) {
+      for (let next = index + 1; next < children.length; next += 1) {
+        const first = children[index];
+        const second = children[next];
+        if (Math.min(first.right, second.right) > Math.max(first.left, second.left) && Math.min(first.bottom, second.bottom) > Math.max(first.top, second.top)) {
+          overlaps.push(`${first.name} overlaps ${second.name}`);
+        }
+      }
+    }
+    return { clipped, overlaps };
+  });
+  expect(layout.clipped).toEqual([]);
+  expect(layout.overlaps).toEqual([]);
+}
+
+async function assertTouchTargets(page: Page, selector: string, minimum = 36) {
+  const sizes = await page.locator(selector).evaluateAll((elements) => elements.map((element) => {
+    const rect = element.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  }));
+  expect(sizes.length).toBeGreaterThan(0);
+  expect(sizes.every((size) => size.width >= 44 && size.height >= minimum)).toBeTruthy();
+}
+
 async function assertWithinViewport(page: Page, locator: Locator) {
   const box = await locator.boundingBox();
   expect(box).not.toBeNull();
@@ -97,6 +132,7 @@ test.describe("Lab 2 responsive and visual viewport contract", () => {
     await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
     await assertWithinViewport(page, page.locator(".ticket-form"));
+    await assertNoClippingOrOverlap(page);
     await assertNoPageOverflow(page);
     await page.getByRole("button", { name: "My Tickets", exact: true }).click();
     await expect(page.locator(".tickets-table")).toBeVisible();
@@ -106,6 +142,7 @@ test.describe("Lab 2 responsive and visual viewport contract", () => {
     await openDetail(page, scenario);
     await assertWithinViewport(page, page.locator("#ticket-detail"));
     await assertWithinViewport(page, page.locator(".attachment-section"));
+    await assertNoClippingOrOverlap(page);
     await assertNoPageOverflow(page);
   });
 
@@ -117,6 +154,7 @@ test.describe("Lab 2 responsive and visual viewport contract", () => {
     await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
     await assertWithinViewport(page, page.locator(".ticket-form"));
+    await assertNoClippingOrOverlap(page);
     await expect(page.locator("#category-id")).toBeVisible();
     await expect(page.locator("#related-system-id")).toBeVisible();
     await assertNoPageOverflow(page);
@@ -125,6 +163,7 @@ test.describe("Lab 2 responsive and visual viewport contract", () => {
     await assertWithinViewport(page, page.locator(".tickets-table-wrap"));
     await openDetail(page, scenario);
     await assertWithinViewport(page, page.locator(".attachment-section"));
+    await assertNoClippingOrOverlap(page);
     await assertNoPageOverflow(page);
   });
 
@@ -136,19 +175,37 @@ test.describe("Lab 2 responsive and visual viewport contract", () => {
     await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
     await assertWithinViewport(page, page.locator(".ticket-form"));
+    await assertNoClippingOrOverlap(page);
     await assertNoPageOverflow(page);
     await openMyTickets(page, scenario);
     await expect(page.locator(".tickets-table-wrap")).toBeHidden();
     await expect(page.locator(".tickets-cards")).toBeVisible();
     const card = page.locator(".ticket-card").filter({ hasText: scenario.summary });
     await expect(card).toBeVisible();
+    const tableRow = page.locator(".tickets-table tbody tr").filter({ hasText: scenario.summary });
+    const tableCells = await tableRow.locator("td").allTextContents();
+    const cardValues = await card.locator("dd").allTextContents();
+    expect(await card.locator("h2").textContent()).toBe(tableCells[0]);
+    expect(cardValues.slice(0, 5)).toEqual(tableCells.slice(1, 6));
+    await expect(card.getByRole("button", { name: "View Ticket", exact: true })).toBeVisible();
     await assertWithinViewport(page, card);
     await assertWithinViewport(page, card.getByRole("button", { name: "View Ticket", exact: true }));
+    await assertTouchTargets(page, ".tickets-cards .ticket-card button", 44);
+    await assertNoClippingOrOverlap(page);
     await openDetail(page, scenario);
     await assertWithinViewport(page, page.locator("#ticket-detail"));
-    await assertWithinViewport(page, page.getByText(scenario.attachmentName, { exact: true }));
+    const filename = page.getByText(scenario.attachmentName, { exact: true });
+    await assertWithinViewport(page, filename);
+    const filenameMetrics = await filename.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { clientWidth: element.clientWidth, scrollWidth: element.scrollWidth, overflowWrap: style.overflowWrap };
+    });
+    expect(filenameMetrics.scrollWidth).toBeLessThanOrEqual(filenameMetrics.clientWidth);
+    expect(["anywhere", "break-word"]).toContain(filenameMetrics.overflowWrap);
     await expect(page.getByRole("button", { name: "Download", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Remove", exact: true })).toBeVisible();
+    await assertTouchTargets(page, ".attachment-actions button");
+    await assertNoClippingOrOverlap(page);
     await assertNoPageOverflow(page);
   });
 });
