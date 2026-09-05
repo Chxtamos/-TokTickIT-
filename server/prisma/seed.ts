@@ -1,24 +1,11 @@
 import { getPrisma } from "../src/prisma.js";
-
-const categoryNames = [
-  "Account and Access",
-  "Hardware",
-  "Software",
-  "Network",
-];
+import { seedLab2ReferenceData } from "./seed-data.js";
 
 async function main() {
   const prisma = getPrisma();
+  await seedLab2ReferenceData(prisma);
 
-  for (const name of categoryNames) {
-    await prisma.category.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
-  }
-
-  console.log("Seeded the four IT request categories successfully.");
+  console.log("Seeded Lab 2 reference data successfully.");
 }
 
 main()
