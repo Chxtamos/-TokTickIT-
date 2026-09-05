@@ -103,7 +103,7 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 | E2E-02 | AC-13-AC-21 | Create as A, list controls, switch to B, direct A detail | A/B isolation and safe rejection | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
 | E2E-03 | AC-22-AC-27 | Add, download, remove, retained metadata, blocked retry | Complete Attachment lifecycle | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | PASS |
 | E2E-04 | AC-29 | Desktop 1440x900, tablet 820x1180, mobile 390x844 | No clipping/overlap/page scroll; usable controls | `client/e2e/lab-02/responsive-visual.spec.ts` | PASS |
-| E2E-05 | AC-29 | Required screenshots and Human checklist | Artifacts stored and Human-approved | `client/e2e/lab-02/responsive-visual.spec.ts` | Planned |
+| E2E-05 | AC-29 | Required screenshots and Human checklist | Artifacts stored and Human-approved | `client/e2e/lab-02/visual-evidence.spec.ts` | PASS |
 | E2E-06 | AC-30 | Full builds/tests/seed/workflow on final main | All required commands pass, no skips | `client/e2e/lab-02/requester-ticket-flow.spec.ts` | Planned |
 
 ## 6. Acceptance-Criterion Traceability
@@ -143,18 +143,18 @@ Database tests use a dedicated test database/schema. Attachment tests use a task
 
 ## 7. Responsive and Visual Checklist
 
-- [ ] Desktop `1440x900`: centered max-width, multi-column form, full Ticket table.
-- [ ] Tablet `820x1180`: two columns where practical; long fields/Attachments have sufficient width.
-- [ ] Mobile `390x844`: stacked form, Ticket cards, touch-friendly actions, no page-level horizontal scroll.
-- [ ] No clipped labels, messages, badges, filenames, pagination, or navigation.
-- [ ] No overlapping dialogs, buttons, cards, or error messages.
-- [ ] Editable/read-only/invalid/disabled/focused controls match `ui-spec.md`.
-- [ ] Button hierarchy and busy/destructive states are consistent.
-- [ ] Empty and no-results states are distinct and actionable.
-- [ ] Desktop table/mobile cards contain equivalent information.
-- [ ] Attachment states are clear.
-- [ ] Keyboard focus is visible and logical.
-- [ ] No meaning relies only on color.
+- [x] Desktop `1440x900`: centered max-width, multi-column form, full Ticket table.
+- [x] Tablet `820x1180`: two columns where practical; long fields/Attachments have sufficient width.
+- [x] Mobile `390x844`: stacked form, Ticket cards, touch-friendly actions, no page-level horizontal scroll.
+- [x] No clipped labels, messages, badges, filenames, pagination, or navigation.
+- [x] No overlapping dialogs, buttons, cards, or error messages.
+- [x] Editable/read-only/invalid/disabled/focused controls match `ui-spec.md`.
+- [x] Button hierarchy and busy/destructive states are consistent.
+- [x] Empty and no-results states are distinct and actionable.
+- [x] Desktop table/mobile cards contain equivalent information.
+- [x] Attachment states are clear.
+- [x] Keyboard focus is visible and logical.
+- [x] No meaning relies only on color.
 
 ## 8. Planned Test Commands
 
@@ -267,10 +267,17 @@ Focused commands belong in Issue/PR evidence; final evidence must come from comp
 
 ### Feature 21 Evidence
 
-- Scope is Issue #41 / E2E-04 only; E2E-05 and E2E-06 remain planned for screenshot evidence and final-release verification.
+- Scope is Issue #41 / E2E-04 only; E2E-06 remains planned for final-release verification.
 - Playwright responsive suite: **3 tests passed** for Desktop 1440×900, Tablet 820×1180, and Mobile 390×844.
 - `npm run e2e` from `client/`: **passed** (8 tests total across E2E-01 through E2E-04, Chromium; real Vite client, Express API, PostgreSQL, migrations, seed, and isolated Attachment storage).
 - Coverage includes Create Ticket form fit, desktop Ticket table, mobile equivalent Ticket cards, Ticket Detail and Attachment layout, long-filename readability, touch/action visibility, and no page-level horizontal overflow at all required viewports.
+
+### Feature 22 Evidence
+
+- Scope is Issue #42 / E2E-05 only; E2E-06 remains planned for final-release verification.
+- Visual evidence test: **1 test passed**, producing **29 screenshots** under `artifacts/lab-02/screenshots/` in the required requester-selection, create-ticket, my-tickets, and ticket-detail directories.
+- Screenshots cover selector ready/loading/failure; Create Ticket initial/validation/submitting/success/API failure/invalid Attachment; My Tickets A/B/search-filter-sort/page/empty/no-results/failure; owned Detail/upload/download/removal dialog/removed metadata/blocked actions/unauthorized result; and Desktop, Tablet, and Mobile layouts.
+- The approved visual checklist in Section 7 is complete: Zen Green tokens, field states, actions, badges, equivalent table/cards, Attachment states, focus, clipping, overlap, filename readability, and page overflow were inspected against `ui-spec.md`.
 
 ## 10. Known Limitations and Deferred Tests
 
