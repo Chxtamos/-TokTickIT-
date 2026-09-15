@@ -1,6 +1,6 @@
 # Lab 3 Implementation Plan and Ready-to-Create Issues
 
-จัดทำวันที่ 2026-09-15 จาก Lab sheet และโค้ด Lab 2 ของโปรเจคนี้ มีแผนทั้งหมด **17 Issues** พร้อม Title/Description สำหรับนำไปสร้างเอง เลข 01-17 เป็นลำดับแผน ไม่ใช่เลข Issue บน GitHub ขณะนี้ยังไม่ได้สร้าง Issue หรือ PR บน remote
+จัดทำวันที่ 2026-09-15 จาก Lab sheet และโค้ด Lab 2 ของโปรเจคนี้ มีแผนทั้งหมด **17 Issues** ซึ่งสร้างบน GitHub แล้วเป็น #51-#67 เลข 01-17 เป็นลำดับแผน ไม่ใช่ GitHub Issue number Contract PR คือ #68
 
 ## GitHub Issues created
 
@@ -37,11 +37,11 @@
 
 ## Branch และ review flow
 
-- งาน contract นี้ใช้ local branch `feature/24-lab3-engineering-contract` จาก baseline `main`; local `lab3-staging` ตั้งต้นจาก main เดียวกัน ผู้ใช้เป็นคน push เอง
-- งานถัดไปใช้ `feature/<เลขจริง>-<ชื่อสั้น>` จาก `lab3-staging` ให้สอดคล้องกับ branch flow ของ Lab 2
-- หลังผู้ใช้ push ให้สร้าง feature PR -> `lab3-staging`, เชื่อม Issue จริง, ตรวจ tests/CI/evidence และให้เพื่อนรีวิวก่อน merge
+- งาน contract นี้ใช้ `feature/24-lab3-engineering-contract` จาก baseline `main`; `lab3-staging` ตั้งต้นจาก main เดียวกัน ทั้งคู่ถูก push แล้ว
+- งานถัดไปใช้ Feature number ต่อจาก 24 เช่น Issue #52 -> `feature/25-lab3-test-isolation-ci` จาก latest `lab3-staging` GitHub Issue number กับ Feature number ไม่เท่ากัน
+- สร้าง feature PR -> `lab3-staging`, เชื่อม Issue จริงผ่าน GitHub Development relationship, ตรวจ tests/CI/evidence และให้เพื่อนรีวิวก่อน merge ตั้ง Issue ที่เริ่มทำเป็น Started และ PR เป็น PR Review ใน Project #6; งานอื่นคง Backlog
 - Release PR จาก `lab3-staging` -> `main`; เก็บ merge history แล้วตรวจ final main เพื่อใช้เป็นหลักฐานส่งงาน
-- ใช้ Kanban statuses เดิมของ Project โดยตรวจชื่อจริงและบันทึก mapping; ไป Done เมื่อครบเกณฑ์ตาม Lab sheet ไม่ถือว่ามี approval/Done บน remote แล้ว
+- ใช้ Kanban statuses จริงของ [Project #6](https://github.com/users/Chxtamos/projects/6): Issue #51 Started, #52-#67 Backlog และ PR #68 PR Review ณ รอบแก้ feedback นี้ ตรวจกลับหลังเปิด PR เพราะ automation อาจเปลี่ยน Issue เป็น Fixing; ไป Done เมื่อ review/merge/evidence ครบตาม Lab sheet
 - เพิ่ม `lab3-staging` ใน trigger ของ CI ทั้งสาม workflow ในงาน 02 งาน contract นี้ยังไม่แก้ runtime/schema/CI
 
 ## Issue 01
@@ -53,11 +53,11 @@ GitHub: [#51](https://github.com/Chxtamos/-TokTickIT-/issues/51)
 
 จัดทำ Sprint 3 engineering contract ก่อนเขียนฟีเจอร์ โดยอ่าน Lab 3 ทุกหน้าและตรวจ baseline Lab 1/2 จาก repository จริง ระบุ scope/exclusions, numbered FR/BR/AC, authorization matrix, workflow 8 สถานะ, migration/initial-password provisioning, exact API request/response/status, Zen Green UI, planned tests และ Product Definition of Done
 
-Deliverables: `docs/lab-03/specification.md`, `api-spec.md`, `ui-spec.md`, `tests.md`, `README.md`, `implementation-plan.md`, `reviewer.md` และ `ai-use.md` ตรวจ cross-reference, traceability และลิงก์ พร้อมบันทึก approval จากนักศึกษา/peer จริง การเตรียมเอกสารไม่ใช่ Lab 3 product completion
+Deliverables: `docs/lab-03/specification.md`, `docs/lab-03/api-spec.md`, `docs/lab-03/ui-spec.md`, `docs/lab-03/tests.md`, `docs/lab-03/README.md`, `docs/lab-03/implementation-plan.md`, `docs/lab-03/reviewer.md` และ `docs/lab-03/ai-use.md` ตรวจ cross-reference, traceability และลิงก์ พร้อมบันทึก approval จากนักศึกษา/peer จริง การเตรียมเอกสารไม่ใช่ Lab 3 product completion
 
 Acceptance/evidence: FR-01-25; AC-01-32 มี planned coverage ครบ; contract มีอยู่ก่อน main implementation PRs เสร็จ; diff เฉพาะเอกสารและ document validation ผ่าน
 
-Prerequisite: Lab 2 baseline บน main สถานะปัจจุบัน: Issue [#51](https://github.com/Chxtamos/-TokTickIT-/issues/51), branch push และ PR [#68](https://github.com/Chxtamos/-TokTickIT-/pull/68) สร้างแล้ว; รอ Project status และ peer review จริง
+Prerequisite: Lab 2 baseline บน main สถานะปัจจุบัน: Issue [#51](https://github.com/Chxtamos/-TokTickIT-/issues/51), branch push และ PR [#68](https://github.com/Chxtamos/-TokTickIT-/pull/68) สร้างแล้ว; GitHub Development relationship เชื่อม PR ↔ Issue แบบ manual closing reference, Project Issue = Started และ PR = PR Review; รอ re-review/approval จริง การ merge เข้า staging ไม่รับประกัน auto-close บน default main ให้ปิด Issue และตั้ง Done เมื่อมีหลักฐาน review/merge ครบ
 
 ## Issue 02
 GitHub: [#52](https://github.com/Chxtamos/-TokTickIT-/issues/52)
@@ -81,7 +81,7 @@ GitHub: [#53](https://github.com/Chxtamos/-TokTickIT-/issues/53)
 
 **Description:**
 
-เพิ่ม forward migrations จาก Lab 2: rename `RequesterUser` -> `User` โดยรักษา IDs/FKs; เพิ่ม role/password/account state, Session/LoginThrottle, Ticket owner/IT Priority/version/resolution/indication และแยก PublicComment/InternalNote พร้อม constraints/indexes ห้ามแก้ applied migrations หรือล้างข้อมูลเดิม
+เพิ่ม forward migrations จาก Lab 2: rename `RequesterUser` -> `User` โดยรักษา IDs/FKs; เพิ่ม role/password/account state, Session, Ticket owner/IT Priority/version/resolution/indication, TicketOwnerChange provenance และแยก PublicComment/InternalNote พร้อม constraints/indexes ห้ามแก้ applied migrations หรือล้างข้อมูลเดิม Throttle ใช้ bounded process memory ใน local lab จึงไม่มี LoginThrottle table
 
 ทำ interactive `lab3:provision-migrated-users` CLI ตาม contract: random initial password ต่อบัญชีที่ hash ยัง NULL, เก็บ salted hash, แสดงครั้งเดียวหลัง commit และไม่ redirect/log; รักษา activation และ rerun ไม่ reset credentials ทำ creation-only idempotent seed ตามจำนวนบัญชีขั้นต่ำและ 24 Tickets ครบสถานะ/priority/assignment พร้อม safe Comments/Notes อธิบาย local credentials/manual delivery ใน README
 
@@ -96,11 +96,11 @@ GitHub: [#54](https://github.com/Chxtamos/-TokTickIT-/issues/54)
 
 **Description:**
 
-ทำ login/me/change-password/logout ตาม `api-spec.md` ใช้ asynchronous scrypt และ opaque PostgreSQL sessions/cookie, restricted first-login access, absolute/idle expiry, rotation/revocation, exact Origin/credentialed CORS/CSRF และ fixed-window login throttles ที่ persist ได้
+ทำ login/me/change-password/logout ตาม `api-spec.md` โดยรัน PERF-01 บน local/CI runtimes ก่อน freeze scrypt profile; ใช้ opaque PostgreSQL sessions/cookie, restricted first-login access, absolute/idle expiry, rotation/revocation, idempotent logout204, exact Origin/credentialed CORS/CSRF และ bounded in-memory fixed-window throttle สำหรับ local lab
 
 ใช้ safe feedback แบบเดียวกันสำหรับ unknown email/wrong password/inactive/unprovisioned accounts ไม่ return/log credentials ตรวจ current/new/confirm password และการ invalidate sessions ตาม contract
 
-Acceptance/tests: FR-01-04, BR-01/02/07-15, AC-01-05/27/28; UNIT-01/02, API-01-05/09-11/34 รวม token replay, expiry, local/HTTPS cookie flags และ CSRF; multipart จะตรวจร่วมกับงาน 05
+Acceptance/tests: FR-01-04, BR-01/02/07-15, AC-01-05/27/28; UNIT-01/02, PERF-01, API-01-05/09-11/34 รวม absent-session logout204, token replay, expiry, local/HTTPS cookie flags และ CSRF; multipart จะตรวจร่วมกับงาน 05
 
 Dependencies: [#53](https://github.com/Chxtamos/-TokTickIT-/issues/53)
 
@@ -186,7 +186,7 @@ GitHub: [#60](https://github.com/Chxtamos/-TokTickIT-/issues/60)
 
 **Description:**
 
-ทำ operational detail/claim/assign/reassign/unassign/IT Priority/status ตาม exact API และ transition matrix 8 สถานะ ใช้ expectedVersion atomic writes, eligible-owner checks, no-op/terminal rules และ assignment/account coordination locks
+ทำ operational detail/claim/assign/reassign/unassign/IT Priority/status ตาม exact API และ transition matrix 8 สถานะ ใช้ expectedVersion atomic writes, eligible-owner checks, TicketOwnerChange append-only provenance, no-op/terminal staff rules และ assignment/account coordination locks Account-driven terminal owner cleanup เป็นกฎแยกจาก staff mutation
 
 ขอ public resolution summary ตอน Resolved และ public reason ตอน Reopened/Cancelled ใช้ backend timestamps และ reset indication/resolution ตอน reopen รักษา Requested Priority/submitted fields/Attachments ไม่ทำ Actions Taken หรือใช้เป็นเงื่อนไข resolution
 
@@ -201,7 +201,7 @@ GitHub: [#61](https://github.com/Chxtamos/-TokTickIT-/issues/61)
 
 **Description:**
 
-ทำ separate Comment/Note services/endpoints/projections ตาม parent ownership และ role matrix ใช้ trimmed content 1-5000, backend author/time, plain-text data, chronological lists, append-only methods และ request-key replay/conflict
+ทำ separate Comment/Note services/endpoints/projections ตาม parent ownership และ role matrix ใช้ trimmed content 1-5000, backend author/time, plain-text data, chronological lists และ append-only POST201 ไม่มี backend conversation request-key replay/deduplication ใน Lab 3; client แสดง feedback เมื่อผลโพสต์กำกวมเพื่อให้ตรวจรายการก่อน retry
 
 ห้าม Requester เข้าถึง Note content/metadata/count ผ่าน direct API/detail/errors Comments/Notes ใช้ได้ทุก Ticket status โดยไม่เปลี่ยน workflow และห้าม edit/delete
 
@@ -233,7 +233,7 @@ GitHub: [#63](https://github.com/Chxtamos/-TokTickIT-/issues/63)
 
 ทำ admin list/name-email search/optional role filter/create/full basic edit/initial-password reset ตาม exact DTO/status ใช้ one role, normalized unique email, Boolean activation และ expectedVersion ทำ session revocation/lost-owner-eligibility unassignment ใน transaction เดียว พร้อมรักษา historical requester/author/remover links
 
-ป้องกัน self-deactivation และ last-active-admin demotion/deactivation แม้ concurrent writes เพิ่ม self-update/reset reauthenticationRequired และ hash-only initial password/manual delivery ไม่ทำ deletion/bulk/import/export/history/email หรือ advanced list features
+ป้องกัน self-deactivation และ last-active-admin demotion/deactivation แม้ concurrent writes เพิ่ม self-update/reset reauthenticationRequired และ hash-only initial password/manual delivery Account-driven cleanup ต้อง unassign owner ทุก status รวม CLOSED/CANCELLED และบันทึก TicketOwnerChange ก่อน clear owner โดยคง status/resolution/Requester/history links ไม่ทำ deletion/bulk/import/export/account-history screen/email หรือ advanced list features
 
 Acceptance/tests: FR-17-20, AC-22-26/28; API-29-33, DB-04 และ real PostgreSQL duplicate-email/last-admin/assignment-race checks
 
@@ -304,4 +304,4 @@ Dependencies: [#66](https://github.com/Chxtamos/-TokTickIT-/issues/66) และ
 - Copy Title/Description ของ 01-17 แล้วใส่เลขจริง/ลิงก์/dependencies ในเอกสารหลังสร้าง
 - เพิ่มลง Project เดิมและตรวจชื่อ Kanban statuses จริง; ไม่ mark Done เพียงเพราะมี commit
 - หลังผู้ใช้ push ให้สร้าง contract PR เข้า lab3-staging และเชื่อม Issue จริง ให้ peer review ก่อน main implementation completion
-- อย่าใช้ลำดับ 01-17 เป็น `Closes #...` จนกว่าจะทราบเลข GitHub Issue จริง
+- ใช้เลข GitHub Issue จริง #51-#67 ใน PR/Project; สำหรับ staging PR เชื่อม Development relationship แบบ manual และตรวจ merge/review evidence ก่อนปิด Issue อย่าพึ่ง `Closes #...` เป็นหลักฐาน auto-close บน default branch

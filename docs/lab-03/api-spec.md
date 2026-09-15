@@ -6,7 +6,7 @@ Version 1.0, 2026-09-15. Prepared for review; these endpoints are planned, not y
 
 Base `/api`; camelCase JSON; uppercase enums; positive safe integer resource IDs; UUID request keys; ISO 8601 UTC timestamps. JSON object bodies only unless multipart upload is stated. Unknown fields/parameters, repeated query parameters, invalid enum/ID/UUID and malformed JSON are `400 VALIDATION_FAILED`. No client-supplied author, timestamps, role claims, requester identity or password-change flags are trusted.
 
-Protected processing order: session/account lookup -> initial-password restriction -> route role -> Origin/CSRF for writes -> input validation -> role/owner-scoped resource lookup -> transactional mutation/projection. Public login independently checks Origin/JSON and throttle before credential verification. Database/service errors fail closed.
+Protected processing order: session/account lookup -> initial-password restriction -> route role -> Origin/CSRF for writes -> input validation -> role/owner-scoped resource lookup -> transactional mutation/projection. Logout is the idempotent exception: check allowed Origin, look up any presented session, validate CSRF only for a valid session, delete it if present, clear cookie and return 204. Public login independently checks Origin/JSON and throttle before credential verification. Database/service errors fail closed.
 
 Ignore X-Requester-Id for identity; unsupported requesterId JSON/query fields are rejected. Remove `/api/development-requesters`: `404 RESOURCE_NOT_FOUND`, with no user listing. Only health/login are public; OPTIONS is non-data CORS preflight. Staff means IT_STAFF or explicitly authorized ADMINISTRATOR throughout this file.
 
@@ -15,7 +15,7 @@ Ignore X-Requester-Id for identity; unsupported requesterId JSON/query fields ar
 - Cookie name `toktickit.sid`; value random 32-byte base64url token; only SHA-256 hash is persisted. Attributes: HttpOnly, SameSite=Lax, Path=/api, no Domain. Secure=true for HTTPS; Secure=false is allowed only for explicit local HTTP development/test. Clear with matching attributes. No token in JSON or browser storage.
 - Normal session: absolute 8 hours, idle 30 minutes. Initial-password session: absolute/idle maximum 15 minutes. Cookie Max-Age matches absolute duration; server expiry/idle checks remain authoritative. No sliding absolute expiry.
 - Configure CLIENT_ORIGIN as one exact scheme/host/port. CORS allows only it and credentials, allowed methods GET/POST/PATCH/DELETE/OPTIONS, headers Content-Type/X-CSRF-Token, and exposes Retry-After/Content-Disposition. No `*`; do not accept arbitrary reflected origins. Use matching hostnames (e.g. 127.0.0.1 on both client/API) in tests. No cross-site hosting change in this sprint.
-- Each session has a separate random 32-byte hex csrfToken returned by login/me/password-change. Client keeps it only in memory and retrieves me after reload. Every authenticated POST/PATCH/DELETE, including upload/logout, requires matching X-CSRF-Token and exact Origin. Missing Origin is rejected for browser writes; tests supply it. Login uses exact Origin and application/json to prevent login CSRF before a session exists.
+- Each session has a separate random 32-byte hex csrfToken returned by login/me/password-change. Client keeps it only in memory and retrieves me after reload. Every authenticated POST/PATCH/DELETE, including upload and a valid-session logout, requires matching X-CSRF-Token and exact Origin. An absent/expired-session logout still enforces the allowed Origin but cannot validate a session CSRF token; it clears the cookie and returns `204`. Missing/untrusted Origin is rejected for browser writes; tests supply it. Login uses exact Origin and application/json to prevent login CSRF before a session exists.
 - Password policy/hash/attempt limits are BR-08/09/14. Existing and new credential values are never echoed, logged or included in error fieldErrors. Credential errors have identical message `Unable to sign in with those credentials. Check your details or contact an administrator.`
 - Login/password-change rotate the session token and CSRF token. Account edits/reset delete target sessions transactionally. Use `Cache-Control: no-store` on auth/user/Ticket/conversation responses and downloads. Password-bearing routes have bounded JSON size 16 KiB; other JSON routes 64 KiB.
 
@@ -25,9 +25,9 @@ Ignore X-Requester-Id for identity; unsupported requesterId JSON/query fields ar
 | POST /auth/login | `{email:string,password:string}` | 200 AuthResponse plus Set-Cookie | 400 malformed input; 401 INVALID_CREDENTIALS; 403 CSRF_INVALID for Origin; 429 LOGIN_RATE_LIMITED |
 | GET /auth/me | cookie | 200 AuthResponse for normal/restricted session | 401 SESSION_REQUIRED; safe 500 |
 | POST /auth/change-password | `{currentPassword:string,newPassword:string,confirmPassword:string}` plus cookie/Origin/CSRF | 200 AuthResponse with mustChangePassword=false and fresh cookie; revoke all old user sessions | 400 VALIDATION_FAILED for new policy/confirmation/same password; 401 CURRENT_PASSWORD_INVALID or SESSION_REQUIRED; 403 CSRF_INVALID |
-| POST /auth/logout | `{}` plus cookie/Origin/CSRF | 204, no body, delete current session and clear cookie | 401 SESSION_REQUIRED if already absent/expired (also clear cookie); 403 CSRF_INVALID |
+| POST /auth/logout | `{}` plus Origin; valid session also requires cookie/CSRF | 204, no body, delete current session if present and clear cookie, including absent/expired/repeated calls | 403 CSRF_INVALID for invalid Origin or invalid CSRF with a valid session; safe 500 |
 
-Login validates email syntax and bounded password length (empty/oversize: 400); an otherwise well-formed wrong/short historical password yields the uniform 401. Invalid accounts use dummy hash verification. Throttling counters persist fixed windows: five failed email/IP attempts, next request blocked; 30 failed IP attempts, next blocked. 429 contains integer Retry-After seconds until the relevant window expires. A successful login resets only the pair counter and invalidates any presented current session before establishing a fresh one; other existing sessions remain until expiry/logout/password/account change.
+Login validates email syntax and bounded password length (empty/oversize: 400); an otherwise well-formed wrong/short historical password yields the uniform 401. Invalid accounts use dummy hash verification. Bounded process-memory throttling uses fixed windows: five failed email/IP attempts, next request blocked; 30 failed IP attempts, next blocked. 429 contains integer Retry-After seconds until the relevant window expires. Process restart resets buckets; this local-lab limitation is explicit, and distributed/persistent throttling is deferred. A successful login resets only the pair counter and invalidates any presented current session before establishing a fresh one; other existing sessions remain until expiry/logout/password/account change.
 
 ## 3. Exact shared resource shapes
 
@@ -69,7 +69,9 @@ type TicketDetail = TicketSummary & {
   requesterResolvedAt: string | null; requesterResolvedBy: SafeUser | null;
   attachments: Attachment[];
 };
-// Operational detail uses the same shape. Conversations use their own endpoints.
+// Operational detail uses the same shape. Former owner attribution is kept in
+// the internal TicketOwnerChange table; no owner-history screen/list API is added.
+// Conversations use their own endpoints.
 // No TicketDetail contains Internal Notes or note counts.
 type Entry = {
   id: number; ticketId: number; content: string;
@@ -156,19 +158,19 @@ type QueueApplied = {
 - Search covers ticketNumber/summary (max 120 trimmed characters). Search/all active filters combine AND. Category/system/user IDs must be positive safe integers, no arbitrary query objects. Values never concatenate into raw SQL.
 - IT Priority sort ranks LOW=1/MEDIUM=2/HIGH=3/URGENT=4; itPriority desc then updatedAt desc then id desc, or all asc. Other sorts use chosen field/direction then id in the same direction. Default updatedAt desc/id desc. No summary/category sort.
 - page is one-based positive safe integer; pageSize is exactly 10/20/50. Validate offset multiplication is a safe integer. totalPages=ceil(totalItems/pageSize), zero for no matches; hasPreviousPage=(page>1 && totalPages>0); hasNextPage=(page<totalPages). applied returns every normalized filter/sort including defaults, excluding page/pageSize. A valid beyond-end page has empty items and accurate metadata; no automatic server clamping.
-- Owner, priority and indication no-op still validate expectedVersion and target eligibility/status first; no-op does not increment version. Status same-state always 409. Validate unsupported resolutionSummary/reason on other transition targets as 400, not ignored.
-- Mutation transactions check current role/activation, Ticket version, status and assignee eligibility, then update atomically. Admin demotion/deactivation serializes with assignment eligibility checks to prevent newly assigning an ineligible owner. Priority/owner/status/indication writes increment version and updatedAt when changed.
+- Owner, priority and indication no-op still validate expectedVersion and target eligibility/status first; no-op does not increment version. Status same-state always 409. Validate unsupported resolutionSummary/reason on other transition targets as 400, not ignored. Staff owner/priority mutations on CLOSED/CANCELLED remain 409; Admin account deactivation/demotion performs an internal eligibility cleanup on all currently assigned Tickets, including terminal Tickets, as specified in BR-23. That cleanup appends TicketOwnerChange before clearing ticketOwnerId, increments Ticket.version and preserves status/resolution fields.
+- Mutation transactions check current role/activation, Ticket version, status and assignee eligibility, then update atomically. Changed owner writes append TicketOwnerChange with previous/next owner, actor and timestamp in the same transaction; no-op writes do not. Admin demotion/deactivation serializes with assignment eligibility checks to prevent newly assigning an ineligible owner. Priority/owner/status/indication writes increment version and updatedAt when changed.
 
 ## 6. Public Comments and Internal Notes
 
 | Method/path | Access | Request | Success |
 | --- | --- | --- | --- |
 | GET /tickets/:ticketId/comments | Own Requester or Staff | none | 200 `{items:Entry[]}` |
-| POST /tickets/:ticketId/comments | Own Requester or Staff | `{content:string,clientRequestId:string}` | 201 `{entry:Entry,replayed:false}`; replay 200 `{entry:Entry,replayed:true}` |
+| POST /tickets/:ticketId/comments | Own Requester or Staff | `{content:string}` | 201 `{entry:Entry}` |
 | GET /tickets/:ticketId/internal-notes | Staff only | none | 200 `{items:Entry[]}` |
-| POST /tickets/:ticketId/internal-notes | Staff only | `{content:string,clientRequestId:string}` | 201 `{entry:Entry,replayed:false}`; replay 200 `{entry:Entry,replayed:true}` |
+| POST /tickets/:ticketId/internal-notes | Staff only | `{content:string}` | 201 `{entry:Entry}` |
 
-No PUT/PATCH/DELETE entries; unsupported methods receive safe 405 METHOD_NOT_ALLOWED with an Allow header. Lists contain all entries in createdAt asc/id asc; conversation pagination is not required by this sprint. content trims to 1-5000 JS string units; clientRequestId is UUID. Reject authorId/createdAt/visibility fields with 400. Same key/normalized content is replay, different content is 409 IDEMPOTENCY_CONFLICT. Parents missing/non-owned return 404; Requester Internal Note access is 403 before lookup; no private payload in errors. GET arrays can be empty. Shared access applies even on terminal Tickets, without modifying workflow fields. Authors/times come from backend; no note content/count is embedded in Requester queue/detail.
+No PUT/PATCH/DELETE entries; unsupported methods receive safe 405 METHOD_NOT_ALLOWED with an Allow header. Lists contain all entries in createdAt asc/id asc; conversation pagination is not required by this sprint. content trims to 1-5000 JS string units. Reject authorId/createdAt/visibility/clientRequestId fields with 400. Each valid POST appends one entry; backend replay/deduplication is deferred beyond Lab 3. A failed/ambiguous network response may have saved an entry, so the UI reloads the list and asks the user to review before a manual retry. Parents missing/non-owned return 404; Requester Internal Note access is 403 before lookup; no private payload in errors. GET arrays can be empty. Shared access applies even on terminal Tickets, without modifying workflow fields. Authors/times come from backend; no note content/count is embedded in Requester queue/detail.
 
 ## 7. Administrator User Management
 
@@ -183,14 +185,14 @@ Normal ADMINISTRATOR only. Account list is the sole user-management screen; elig
 
 Admin search case-insensitively matches name/email using OR; optional role combines using AND. Include active/inactive users; no pagination, status filter, sorting query or multiple roles. Trim name 1-120, normalize email max254 and enforce uniqueness for all users. Boolean activation is required, not a string. Initial password follows BR-08; reset must differ from the current hash-verified password. No password is returned; supply it manually and clear the form on success/exit.
 
-Account edits increment User.version/updatedAt and delete target sessions in the same transaction. Self edits/reset return reauthenticationRequired=true and clear the current cookie so the UI clears local auth state after the response; other-user changes return false. Initial-password reset sets mustChangePassword=true, passwordChangedAt=null and stores a new hash; self reset requires login then mandatory change. A successful self-service password change instead records passwordChangedAt=backend now, increments User.version/updatedAt, clears mustChangePassword and establishes a fresh session after revoking old sessions. Creating an inactive user still provisions its hash but cannot login until activated. Demotion/deactivation unassigns Tickets when the target loses active Staff/Admin eligibility and increments affected Ticket versions/updatedAt. User FKs/history remain. Shared transaction advisory locks and rechecks protect last-admin invariants and eligibility against concurrent account/assignment mutations. Creation also participates in account-safety serialization.
+Account edits increment User.version/updatedAt and delete target sessions in the same transaction. Self edits/reset return reauthenticationRequired=true and clear the current cookie so the UI clears local auth state after the response; other-user changes return false. Initial-password reset sets mustChangePassword=true, passwordChangedAt=null and stores a new hash; self reset requires login then mandatory change. A successful self-service password change instead records passwordChangedAt=backend now, increments User.version/updatedAt, clears mustChangePassword and establishes a fresh session after revoking old sessions. Creating an inactive user still provisions its hash but cannot login until activated. Demotion/deactivation unassigns every Ticket currently owned by the target, including CLOSED/CANCELLED, when the target loses active Staff/Admin eligibility. Each affected Ticket gets a TicketOwnerChange provenance row and version/updatedAt increment while status/resolution/requester/author/remover fields stay unchanged. This internal account-safety cleanup is not the staff owner API and preserves the active-owner invariant. Shared transaction advisory locks and rechecks protect last-admin invariants and eligibility against concurrent account/assignment mutations. Creation also participates in account-safety serialization.
 
 ## 8. Error/status contract
 
 | HTTP | Codes/meaning |
 | --- | --- |
 | 400 | VALIDATION_FAILED; ASSIGNEE_INVALID; ATTACHMENT_INVALID; ATTACHMENT_LIMIT_REACHED. Invalid input, never credential values in fieldErrors. |
-| 401 | INVALID_CREDENTIALS (login); SESSION_REQUIRED (missing/expired/revoked/inactive); CURRENT_PASSWORD_INVALID (authenticated password check). Invalid session cookie is cleared. |
+| 401 | INVALID_CREDENTIALS (login); SESSION_REQUIRED (missing/expired/revoked/inactive protected routes other than logout); CURRENT_PASSWORD_INVALID (authenticated password check). Invalid session cookie is cleared. Logout itself uses idempotent 204 for absent/expired sessions. |
 | 403 | PASSWORD_CHANGE_REQUIRED; ROLE_FORBIDDEN; CSRF_INVALID. No protected data or existence hints. |
 | 404 | RESOURCE_NOT_FOUND. Same generic message for missing/non-owned parent/attachment; removed files remain unavailable. |
 | 405 | METHOD_NOT_ALLOWED on forbidden conversation edits/deletes and user deletion, with correct Allow header. |
@@ -203,4 +205,4 @@ Expected errors use `{error:{code,message,fieldErrors?}}`; unexpected 500 requir
 
 ## 9. Contract verification
 
-Validate exact response/status types, defaults, bounds, enum order, missing/non-owner projections, concurrency/no-op semantics, CSRF for multipart and session revocation in [tests.md](tests.md). Changing an endpoint/shape/policy requires synchronized specification/UI/tests updates before dependent implementation; do not leave alternative response/status choices unresolved.
+Validate exact response/status types, defaults, bounds, enum order, missing/non-owner projections, concurrency/no-op semantics, CSRF for multipart, idempotent logout and session revocation in [tests.md](tests.md). Changing an endpoint/shape/policy requires synchronized specification/UI/tests updates before dependent implementation; do not leave alternative response/status choices unresolved.
