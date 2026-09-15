@@ -57,7 +57,7 @@ Deliverables: `docs/lab-03/specification.md`, `api-spec.md`, `ui-spec.md`, `test
 
 Acceptance/evidence: FR-01-25; AC-01-32 มี planned coverage ครบ; contract มีอยู่ก่อน main implementation PRs เสร็จ; diff เฉพาะเอกสารและ document validation ผ่าน
 
-Prerequisite: Lab 2 baseline บน main สถานะปัจจุบัน: เอกสารเตรียมแล้วในงานนี้ ส่วน review และ GitHub workflow ยังต้องทำหลังผู้ใช้ push
+Prerequisite: Lab 2 baseline บน main สถานะปัจจุบัน: Issue [#51](https://github.com/Chxtamos/-TokTickIT-/issues/51), branch push และ PR [#68](https://github.com/Chxtamos/-TokTickIT-/pull/68) สร้างแล้ว; รอ Project status และ peer review จริง
 
 ## Issue 02
 GitHub: [#52](https://github.com/Chxtamos/-TokTickIT-/issues/52)

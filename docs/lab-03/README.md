@@ -6,7 +6,7 @@
 
 อ่าน Lab_3_sheet.pdf ครบ 18 หน้า รวมภาพตัวอย่างและเกณฑ์ส่งงาน ตรวจโค้ด/เอกสาร Lab 1-2 ของ repository จริง แล้วจัดทำ Engineering Contract ของ Sprint 3, แผนทดสอบที่เชื่อม Acceptance Criteria และแผน **17 Issues** พร้อม Title/Description สำหรับให้ผู้ใช้สร้างเอง
 
-ยังไม่เขียนฟีเจอร์ Lab 3, ไม่เปลี่ยน schema และไม่ migrate/seed ฐานข้อมูล สร้าง GitHub Issues #51-#67 แล้ว; PR และ push จะบันทึกหลังดำเนินการเสร็จ
+ยังไม่เขียนฟีเจอร์ Lab 3, ไม่เปลี่ยน schema และไม่ migrate/seed ฐานข้อมูล สร้าง GitHub Issues #51-#67, push staging/feature branches และเปิด PR #68 เข้า lab3-staging แล้ว
 
 ## เอกสารที่ต้องอ่าน
 
@@ -53,10 +53,10 @@
 
 ## งานถัดไป
 
-Issues #51-#67 ถูกสร้างจาก implementation-plan.md แล้ว ขั้นถัดไปคือ push contract branch และทำ contract PR -> lab3-staging ให้ peer review แล้วเริ่มงาน 02 test isolation/CI -> 03 migration -> 04 auth -> 05 authorization/regression ตามด้วย UI/staff/admin/E2E/visual/release ตาม dependencies
+Issues #51-#67 ถูกสร้างจาก implementation-plan.md แล้ว contract branch ถูก push และ PR #68 เข้า lab3-staging แล้ว ขั้นถัดไปคือ Project status และ peer review แล้วเริ่มงาน 02 test isolation/CI -> 03 migration -> 04 auth -> 05 authorization/regression ตามด้วย UI/staff/admin/E2E/visual/release ตาม dependencies
 
 ## สถานะและ document validation
 
-Contract approval: Pending student/peer review. Feature tests: Planned / Not run. Product DoD: Incomplete. GitHub Issues: [#51-#67](https://github.com/Chxtamos/-TokTickIT-/issues); PR: ยังไม่มี ทุก checklist ยังคง pending จนมีหลักฐานจริง
+Contract approval: Pending student/peer review. Feature tests: Planned / Not run. Product DoD: Incomplete. GitHub Issues: [#51-#67](https://github.com/Chxtamos/-TokTickIT-/issues); PR: [#68](https://github.com/Chxtamos/-TokTickIT-/pull/68), pending peer review ทุก checklist ยังคง pending จนมีหลักฐานจริง
 
 ตรวจเอกสารก่อน commit: FR/BR/AC numbering, AC coverage/index, referenced Test IDs, issue count/dependencies, local Markdown links, API/workflow/role/password consistency และ `git diff --check` การตรวจเหล่านี้เป็น document validation ไม่ใช่ runtime/security/migration test passes

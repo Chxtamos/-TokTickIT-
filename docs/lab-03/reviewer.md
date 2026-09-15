@@ -1,6 +1,6 @@
 # Lab 3 Peer Review and Release Record
 
-Prepared 2026-09-15. Status: **Pending actual student/peer review**. GitHub Issue #51 tracks this contract; no PR, remote check, review approval or merge is claimed yet.
+Prepared 2026-09-15. Status: **Pending actual student/peer review**. GitHub Issue #51 and PR #68 track this contract; no remote check, review approval or merge is claimed yet.
 
 ## Author and reviewer
 
@@ -9,7 +9,7 @@ Author carried forward from the existing Lab 2 repository record: Chartanat Upth
 ## Contract review checklist
 
 - [x] Contract Issue [#51](https://github.com/Chxtamos/-TokTickIT-/issues/51) recorded after creation.
-- [ ] Contract PR URL/head revision entered after the student pushes and creates the PR into lab3-staging.
+- [x] Contract PR [#68](https://github.com/Chxtamos/-TokTickIT-/pull/68) from `feature/24-lab3-engineering-contract` into `lab3-staging`, initial reviewed head pending.
 - [ ] Student/peer reviews specification/API/UI/tests consistency, especially Administrator operational permission, transition matrix, password policy, migrated credential delivery and test isolation.
 - [ ] Record reviewer name/student ID/GitHub, date and actual review URL.
 - [ ] Record requested changes with file/line or requirement reference and author's response/correction commit.
