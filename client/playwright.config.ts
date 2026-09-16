@@ -37,7 +37,7 @@ export default defineConfig({
         ...process.env,
         PORT: "3000",
         DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://toktickit:toktickit@localhost:5432/toktickit?schema=public",
-        TEST_DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgresql://toktickit:toktickit@localhost:5432/toktickit_test?schema=public",
+        ...(process.env.TEST_DATABASE_URL ? { TEST_DATABASE_URL: process.env.TEST_DATABASE_URL } : {}),
         RUN_DB_INTEGRATION: "1",
         ATTACHMENT_STORAGE_DIR: process.env.TEST_ATTACHMENT_STORAGE_DIR ?? path.join(repositoryDirectory, "e2e", ".tmp", "attachments"),
       },

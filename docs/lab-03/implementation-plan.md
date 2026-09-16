@@ -66,7 +66,7 @@ GitHub: [#52](https://github.com/Chxtamos/-TokTickIT-/issues/52)
 
 **Description:**
 
-ปรับ existing database integration tests และ Playwright ที่ใช้ `DATABASE_URL` หรือ development fallback ให้ใช้ `TEST_DATABASE_URL` ที่ตรวจสอบก่อน Prisma initialization/migrate/seed แยก test database/schema และ Attachment directory จาก development ห้าม fallback เมื่อ config ขาด Guard ตรวจ PostgreSQL URL, ชื่อฐานข้อมูลที่มี test และ canonical target equality โดยไม่เปิดเผย credentials
+ปรับ existing database integration tests และ Playwright ที่ใช้ `DATABASE_URL` หรือ development fallback ให้ใช้ `TEST_DATABASE_URL` ที่ตรวจสอบก่อน Prisma initialization/migrate/seed แยก test database และ Attachment directory จาก development ห้าม fallback เมื่อ config ขาด Guard ตรวจ PostgreSQL URL, ชื่อฐานข้อมูลที่มี test และ canonical database target equality โดยไม่เปิดเผย credentials; schema ต่างกันใน database เดิมไม่ถือว่าแยกได้
 
 แยก pure unit/mock mode ออกจาก full verification ที่ห้าม skip required integration ปรับ `.env.example`/README และ Server/Client/E2E CI ให้ตรวจ `lab3-staging` พร้อม `main`; ใช้ synthetic test credentials และเก็บ output ที่ไม่มี secrets
 

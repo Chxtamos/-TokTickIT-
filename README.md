@@ -150,7 +150,7 @@ npx prisma migrate dev --name migration-name
 
 ## Isolated Integration and E2E Database
 
-Never run database-writing integration or E2E tests against the development database. Create a separate PostgreSQL database such as `toktickit_test`, then set both URLs in the test terminal. The test guard compares host, port, database and schema and rejects a missing, non-PostgreSQL, non-test or same target before Prisma is created.
+Never run database-writing integration or E2E tests against the development database. Create a separate PostgreSQL database such as `toktickit_test`, then set both URLs in the test terminal. The test guard compares host, port and database, requires the test database name to contain `test`, and rejects a missing, non-PostgreSQL, same-database or malformed target before Prisma is created. A different schema inside the development database is not sufficient isolation.
 
 ```powershell
 $env:DATABASE_URL = "postgresql://USER:PASSWORD@localhost:5432/toktickit?schema=public"

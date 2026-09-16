@@ -55,7 +55,7 @@ function parseDatabaseTarget(value: string, label: string): DatabaseTarget {
 
 export function canonicalDatabaseTarget(value: string, label = "Database URL"): string {
   const target = parseDatabaseTarget(value, label);
-  return `${target.host}:${target.port}/${target.database}?schema=${target.schema}`;
+  return `${target.host}:${target.port}/${target.database}`;
 }
 
 export function getRequiredTestDatabaseUrl(): string {
@@ -73,13 +73,9 @@ export function getRequiredTestDatabaseUrl(): string {
   if (!testTarget.database.toLowerCase().includes("test")) {
     throw new Error("TEST_DATABASE_URL database name must contain 'test'.");
   }
-  if (canonicalDatabaseTarget(testUrl, "TEST_DATABASE_URL") === canonicalDatabaseTarget(developmentUrl, "DATABASE_URL")) {
-    throw new Error("TEST_DATABASE_URL must target a different database/schema from DATABASE_URL.");
+  if (`${testTarget.host}:${testTarget.port}/${testTarget.database}` === `${developmentTarget.host}:${developmentTarget.port}/${developmentTarget.database}`) {
+    throw new Error("TEST_DATABASE_URL must target a different PostgreSQL database from DATABASE_URL; schema isolation alone is not supported.");
   }
-
-  // Keep the parsed development target in this function so all target
-  // components are compared, while never including credentials in errors.
-  void developmentTarget;
   return testUrl;
 }
 

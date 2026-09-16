@@ -1,28 +1,45 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncOptions } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { getRequiredTestDatabaseUrl } from "../src/database-target.js";
 
-const mode = process.argv[2];
-if (mode !== "migrate" && mode !== "seed") {
-  console.error("Usage: npm run prisma:migrate:test | npm run prisma:seed:test");
-  process.exit(2);
+export type ChildRunner = (
+  command: string,
+  args: readonly string[],
+  options: SpawnSyncOptions,
+) => { status: number | null; error?: Error };
+
+const defaultRunner: ChildRunner = (command, args, options) => spawnSync(command, args, options);
+
+export function runPrismaTest(mode: string | undefined, runner: ChildRunner = defaultRunner): number {
+  if (mode !== "migrate" && mode !== "seed") {
+    console.error("Usage: npm run prisma:migrate:test | npm run prisma:seed:test");
+    return 2;
+  }
+
+  // This validation intentionally runs before spawnSync. A missing or unsafe
+  // target therefore cannot reach Prisma migrate/seed at all.
+  const testDatabaseUrl = getRequiredTestDatabaseUrl();
+  const commandRunner = process.platform === "win32" ? "npx.cmd" : "npx";
+  const args = mode === "migrate"
+    ? ["--no-install", "prisma", "migrate", "deploy"]
+    : ["--no-install", "tsx", "prisma/seed.ts"];
+  const result = runner(commandRunner, args, {
+    cwd: process.cwd(),
+    // The guard above validated TEST_DATABASE_URL against the development
+    // URL. The child receives the test URL as DATABASE_URL, so disable the
+    // runtime selector's integration re-selection inside seed.ts.
+    env: { ...process.env, DATABASE_URL: testDatabaseUrl, RUN_DB_INTEGRATION: "0" },
+    stdio: "inherit",
+  });
+  if (result.error) {
+    console.error("Unable to run the test database command.");
+    return 1;
+  }
+  return result.status ?? 1;
 }
 
-const testDatabaseUrl = getRequiredTestDatabaseUrl();
-const runner = process.platform === "win32" ? "npx.cmd" : "npx";
-const args = mode === "migrate"
-  ? ["--no-install", "prisma", "migrate", "deploy"]
-  : ["--no-install", "tsx", "prisma/seed.ts"];
-const result = spawnSync(runner, args, {
-  cwd: process.cwd(),
-  // The guard above has already validated TEST_DATABASE_URL against the
-  // development URL. The child command receives the test URL as Prisma's
-  // DATABASE_URL, so disable integration-mode re-selection inside seed.ts;
-  // otherwise it would compare the same test URL to itself.
-  env: { ...process.env, DATABASE_URL: testDatabaseUrl, RUN_DB_INTEGRATION: "0" },
-  stdio: "inherit",
-});
-if (result.error) {
-  console.error("Unable to run the test database command.");
-  process.exit(1);
+const invokedFile = process.argv[1] ? path.resolve(process.argv[1]) : "";
+if (invokedFile === path.resolve(fileURLToPath(import.meta.url))) {
+  process.exit(runPrismaTest(process.argv[2]));
 }
-process.exit(result.status ?? 1);
