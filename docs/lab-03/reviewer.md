@@ -11,7 +11,7 @@ Prepared 2026-09-15 and updated 2026-09-16. Status: **Changes requested; follow-
 - **Peer reviewer name:** Tanboon Teawsawat
 - **Peer reviewer student ID:** `67070507211`
 
-The reviewer identity matches the student-confirmed Lab 2 repository record in `docs/lab-02/reviewer.md`. PR #68 has two actual Changes Requested reviews, recorded separately below. Neither is an approval.
+The reviewer identity matches the student-confirmed Lab 2 repository record in `docs/lab-02/reviewer.md`. PR #68 has three actual Changes Requested reviews, recorded separately below. None is an approval.
 
 ## Contract review checklist
 
@@ -21,7 +21,7 @@ The reviewer identity matches the student-confirmed Lab 2 repository record in `
 - [x] PR #68 explicitly linked as a manual GitHub `addCloseIssueReferences` closing reference to Issue #51; GraphQL `closedByPullRequestsReferences` and Project `Linked pull requests` both showed PR #68. This is a Development relationship, not only a mention in the PR body.
 - [x] Reviewer name and student ID carried from the student-confirmed repository record and rechecked against `docs/lab-02/reviewer.md`.
 - [x] Correction commit [e03f005](https://github.com/Chxtamos/-TokTickIT-/commit/e03f005b49539c471f2b2a5f40519693e7246930) pushed to PR #68 and shown as its head after the first correction round.
-- [ ] Record peer response or re-review after this correction; approval is not yet present.
+- [x] Re-review after the earlier correction recorded as review `5223859584` on head `2bebc7d`; it requested two final auth clarifications and remained Changes Requested.
 - [ ] Record genuine approval from the review conversation, not an AI-written approval claim.
 
 ## Actual PR #68 reviews
@@ -30,6 +30,7 @@ The reviewer identity matches the student-confirmed Lab 2 repository record in `
 | --- | --- | --- | --- | --- |
 | [Review `5206436480`](https://github.com/Chxtamos/-TokTickIT-/pull/68#pullrequestreview-5206436480) | Tanaboonnnnn | `afb70d0` | Changes Requested | Logout consistency, staging Issue linkage, terminal owner semantics, project-choice scope, scrypt gate, AC-31 evidence and exact README path |
 | [Review `5209846680`](https://github.com/Chxtamos/-TokTickIT-/pull/68#pullrequestreview-5209846680) | L0u1sss | `2799d1d` | Changes Requested | Re-review/approval still required, reviewer identity, developer Reflection, explicit Planned/Not run status, future implementation evidence and exact review URL/ID |
+| [Review `5223859584`](https://github.com/Chxtamos/-TokTickIT-/pull/68#pullrequestreview-5223859584) | Tanaboonnnnn | `2bebc7d` | Changes Requested | Exact restricted-session expiry, atomic password/session rotation and manual-unassign scope |
 
 ## Implementation and release log
 
@@ -55,5 +56,12 @@ Create one row per real PR as work proceeds. Required fields: Issue/PR URL, feat
 - `tests.md` states at its start and in every one of the 63 test rows that results are `Planned / Not run`; no implementation, passing test, CI or product-completion evidence is claimed.
 - Implementation PRs, actual test outputs, screenshots and the final Answer Part 1-9 PDF remain future evidence and are not part of this Engineering Contract PR.
 - Review URLs are intentionally distinct and now mapped to their correct reviewer and reviewed head: `5206436480` for Tanaboonnnnn/`afb70d0`, and `5209846680` for L0u1sss/`2799d1d`.
+
+## Third review response (`5223859584`)
+
+- Restricted initial-password sessions now set expiresAt to issuance+15 minutes, have no idle timeout, never update lastSeenAt and expire exactly when `now >= expiresAt`. API-02 covers just-before, exact-boundary, after-boundary and no-extension behavior.
+- Password change now derives secrets before a single PostgreSQL transaction that rechecks the snapshot, updates credentials, revokes all old sessions and inserts one replacement normal session. Any database-step failure rolls back all changes; Set-Cookie occurs only after commit, and post-commit delivery failure recovers through new-password Login. API-03 covers fault rollback and lost-response recovery.
+- The non-blocking scope point was accepted: Staff manual unassign and nullable owner writes were removed from FR/BR/AC, API, UI, tests and Issue #60. Account-ineligibility cleanup remains the only owner-to-null path because it preserves the active-owner invariant and TicketOwnerChange attribution.
+- These are contract/test changes only. The boundary, fault-injection and recovery cases remain `Planned / Not run` pending implementation.
 
 The peer reviewer must re-review the revised contract before implementation depends on these choices. Real approval, implementation PRs, test outputs, screenshots, release PR, final PDF and final-main evidence remain pending. Local document checks are coding-agent checks, never peer-review evidence. Historical Lab 2 approval verifies identity/history only and does not approve this sprint.

@@ -12,6 +12,7 @@ The following are excerpts of real user prompts from this task, not invented exa
 4. `เปิด issue ... ทั้งหมด 17 อัน ใส่ title เเละ descript + add มันเข้า project ... push feature/24-lab3-engineering-contract ... เปิด PR` — authorized the real Issue/Project/branch/PR workflow after the earlier no-push boundary was explicitly changed.
 5. `แก้ไขตาม feedback PR #68` — directed the agent to reconcile logout semantics, staging linkage, terminal ownership, scope, scrypt benchmarking, release evidence and exact paths across the contract.
 6. `ฉัน push ขึ้นผิดอัน ... ตรวจสอบ Repo ที่ฉันส่งให้แล้วตรวจสอบสิ่งที่ฉันแก้ แล้ว push` — directed recovery of the developer-written reviewer identity and Reflection from the wrong repository and transfer to this PR only.
+7. `Initial-password session expiry ยัง ambiguous ... Password-change + session rotation ... atomic ... ตัด manual unassign` — required fixed restricted-session boundaries, atomic credential/session rotation and a deliberate scope decision before implementation.
 
 ## How AI was used in this stage
 

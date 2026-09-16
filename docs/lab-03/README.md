@@ -41,10 +41,10 @@
 ## จุดสำคัญที่เลือกไว้ใน contract
 
 1. Rename RequesterUser -> User โดยรักษา IDs, Ticket requester/remover links และ Attachment bytes เปลี่ยน identity เป็น session โดยไม่ล้างข้อมูล Lab 2
-2. Login email/password, proposed built-in scrypt profile ที่ต้องผ่าน PERF-01 บน local/CI ก่อน freeze, opaque database sessions และ idempotent logout204; initial password ต้องเปลี่ยนก่อนเข้าปกติ มี expiry/reset/deactivation revocation ชัดเจน
+2. Login email/password, proposed built-in scrypt profile ที่ต้องผ่าน PERF-01 บน local/CI ก่อน freeze, opaque database sessions และ idempotent logout204; initial-password session หมดอายุคงที่ 15 นาทีโดย activity ไม่ต่ออายุ และ password update/revoke/replacement session commit atomically ก่อน Set-Cookie
 3. ออกรหัสเริ่มต้นให้บัญชี Lab 2 ผ่าน interactive CLI: random ต่อคน, แสดงครั้งเดียว, เก็บ hash, manual delivery และ rerun ไม่ reset credentials/activation
 4. User มี role เดียว Administrator ทำ User Management และ staff operations ได้ตาม matrix ที่ระบุชัด ซึ่ง Lab sheet อนุญาตเมื่อ contract กำหนดไว้
-5. Ticket Owner คนเดียว, IT Priority แยก Requested Priority, 8-status matrix และ expectedVersion ป้องกัน stale/concurrent writes; account-driven cleanup บน CLOSED/CANCELLED เก็บ former owner ใน TicketOwnerChange; Requester เพียงแจ้ง Problem Appears Resolved
+5. Ticket Owner คนเดียว, claim/assign/reassign โดยไม่มี Staff manual unassign, IT Priority แยก Requested Priority, 8-status matrix และ expectedVersion ป้องกัน stale/concurrent writes; account-driven cleanup บน CLOSED/CANCELLED เก็บ former owner ใน TicketOwnerChange; Requester เพียงแจ้ง Problem Appears Resolved
 6. Public Comments/Internal Notes แยก model/service/endpoint/composer; append-only, backend author/time, plain text; ไม่มี backend conversation request-key deduplication ใน Lab 3 และ UI ให้ตรวจรายการก่อน retry เมื่อผลกำกวม ไม่เปิด Note content/count ให้ Requester
 7. Admin UI แบบ minimal: list/search/optional role/create/edit/activate/reset; ป้องกัน self-deactivation/last-active-admin แม้ concurrent ไม่เพิ่ม delete/email/bulk/history
 8. คง Zen Green/read-only submitted Ticket/owner Attachment behavior; แยก test DB ก่อน migration และปรับ Lab 2 regression tests ให้ใช้ authentication

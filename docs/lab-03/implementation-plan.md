@@ -96,11 +96,11 @@ GitHub: [#54](https://github.com/Chxtamos/-TokTickIT-/issues/54)
 
 **Description:**
 
-ทำ login/me/change-password/logout ตาม `api-spec.md` โดยรัน PERF-01 บน local/CI runtimes ก่อน freeze scrypt profile; ใช้ opaque PostgreSQL sessions/cookie, restricted first-login access, absolute/idle expiry, rotation/revocation, idempotent logout204, exact Origin/credentialed CORS/CSRF และ bounded in-memory fixed-window throttle สำหรับ local lab
+ทำ login/me/change-password/logout ตาม `api-spec.md` โดยรัน PERF-01 บน local/CI runtimes ก่อน freeze scrypt profile; ใช้ opaque PostgreSQL sessions/cookie, restricted first-login session ที่หมดอายุคงที่ 15 นาทีโดย activity ไม่ต่ออายุ, normal absolute/idle expiry, atomic password update+session revoke+replacement persist ก่อน Set-Cookie, idempotent logout204, exact Origin/credentialed CORS/CSRF และ bounded in-memory fixed-window throttleสำหรับ local lab
 
 ใช้ safe feedback แบบเดียวกันสำหรับ unknown email/wrong password/inactive/unprovisioned accounts ไม่ return/log credentials ตรวจ current/new/confirm password และการ invalidate sessions ตาม contract
 
-Acceptance/tests: FR-01-04, BR-01/02/07-15, AC-01-05/27/28; UNIT-01/02, PERF-01, API-01-05/09-11/34 รวม absent-session logout204, token replay, expiry, local/HTTPS cookie flags และ CSRF; multipart จะตรวจร่วมกับงาน 05
+Acceptance/tests: FR-01-04, BR-01/02/07-15, AC-01-05/27/28; UNIT-01/02, PERF-01, API-01-05/09-11/34 รวม restricted-session before/exact/after boundary กับ no-extension, transaction fault rollback, post-commit recovery, absent-session logout204, token replay, normal expiry, cookie flags และ CSRF; multipart จะตรวจร่วมกับงาน 05
 
 Dependencies: [#53](https://github.com/Chxtamos/-TokTickIT-/issues/53)
 
@@ -186,11 +186,11 @@ GitHub: [#60](https://github.com/Chxtamos/-TokTickIT-/issues/60)
 
 **Description:**
 
-ทำ operational detail/claim/assign/reassign/unassign/IT Priority/status ตาม exact API และ transition matrix 8 สถานะ ใช้ expectedVersion atomic writes, eligible-owner checks, TicketOwnerChange append-only provenance, no-op/terminal staff rules และ assignment/account coordination locks Account-driven terminal owner cleanup เป็นกฎแยกจาก staff mutation
+ทำ operational detail/claim/assign/reassign/IT Priority/status ตาม exact API และ transition matrix 8 สถานะ ใช้ expectedVersion atomic writes, eligible-owner checks, TicketOwnerChange append-only provenance, no-op/terminal staff rules และ assignment/account coordination locks ตัด Staff manual unassign ออกจาก Lab 3; account-driven owner cleanup เป็น path เดียวที่ clear owner และเป็นกฎแยกจาก staff mutation
 
 ขอ public resolution summary ตอน Resolved และ public reason ตอน Reopened/Cancelled ใช้ backend timestamps และ reset indication/resolution ตอน reopen รักษา Requested Priority/submitted fields/Attachments ไม่ทำ Actions Taken หรือใช้เป็นเงื่อนไข resolution
 
-Acceptance/tests: FR-11-14, AC-14-18/24; UNIT-03, API-20-25/22 และ real concurrency; ตรวจ assignment/demotion race ใน DB-04 ร่วมกับงาน 13
+Acceptance/tests: FR-11-14, AC-14-18/24; UNIT-03, API-20-25/22 และ real concurrency รวม null/manual-unassign rejection; ตรวจ assignment/demotion race ใน DB-04 ร่วมกับงาน 13
 
 Dependencies: [#55](https://github.com/Chxtamos/-TokTickIT-/issues/55), [#58](https://github.com/Chxtamos/-TokTickIT-/issues/58)
 
