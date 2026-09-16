@@ -5,10 +5,12 @@ import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { createApp } from "../../src/app.js";
+import { assertIntegrationDatabase, createIntegrationPrisma, isDatabaseIntegrationRequested } from "../../src/prisma.js";
 
-const runIntegration = process.env.RUN_DB_INTEGRATION === "1" && Boolean(process.env.DATABASE_URL);
+const runIntegration = isDatabaseIntegrationRequested();
+if (runIntegration) assertIntegrationDatabase();
 const integration = runIntegration ? describe : describe.skip;
-const storageDirectory = path.resolve(process.cwd(), "storage", "attachments-integration");
+const storageDirectory = process.env.TEST_ATTACHMENT_STORAGE_DIR ?? path.resolve(process.cwd(), ".test-storage", "attachments-integration");
 const pdfBytes = Buffer.from("%PDF-1.7\npostgres integration fixture");
 
 integration("Attachment APIs PostgreSQL integration", () => {
@@ -44,7 +46,7 @@ integration("Attachment APIs PostgreSQL integration", () => {
   beforeAll(async () => {
     process.env.ATTACHMENT_STORAGE_DIR = storageDirectory;
     await rm(storageDirectory, { recursive: true, force: true });
-    prisma = new PrismaClient();
+    prisma = createIntegrationPrisma();
     await prisma.$connect();
     const [requesters, category, relatedSystem] = await Promise.all([
       prisma.requesterUser.findMany({ where: { isActive: true }, select: { id: true }, orderBy: { id: "asc" }, take: 2 }),

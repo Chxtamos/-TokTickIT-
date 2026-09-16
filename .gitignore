@@ -15,3 +15,4 @@ server/prisma/*.db
 playwright-report/
 test-results/
 e2e/.tmp/
+.test-storage/

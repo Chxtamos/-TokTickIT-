@@ -3,8 +3,10 @@ import request from "supertest";
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { createApp } from "../../src/app.js";
+import { assertIntegrationDatabase, createIntegrationPrisma, isDatabaseIntegrationRequested } from "../../src/prisma.js";
 
-const runIntegration = process.env.RUN_DB_INTEGRATION === "1" && Boolean(process.env.DATABASE_URL);
+const runIntegration = isDatabaseIntegrationRequested();
+if (runIntegration) assertIntegrationDatabase();
 const integration = runIntegration ? describe : describe.skip;
 
 integration("POST /api/tickets PostgreSQL integration", () => {
@@ -15,7 +17,7 @@ integration("POST /api/tickets PostgreSQL integration", () => {
   const requestIds: string[] = [];
 
   beforeAll(async () => {
-    prisma = new PrismaClient();
+    prisma = createIntegrationPrisma();
     await prisma.$connect();
 
     const [requester, category, relatedSystem] = await Promise.all([

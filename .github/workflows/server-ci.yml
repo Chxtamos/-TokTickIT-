@@ -2,9 +2,9 @@ name: Server CI
 
 on:
   pull_request:
-    branches: [main, lab2-staging]
+    branches: [main, lab2-staging, lab3-staging]
   push:
-    branches: [main, lab2-staging]
+    branches: [main, lab2-staging, lab3-staging]
 
 jobs:
   test:
@@ -28,6 +28,7 @@ jobs:
         working-directory: server
     env:
       DATABASE_URL: postgresql://toktickit:toktickit@localhost:5432/toktickit?schema=public
+      TEST_DATABASE_URL: postgresql://toktickit:toktickit@localhost:5432/toktickit_test?schema=public
       RUN_DB_INTEGRATION: "1"
     steps:
       - name: Checkout
@@ -40,10 +41,14 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Create isolated test database
+        env:
+          PGPASSWORD: toktickit
+        run: psql -h localhost -U toktickit -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE toktickit_test;"
       - name: Apply migrations
-        run: npx prisma migrate deploy
+        run: npm run prisma:migrate:test
       - name: Seed reference data
-        run: npm run prisma:seed
+        run: npm run prisma:seed:test
       - name: Run tests
         run: npm test
       - name: Build
