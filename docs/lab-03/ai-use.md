@@ -13,6 +13,7 @@ The following are excerpts of real user prompts from this task, not invented exa
 5. `แก้ไขตาม feedback PR #68` — directed the agent to reconcile logout semantics, staging linkage, terminal ownership, scope, scrypt benchmarking, release evidence and exact paths across the contract.
 6. `ฉัน push ขึ้นผิดอัน ... ตรวจสอบ Repo ที่ฉันส่งให้แล้วตรวจสอบสิ่งที่ฉันแก้ แล้ว push` — directed recovery of the developer-written reviewer identity and Reflection from the wrong repository and transfer to this PR only.
 7. `Initial-password session expiry ยัง ambiguous ... Password-change + session rotation ... atomic ... ตัด manual unassign` — required fixed restricted-session boundaries, atomic credential/session rotation and a deliberate scope decision before implementation.
+8. `Issue #62 ... ยังมี Unassign; Issue #61 ... ยังมี unique-key/replay wording` — required the implementation handoff and live Issues to match the already revised normative contract.
 
 ## How AI was used in this stage
 

@@ -205,7 +205,7 @@ GitHub: [#61](https://github.com/Chxtamos/-TokTickIT-/issues/61)
 
 ห้าม Requester เข้าถึง Note content/metadata/count ผ่าน direct API/detail/errors Comments/Notes ใช้ได้ทุก Ticket status โดยไม่เปลี่ยน workflow และห้าม edit/delete
 
-Acceptance/tests: FR-15/16, AC-19-21/28; UNIT-06, API-08/27/28/34 และ PostgreSQL unique-key/replay/parent-isolation tests
+Acceptance/tests: FR-15/16, AC-19-21/28; UNIT-06, API-08/27/28/34 และ PostgreSQL append semantics, chronological ordering, terminal-state access, ambiguous-retry list refresh และ parent/projection isolation tests
 
 Dependencies: [#55](https://github.com/Chxtamos/-TokTickIT-/issues/55)
 
@@ -216,7 +216,7 @@ GitHub: [#62](https://github.com/Chxtamos/-TokTickIT-/issues/62)
 
 **Description:**
 
-ต่อยอด detail Lab 2 ให้ submitted fields read-only มี Claim/Reassign/Unassign, IT Priority, permitted status choices/confirmation/required summary/reason, Requester indication และ staff Attachment download
+ต่อยอด detail Lab 2 ให้ submitted fields read-only มี Claim/Assign/Reassign, IT Priority, permitted status choices/confirmation/required summary/reason, Requester indication และ staff Attachment download
 
 แยก Public Comments กับ Internal Notes ด้วย headings/visibility hints/independent drafts/buttons ใช้ loaded version, authoritative save response, busy controls และ 409 Refresh/review ที่ไม่ overwrite งานคนอื่น ไม่มี Service Actions และไม่ให้ tab switching ทำให้ post ผิด privacy destination
 

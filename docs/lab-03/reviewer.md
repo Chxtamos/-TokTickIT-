@@ -11,7 +11,7 @@ Prepared 2026-09-15 and updated 2026-09-16. Status: **Changes requested; follow-
 - **Peer reviewer name:** Tanboon Teawsawat
 - **Peer reviewer student ID:** `67070507211`
 
-The reviewer identity matches the student-confirmed Lab 2 repository record in `docs/lab-02/reviewer.md`. PR #68 has three actual Changes Requested reviews, recorded separately below. None is an approval.
+The reviewer identity matches the student-confirmed Lab 2 repository record in `docs/lab-02/reviewer.md`. PR #68 has four actual Changes Requested reviews, recorded separately below. None is an approval.
 
 ## Contract review checklist
 
@@ -31,6 +31,7 @@ The reviewer identity matches the student-confirmed Lab 2 repository record in `
 | [Review `5206436480`](https://github.com/Chxtamos/-TokTickIT-/pull/68#pullrequestreview-5206436480) | Tanaboonnnnn | `afb70d0` | Changes Requested | Logout consistency, staging Issue linkage, terminal owner semantics, project-choice scope, scrypt gate, AC-31 evidence and exact README path |
 | [Review `5209846680`](https://github.com/Chxtamos/-TokTickIT-/pull/68#pullrequestreview-5209846680) | L0u1sss | `2799d1d` | Changes Requested | Re-review/approval still required, reviewer identity, developer Reflection, explicit Planned/Not run status, future implementation evidence and exact review URL/ID |
 | [Review `5223859584`](https://github.com/Chxtamos/-TokTickIT-/pull/68#pullrequestreview-5223859584) | Tanaboonnnnn | `2bebc7d` | Changes Requested | Exact restricted-session expiry, atomic password/session rotation and manual-unassign scope |
+| [Review `5224096566`](https://github.com/Chxtamos/-TokTickIT-/pull/68#pullrequestreview-5224096566) | Tanaboonnnnn | `730009f` | Changes Requested | Stale manual-unassign wording in Issue #62 and stale unique-key/replay wording in Issue #61 |
 
 ## Implementation and release log
 
@@ -63,5 +64,11 @@ Create one row per real PR as work proceeds. Required fields: Issue/PR URL, feat
 - Password change now derives secrets before a single PostgreSQL transaction that rechecks the snapshot, updates credentials, revokes all old sessions and inserts one replacement normal session. Any database-step failure rolls back all changes; Set-Cookie occurs only after commit, and post-commit delivery failure recovers through new-password Login. API-03 covers fault rollback and lost-response recovery.
 - The non-blocking scope point was accepted: Staff manual unassign and nullable owner writes were removed from FR/BR/AC, API, UI, tests and Issue #60. Account-ineligibility cleanup remains the only owner-to-null path because it preserves the active-owner invariant and TicketOwnerChange attribution.
 - These are contract/test changes only. The boundary, fault-injection and recovery cases remain `Planned / Not run` pending implementation.
+
+## Fourth review response (`5224096566`)
+
+- Issue 12 in `implementation-plan.md` and live Issue #62 now say Claim/Assign/Reassign and explicitly exclude Staff manual unassign, matching FR-12, BR-22, AC-15, API and UI.
+- Issue 11 acceptance wording and live Issue #61 no longer mention PostgreSQL unique-key/replay. They require append semantics, chronological ordering, terminal-state access, ambiguous-retry list refresh and parent/projection isolation, matching the deferred-deduplication contract.
+- The normative contract was already correct; this correction removes stale implementation handoff wording so a coding agent cannot reintroduce the old scope.
 
 The peer reviewer must re-review the revised contract before implementation depends on these choices. Real approval, implementation PRs, test outputs, screenshots, release PR, final PDF and final-main evidence remain pending. Local document checks are coding-agent checks, never peer-review evidence. Historical Lab 2 approval verifies identity/history only and does not approve this sprint.
