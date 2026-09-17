@@ -427,7 +427,9 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     },
     credentials: true,
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "X-CSRF-Token"],
+    // Keep the Lab 2 requester header temporarily CORS-allowlisted so the
+    // preserved client regression suite can run until Issue #55 removes it.
+    allowedHeaders: ["Content-Type", "X-CSRF-Token", "X-Requester-Id"],
     exposedHeaders: ["Retry-After", "Content-Disposition"],
   }));
   app.use(express.json({ limit: "64kb" }));
