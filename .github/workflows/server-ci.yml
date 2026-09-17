@@ -30,6 +30,7 @@ jobs:
       DATABASE_URL: postgresql://toktickit:toktickit@localhost:5432/toktickit?schema=public
       TEST_DATABASE_URL: postgresql://toktickit:toktickit@localhost:5432/toktickit_test?schema=public
       RUN_DB_INTEGRATION: "1"
+      CLIENT_ORIGIN: http://127.0.0.1:5173
       LAB_SEED_INITIAL_PASSWORD: "local-lab-only-seed-password-2026"
     steps:
       - name: Checkout
@@ -42,6 +43,8 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Run PERF-01 password benchmark
+        run: npm run lab3:password-benchmark
       - name: Create isolated test database
         env:
           PGPASSWORD: toktickit
