@@ -49,7 +49,7 @@ integration("Attachment APIs PostgreSQL integration", () => {
     prisma = createIntegrationPrisma();
     await prisma.$connect();
     const [requesters, category, relatedSystem] = await Promise.all([
-      prisma.requesterUser.findMany({ where: { isActive: true }, select: { id: true }, orderBy: { id: "asc" }, take: 2 }),
+      prisma.requesterUser.findMany({ where: { isActive: true, role: "REQUESTER" }, select: { id: true }, orderBy: { id: "asc" }, take: 2 }),
       prisma.category.findFirst({ where: { isActive: true }, select: { id: true } }),
       prisma.relatedSystem.findFirst({ where: { isActive: true }, select: { id: true } }),
     ]);

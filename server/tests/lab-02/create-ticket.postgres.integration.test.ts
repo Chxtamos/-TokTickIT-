@@ -21,7 +21,7 @@ integration("POST /api/tickets PostgreSQL integration", () => {
     await prisma.$connect();
 
     const [requester, category, relatedSystem] = await Promise.all([
-      prisma.requesterUser.findFirst({ where: { isActive: true }, select: { id: true } }),
+      prisma.requesterUser.findFirst({ where: { isActive: true, role: "REQUESTER" }, select: { id: true } }),
       prisma.category.findFirst({ where: { isActive: true }, select: { id: true } }),
       prisma.relatedSystem.findFirst({ where: { isActive: true }, select: { id: true } }),
     ]);
