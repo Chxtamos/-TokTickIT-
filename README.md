@@ -95,7 +95,6 @@ Configure `server/.env` with your local PostgreSQL connection:
 
 ```text
 DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/toktickit?schema=public"
-CLIENT_ORIGIN="http://127.0.0.1:5173"
 ```
 
 The frontend API URL can be configured in `client/.env`:
@@ -103,8 +102,6 @@ The frontend API URL can be configured in `client/.env`:
 ```text
 VITE_API_URL=http://localhost:3000
 ```
-
-`CLIENT_ORIGIN` must be one exact scheme/host/port used by the browser. Authenticated requests use credentialed CORS and the server rejects missing or untrusted browser Origins.
 
 Do not commit `.env` files, database passwords, or `node_modules`.
 
