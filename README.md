@@ -156,6 +156,7 @@ Never run database-writing integration or E2E tests against the development data
 $env:DATABASE_URL = "postgresql://USER:PASSWORD@localhost:5432/toktickit?schema=public"
 $env:TEST_DATABASE_URL = "postgresql://USER:PASSWORD@localhost:5432/toktickit_test?schema=public"
 $env:RUN_DB_INTEGRATION = "1"
+$env:LAB_SEED_INITIAL_PASSWORD = "local-lab-only-change-me-2026"
 
 npm --prefix server run prisma:migrate:test
 npm --prefix server run prisma:seed:test
@@ -163,6 +164,8 @@ npm --prefix server test
 ```
 
 `prisma:migrate:test` and `prisma:seed:test` validate `TEST_DATABASE_URL`, temporarily direct only that command to the test URL, and refuse to use a development target. Pure unit/mock tests can run with `RUN_DB_INTEGRATION` unset or `0`; database suites are then skipped rather than silently writing to development data. A full verification run must set `RUN_DB_INTEGRATION=1`, in which case an unsafe or missing test target fails the run.
+
+The Lab 3 seed requires `LAB_SEED_INITIAL_PASSWORD` only when creating synthetic IT Staff/Administrator fixtures. It hashes the value and never prints or stores the plaintext. Existing users, credentials, activation state and Ticket work are not overwritten on repeated seeds. The migrated-user provisioning command is separate and interactive: `npm --prefix server run lab3:provision-migrated-users` generates one-time credentials for users with no hash and prints them only after its transaction commits.
 
 Playwright starts the API with `RUN_DB_INTEGRATION=1`, the validated test URL and an isolated `e2e/.tmp/attachments` directory. Do not reuse a server started with a different database target. The test Attachment directory and generated reports are ignored by Git.
 

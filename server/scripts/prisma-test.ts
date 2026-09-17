@@ -20,10 +20,12 @@ export function runPrismaTest(mode: string | undefined, runner: ChildRunner = de
   // This validation intentionally runs before spawnSync. A missing or unsafe
   // target therefore cannot reach Prisma migrate/seed at all.
   const testDatabaseUrl = getRequiredTestDatabaseUrl();
-  const commandRunner = process.platform === "win32" ? "npx.cmd" : "npx";
+  const commandRunner = process.execPath;
+  const prismaCli = path.resolve(process.cwd(), "node_modules", "prisma", "build", "index.js");
+  const tsxCli = path.resolve(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
   const args = mode === "migrate"
-    ? ["--no-install", "prisma", "migrate", "deploy"]
-    : ["--no-install", "tsx", "prisma/seed.ts"];
+    ? [prismaCli, "migrate", "deploy"]
+    : [tsxCli, "prisma/seed.ts"];
   const result = runner(commandRunner, args, {
     cwd: process.cwd(),
     // The guard above validated TEST_DATABASE_URL against the development
