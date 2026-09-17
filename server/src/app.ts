@@ -6,6 +6,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getPrisma } from "./prisma.js";
+import { registerAuthRoutes, type AuthPrisma } from "./auth.js";
 
 export type ReferenceDataPrisma = Pick<
   PrismaClient,
@@ -419,8 +420,19 @@ function isIdempotencyUniqueViolation(error: unknown): error is Prisma.PrismaCli
 export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Express {
   const app = express();
 
-  app.use(cors());
-  app.use(express.json());
+  app.use(cors({
+    origin: (requestOrigin, callback) => {
+      const expectedOrigin = process.env.CLIENT_ORIGIN?.trim();
+      callback(null, requestOrigin && expectedOrigin && requestOrigin === expectedOrigin ? requestOrigin : false);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "X-CSRF-Token"],
+    exposedHeaders: ["Retry-After", "Content-Disposition"],
+  }));
+  app.use(express.json({ limit: "64kb" }));
+
+  registerAuthRoutes(app, prisma as unknown as AuthPrisma);
 
   app.get("/api/health", (_req: Request, res: Response) => {
     res.status(200).json({
@@ -873,6 +885,19 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       }
       return errorResponse(res, 500, "TICKET_CREATE_FAILED", "Unable to create the Ticket.");
     }
+  });
+
+  app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
+    const typedError = error as { type?: string; status?: number; message?: string } | null;
+    if (typedError?.type === "entity.too.large") {
+      if (req.path.startsWith("/api/auth/")) res.setHeader("Cache-Control", "no-store");
+      return res.status(413).json({ error: { code: "PAYLOAD_TOO_LARGE", message: "Request payload is too large." } });
+    }
+    if (error instanceof SyntaxError && typedError && "body" in typedError) {
+      if (req.path.startsWith("/api/auth/")) res.setHeader("Cache-Control", "no-store");
+      return res.status(400).json({ error: { code: "VALIDATION_FAILED", message: "Request body must be valid JSON." } });
+    }
+    return next(error);
   });
 
   return app;
