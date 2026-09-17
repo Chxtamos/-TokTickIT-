@@ -1,10 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import request from "supertest";
-import { app } from "../../src/app.js";
+import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
 
 describe("GET /api/categories", () => {
   it("returns the four seeded categories in id order", async () => {
-    const res = await request(app).get("/api/categories");
+    const prisma = {
+      category: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: 1, name: "Account and Access" },
+          { id: 2, name: "Hardware" },
+          { id: 3, name: "Software" },
+          { id: 4, name: "Network" },
+        ]),
+      },
+    } as unknown as ReferenceDataPrisma;
+    const res = await request(createApp(prisma)).get("/api/categories");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([

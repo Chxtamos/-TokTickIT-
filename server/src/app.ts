@@ -465,7 +465,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
   app.get("/api/development-requesters", async (_req: Request, res: Response) => {
     try {
       const requesters = await prisma.requesterUser.findMany({
-        where: { isActive: true },
+        where: { isActive: true, role: "REQUESTER" },
         select: { id: true, name: true },
         orderBy: [{ name: "asc" }, { id: "asc" }],
       });
@@ -487,7 +487,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
 
     try {
       const requester = await prisma.requesterUser.findFirst({
-        where: { id: requesterId, isActive: true },
+        where: { id: requesterId, isActive: true, role: "REQUESTER" },
         select: { id: true },
       });
       if (!requester) {
@@ -572,7 +572,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
 
     try {
       const requester = await prisma.requesterUser.findFirst({
-        where: { id: requesterId, isActive: true },
+        where: { id: requesterId, isActive: true, role: "REQUESTER" },
         select: { id: true },
       });
       if (!requester) {
@@ -622,7 +622,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       const ticketId = parsePositiveId(req.params.ticketId);
       if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
       try {
-        const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true }, select: { id: true } });
+        const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true, role: "REQUESTER" }, select: { id: true } });
         if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
         const ownedTicket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } });
         if (!ownedTicket) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Ticket not found.");
@@ -700,7 +700,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
 
     try {
-      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true }, select: { id: true } });
+      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true, role: "REQUESTER" }, select: { id: true } });
       if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
       const ownedTicket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } });
       if (!ownedTicket) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Ticket not found.");
@@ -724,7 +724,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     if (!attachmentId) return errorResponse(res, 400, "INVALID_ATTACHMENT_ID", "Attachment ID must be a positive integer.");
 
     try {
-      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true }, select: { id: true } });
+      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true, role: "REQUESTER" }, select: { id: true } });
       if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
       const attachment = await prisma.attachment.findFirst({
         where: { id: attachmentId, ticketId, removedAt: null, ticket: { requesterId } },
@@ -754,7 +754,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     }
 
     try {
-      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true }, select: { id: true } });
+      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true, role: "REQUESTER" }, select: { id: true } });
       if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
       const removed = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} AND "requesterId" = ${requesterId} FOR UPDATE`);
@@ -794,7 +794,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     try {
       const ticket = await prisma.$transaction(async (tx) => {
         const requester = await tx.requesterUser.findFirst({
-          where: { id: requesterId, isActive: true },
+          where: { id: requesterId, isActive: true, role: "REQUESTER" },
           select: { id: true, name: true, email: true },
         });
         if (!requester) throw new Error("REQUESTER_CONTEXT_INVALID");

@@ -1,6 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { app, createApp, type ReferenceDataPrisma } from "../../src/app.js";
+import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
+
+function makeSeededReferenceDataPrisma(): ReferenceDataPrisma {
+  return {
+    category: { findMany: vi.fn().mockResolvedValue([
+      { id: 1, name: "Account and Access" }, { id: 2, name: "Hardware" },
+      { id: 3, name: "Software" }, { id: 4, name: "Network" },
+    ]) },
+    relatedSystem: { findMany: vi.fn().mockResolvedValue([
+      { id: 1, name: "Campus Wi-Fi" }, { id: 2, name: "Corporate Laptop" },
+      { id: 3, name: "Email" }, { id: 4, name: "Grade Submission App" },
+      { id: 5, name: "LEB2 App" }, { id: 6, name: "Printer" }, { id: 7, name: "VPN" },
+    ]) },
+    requesterUser: { findMany: vi.fn().mockResolvedValue([
+      { id: 1, name: "Anan Srisuk" }, { id: 2, name: "Benjamas Kittipong" },
+      { id: 3, name: "Chaiwat Somchai" }, { id: 4, name: "Daranee Ploy" },
+    ]) },
+  } as unknown as ReferenceDataPrisma;
+}
 
 function makeReferenceDataPrisma(): ReferenceDataPrisma {
   const categories = [
@@ -12,8 +30,8 @@ function makeReferenceDataPrisma(): ReferenceDataPrisma {
     { id: 2, name: "Inactive System", isActive: false },
   ];
   const requesters = [
-    { id: 1, name: "Active Requester", isActive: true },
-    { id: 2, name: "Inactive Requester", isActive: false },
+    { id: 1, name: "Active Requester", isActive: true, role: "REQUESTER" },
+    { id: 2, name: "Inactive Requester", isActive: false, role: "REQUESTER" },
   ];
 
   return {
@@ -30,9 +48,9 @@ function makeReferenceDataPrisma(): ReferenceDataPrisma {
           .map(({ id, name }) => ({ id, name }))),
     },
     requesterUser: {
-      findMany: vi.fn(async (args: { where?: { isActive?: boolean } }) =>
+      findMany: vi.fn(async (args: { where?: { isActive?: boolean; role?: string } }) =>
         requesters
-          .filter((item) => args.where?.isActive !== true || item.isActive)
+          .filter((item) => (args.where?.isActive !== true || item.isActive) && (args.where?.role === undefined || item.role === args.where.role))
           .map(({ id, name }) => ({ id, name }))),
     },
   } as unknown as ReferenceDataPrisma;
@@ -40,7 +58,7 @@ function makeReferenceDataPrisma(): ReferenceDataPrisma {
 
 describe("Lab 2 reference-data endpoints", () => {
   it("returns active categories in the existing Lab 1 id order", async () => {
-    const res = await request(app).get("/api/categories");
+    const res = await request(createApp(makeSeededReferenceDataPrisma())).get("/api/categories");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([
@@ -52,7 +70,7 @@ describe("Lab 2 reference-data endpoints", () => {
   });
 
   it("returns active related systems ordered by name then id", async () => {
-    const res = await request(app).get("/api/related-systems");
+    const res = await request(createApp(makeSeededReferenceDataPrisma())).get("/api/related-systems");
 
     expect(res.status).toBe(200);
     expect(res.body.map((item: { name: string }) => item.name)).toEqual([
@@ -67,7 +85,7 @@ describe("Lab 2 reference-data endpoints", () => {
   });
 
   it("returns active development requesters only, ordered by name then id", async () => {
-    const res = await request(app).get("/api/development-requesters");
+    const res = await request(createApp(makeSeededReferenceDataPrisma())).get("/api/development-requesters");
 
     expect(res.status).toBe(200);
     expect(res.body.map((item: { name: string }) => item.name)).toEqual([
@@ -98,7 +116,7 @@ describe("Lab 2 reference-data endpoints", () => {
       expect.objectContaining({ where: { isActive: true } }),
     );
     expect(prisma.requesterUser.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { isActive: true } }),
+      expect.objectContaining({ where: { isActive: true, role: "REQUESTER" } }),
     );
   });
 

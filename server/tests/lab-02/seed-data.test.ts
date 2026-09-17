@@ -34,7 +34,7 @@ integration("Lab 2 reference-data seed", () => {
     const [categories, relatedSystems, requesters] = await Promise.all([
       prisma.category.findMany({ orderBy: { name: "asc" } }),
       prisma.relatedSystem.findMany({ orderBy: { name: "asc" } }),
-      prisma.requesterUser.findMany({ orderBy: { email: "asc" } }),
+      prisma.requesterUser.findMany({ where: { role: "REQUESTER" }, orderBy: { email: "asc" } }),
     ]);
 
     expect(categories.filter((category) => category.isActive).map((category) => category.name).sort()).toEqual(
