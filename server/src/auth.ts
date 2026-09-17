@@ -304,7 +304,7 @@ function databaseLockQueries(tx: Prisma.TransactionClient, userId: number, sessi
   if (typeof tx.$queryRaw !== "function") return [];
   return [
     tx.$queryRaw(Prisma.sql`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`),
-    tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Session" WHERE "id" = ${sessionId} FOR UPDATE`),
+    tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Session" WHERE "id" = CAST(${sessionId} AS uuid) FOR UPDATE`),
   ];
 }
 
