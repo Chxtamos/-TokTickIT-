@@ -1,8 +1,7 @@
-import { randomBytes } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { getPrisma } from "../src/prisma.js";
-import { hashPassword } from "../src/password.js";
+import { generateInitialPassword, hashPassword } from "../src/password.js";
 
 async function main() {
   if (!input.isTTY || !output.isTTY) {
@@ -22,7 +21,7 @@ async function main() {
   const provisioned: Array<{ email: string; initialPassword: string }> = [];
   await prisma.$transaction(async (tx) => {
     for (const user of users) {
-      const initialPassword = randomBytes(16).toString("hex");
+      const initialPassword = generateInitialPassword();
       const passwordHash = await hashPassword(initialPassword);
       const updated = await tx.requesterUser.updateMany({
         where: { id: user.id, passwordHash: null, version: user.version },
