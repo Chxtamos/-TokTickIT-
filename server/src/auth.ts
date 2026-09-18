@@ -819,7 +819,10 @@ export function registerAuthRoutes(app: Express, prisma: AuthPrisma): void {
 
   app.use(async (req: AuthenticatedRequest, res, next) => {
     if (req.path === "/api/health") return next();
-    const legacyE2e = process.env.LAB2_E2E_LEGACY_AUTH === "1";
+    const legacyE2e =
+      process.env.LAB2_E2E_LEGACY_AUTH === "1" &&
+      process.env.NODE_ENV === "test" &&
+      process.env.CI === "true";
     if (
       legacyE2e &&
       [
@@ -833,8 +836,11 @@ export function registerAuthRoutes(app: Express, prisma: AuthPrisma): void {
 
     const legacyRequesterId = positiveHeaderId(req.header("X-Requester-Id"));
     const sessionDelegate = (prisma as unknown as { session?: unknown }).session;
-    // Temporary Lab 2 E2E compatibility only. Remove this adapter in Issue #56
-    // when the authenticated role shell removes the legacy requester client helper.
+    // Temporary Lab 2 E2E compatibility only. This is deliberately gated by
+    // both the explicit adapter flag and the test/CI runtime so a normal
+    // staging/production process fails closed even if the adapter flag leaks.
+    // Remove this adapter in Issue #56 when the authenticated role shell
+    // removes the legacy requester client helper.
     if (legacyRequesterId && legacyE2e) {
       req.auth = {
         user: {

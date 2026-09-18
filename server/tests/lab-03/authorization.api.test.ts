@@ -44,7 +44,7 @@ function detail(requesterId = 1) {
   };
 }
 
-function makePrisma(role: UserRole = "REQUESTER", options: { nonOwned?: boolean; status?: string; version?: number } = {}) {
+function makePrisma(role: UserRole = "REQUESTER", options: { nonOwned?: boolean; status?: string; version?: number; restricted?: boolean } = {}) {
   const user = {
     id: role === "REQUESTER" ? 1 : role === "IT_STAFF" ? 10 : 20,
     name: `${role} User`,
@@ -52,7 +52,7 @@ function makePrisma(role: UserRole = "REQUESTER", options: { nonOwned?: boolean;
     role,
     isActive: true,
     passwordHash: "unused",
-    mustChangePassword: false,
+    mustChangePassword: options.restricted ?? false,
     passwordChangedAt: new Date("2026-09-01T00:00:00.000Z"),
     version: 1,
     createdAt: new Date("2026-08-01T00:00:00.000Z"),
@@ -179,6 +179,98 @@ describe("Lab 3 authorization and Requester regression", () => {
 
     expect(denied.status).toBe(401);
     expect(denied.body.error.code).toBe("SESSION_REQUIRED");
+  });
+
+  it("never enables the legacy identity/CSRF adapter from its flag alone in a normal runtime", async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousCi = process.env.CI;
+    process.env.LAB2_E2E_LEGACY_AUTH = "1";
+    process.env.NODE_ENV = "production";
+    delete process.env.CI;
+    try {
+      const fixture = makePrisma("REQUESTER");
+      const withoutSession = { ...fixture.prisma } as any;
+      delete withoutSession.session;
+      const response = await request(createApp(withoutSession))
+        .post("/api/tickets")
+        .set("X-Requester-Id", "1")
+        .set("Origin", origin)
+        .send({});
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe("SESSION_REQUIRED");
+    } finally {
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNodeEnv;
+      if (previousCi === undefined) delete process.env.CI;
+      else process.env.CI = previousCi;
+      delete process.env.LAB2_E2E_LEGACY_AUTH;
+    }
+  });
+
+  it("covers every protected resource endpoint against anonymous, restricted and all normal roles", async () => {
+    type MatrixCase = {
+      name: string;
+      allowed: UserRole[];
+      run: (application: ReturnType<typeof createApp>, authenticatedRequest: boolean) => Promise<request.Response>;
+    };
+    const cases: MatrixCase[] = [
+      { name: "categories GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/categories") : request(app).get("/api/categories")) },
+      { name: "related systems GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/related-systems") : request(app).get("/api/related-systems")) },
+      { name: "retired development requester GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/development-requesters") : request(app).get("/api/development-requesters")) },
+      { name: "ticket list GET", allowed: ["REQUESTER"], run: (app, auth) => (auth ? authenticated(app).get("/api/tickets") : request(app).get("/api/tickets")) },
+      { name: "ticket detail GET", allowed: ["REQUESTER"], run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42") : request(app).get("/api/tickets/42")) },
+      { name: "attachment list GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/attachments") : request(app).get("/api/tickets/42/attachments")) },
+      { name: "attachment download GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/attachments/1/download") : request(app).get("/api/tickets/42/attachments/1/download")) },
+      { name: "attachment upload POST", allowed: ["REQUESTER"], run: (app, auth) => {
+        const call = request(app).post("/api/tickets/42/attachments");
+        if (auth) call.set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken);
+        return call.attach("file", Buffer.from("%PDF-1.7\nfixture"), "fixture.pdf");
+      } },
+      { name: "attachment remove DELETE", allowed: ["REQUESTER"], run: (app, auth) => {
+        const call = request(app).delete("/api/tickets/42/attachments/1");
+        if (auth) call.set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken);
+        return call.send({ reason: "matrix removal" });
+      } },
+      { name: "ticket create POST", allowed: ["REQUESTER"], run: (app, auth) => {
+        const call = request(app).post("/api/tickets");
+        if (auth) call.set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken);
+        return call.send({ clientRequestId: "f13f2298-1153-4cea-966d-3bc466d53d7b", categoryId: 2, relatedSystemId: 7, summary: "Matrix create", requestedPriority: "MEDIUM", description: "Authorization matrix request." });
+      } },
+      { name: "resolution indication POST", allowed: ["REQUESTER"], run: (app, auth) => {
+        const call = request(app).post("/api/tickets/42/resolution-indication");
+        if (auth) call.set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken);
+        return call.send({ expectedVersion: 1 });
+      } },
+      { name: "internal notes GET", allowed: ["IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/notes") : request(app).get("/api/tickets/42/notes")) },
+      { name: "internal notes POST", allowed: ["IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => {
+        const call = request(app).post("/api/tickets/42/notes");
+        if (auth) call.set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken);
+        return call.send({ content: "matrix note" });
+      } },
+    ];
+
+    for (const entry of cases) {
+      const anonymousFixture = makePrisma("REQUESTER");
+      const anonymous = await entry.run(createApp(anonymousFixture.prisma), false);
+      expect(anonymous.status, `${entry.name} anonymous`).toBe(401);
+      expect(anonymous.body.error.code, `${entry.name} anonymous code`).toBe("SESSION_REQUIRED");
+
+      for (const role of ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"] as const) {
+        const restrictedFixture = makePrisma(role, { restricted: true });
+        const restricted = await entry.run(createApp(restrictedFixture.prisma), true);
+        expect(restricted.status, `${entry.name} ${role} restricted`).toBe(403);
+        expect(restricted.body.error.code, `${entry.name} ${role} restricted code`).toBe("PASSWORD_CHANGE_REQUIRED");
+
+        const fixture = makePrisma(role);
+        const response = await entry.run(createApp(fixture.prisma), true);
+        if (entry.allowed.includes(role)) {
+          expect(response.body?.error?.code, `${entry.name} ${role} allowed`).not.toBe("ROLE_FORBIDDEN");
+        } else {
+          expect(response.status, `${entry.name} ${role} denied`).toBe(403);
+          expect(response.body.error.code, `${entry.name} ${role} denied code`).toBe("ROLE_FORBIDDEN");
+        }
+      }
+    }
   });
 
   it("uses the authenticated Requester and ignores spoofed requester headers and fields", async () => {
