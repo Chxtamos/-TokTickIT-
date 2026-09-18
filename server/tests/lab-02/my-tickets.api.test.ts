@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
+import { withMockRequesterSession } from "../helpers/auth-session.js";
 
 const ticket = {
   id: 42,
@@ -32,7 +33,7 @@ function makePrisma(options: { tickets?: unknown[]; totalItems?: number; inactiv
 describe("GET /api/tickets", () => {
   it("returns owner-scoped summaries with the contract defaults", async () => {
     const prisma = makePrisma();
-    const res = await request(createApp(prisma)).get("/api/tickets").set("X-Requester-Id", "1");
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets").set("Cookie", withMockRequesterSession(prisma).cookie);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -66,9 +67,9 @@ describe("GET /api/tickets", () => {
 
   it("applies search, filters, pagination, and deterministic sorting with AND semantics", async () => {
     const prisma = makePrisma({ totalItems: 21 });
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .get("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .query({
         search: "  VPN ",
         categoryId: "2",
@@ -112,7 +113,7 @@ describe("GET /api/tickets", () => {
 
   it("returns an empty valid page beyond the final page with accurate totals", async () => {
     const prisma = makePrisma({ tickets: [], totalItems: 21 });
-    const res = await request(createApp(prisma)).get("/api/tickets").set("X-Requester-Id", "1").query({ page: "4", pageSize: "10" });
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets").set("Cookie", withMockRequesterSession(prisma).cookie).query({ page: "4", pageSize: "10" });
 
     expect(res.status).toBe(200);
     expect(res.body.items).toEqual([]);
@@ -128,9 +129,9 @@ describe("GET /api/tickets", () => {
 
   it("rejects unsupported and malformed query values", async () => {
     const prisma = makePrisma();
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .get("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .query({ unknown: "true", categoryId: "9007199254740992", page: "0", pageSize: "15", sortDirection: ["asc", "desc"] });
 
     expect(res.status).toBe(400);
