@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
+import { withMockRequesterSession } from "../helpers/auth-session.js";
 
 const storageDirectory = path.resolve(process.cwd(), "storage", "attachments");
 const pdfBytes = Buffer.from("%PDF-1.7\nfixture");
@@ -82,9 +83,9 @@ afterEach(async () => {
 describe("Attachment APIs", () => {
   it.each(validFixtures)("accepts .$extension with matching MIME and signature", async ({ extension, mimeType, bytes }) => {
     const { prisma } = makePrisma();
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .attach("file", bytes, { filename: `valid.${extension}`, contentType: mimeType });
 
     expect(res.status).toBe(201);
@@ -94,9 +95,9 @@ describe("Attachment APIs", () => {
 
   it("uploads one supported file and returns active metadata", async () => {
     const { prisma, transaction } = makePrisma();
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .attach("file", pdfBytes, "../battery report.pdf");
 
     expect(res.status).toBe(201);
@@ -119,9 +120,9 @@ describe("Attachment APIs", () => {
   it("accepts the exact 5 MiB boundary", async () => {
     const { prisma } = makePrisma();
     const exactLimit = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(5_242_880 - 9)]);
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .attach("file", exactLimit, "exact-limit.pdf");
 
     expect(res.status).toBe(201);
@@ -173,7 +174,7 @@ describe("Attachment APIs", () => {
       makeAttachment({ id: 11, originalName: "removed.pdf", uploadedAt: new Date("2026-08-24T10:00:00.000Z"), removedAt: new Date("2026-08-25T10:00:00.000Z"), removedReason: "Duplicate" }),
     ];
     const { prisma, transaction } = makePrisma({ attachments });
-    const res = await request(createApp(prisma)).get("/api/tickets/42/attachments").set("X-Requester-Id", "1");
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets/42/attachments").set("Cookie", withMockRequesterSession(prisma).cookie);
 
     expect(res.status).toBe(200);
     expect(res.body.map((item: { originalName: string }) => item.originalName)).toEqual(["first.pdf", "removed.pdf"]);
@@ -204,7 +205,7 @@ describe("Attachment APIs", () => {
     await mkdir(storageDirectory, { recursive: true });
     await writeFile(path.join(storageDirectory, `${attachment.storageKey}.pdf`), pdfBytes);
     const { prisma, transaction } = makePrisma({ attachment });
-    const res = await request(createApp(prisma)).get("/api/tickets/42/attachments/12/download").set("X-Requester-Id", "1");
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets/42/attachments/12/download").set("Cookie", withMockRequesterSession(prisma).cookie);
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("application/pdf");
@@ -229,9 +230,9 @@ describe("Attachment APIs", () => {
 
   it("soft-removes an active owned Attachment and validates the reason", async () => {
     const { prisma, transaction } = makePrisma();
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .delete("/api/tickets/42/attachments/12")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send({ reason: "No longer needed" });
 
     expect(res.status).toBe(200);
@@ -282,9 +283,9 @@ describe("Attachment APIs", () => {
 
   it("sanitizes unsafe names and truncates Unicode names without splitting emoji", async () => {
     const { prisma } = makePrisma();
-    const unsafe = await request(createApp(prisma))
+    const unsafe = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .attach("file", pdfBytes, "../bad\nname.pdf");
     expect(unsafe.status).toBe(201);
     expect(unsafe.body.originalName).toBe("bad_name.pdf");
