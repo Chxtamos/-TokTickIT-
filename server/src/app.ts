@@ -1,12 +1,23 @@
 import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import multer from "multer";
-import { Prisma, type PrismaClient, type RequestedPriority } from "@prisma/client";
+import {
+  Prisma,
+  type PrismaClient,
+  type RequestedPriority,
+  type TicketStatus,
+  type UserRole,
+} from "@prisma/client";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getPrisma } from "./prisma.js";
-import { registerAuthRoutes, type AuthPrisma } from "./auth.js";
+import {
+  registerAuthRoutes,
+  requireRequestCsrf,
+  type AuthPrisma,
+  type AuthenticatedRequest,
+} from "./auth.js";
 
 export type ReferenceDataPrisma = Pick<
   PrismaClient,
@@ -14,6 +25,17 @@ export type ReferenceDataPrisma = Pick<
 >;
 
 const requestedPriorities = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
+const ticketStatuses: TicketStatus[] = [
+  "NEW",
+  "OPEN",
+  "IN_PROGRESS",
+  "WAITING_FOR_REQUESTER",
+  "RESOLVED",
+  "CLOSED",
+  "REOPENED",
+  "CANCELLED",
+];
+const operationalRoles: UserRole[] = ["IT_STAFF", "ADMINISTRATOR"];
 const ticketBodyFields = new Set([
   "clientRequestId",
   "categoryId",
@@ -37,7 +59,7 @@ type TicketListQuery = {
   categoryId: number | null;
   relatedSystemId: number | null;
   requestedPriority: RequestedPriority | null;
-  currentStatus: "NEW" | null;
+  currentStatus: TicketStatus | null;
   sortBy: "createdAt" | "updatedAt" | "ticketNumber";
   sortDirection: "asc" | "desc";
   page: number;
@@ -89,11 +111,24 @@ function errorResponse(
   return res.status(status).json({ error });
 }
 
-function parseRequesterId(req: Request): number | null {
-  const value = req.header("X-Requester-Id");
-  if (!value || !/^[1-9]\d*$/.test(value)) return null;
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) ? parsed : null;
+function authenticatedUser(req: AuthenticatedRequest) {
+  if (!req.auth) throw new Error("AUTH_CONTEXT_MISSING");
+  return req.auth.user;
+}
+
+function requireRole(
+  req: AuthenticatedRequest,
+  res: Response,
+  roles: UserRole[],
+) {
+  if (req.auth && roles.includes(req.auth.user.role)) return true;
+  errorResponse(
+    res,
+    403,
+    "ROLE_FORBIDDEN",
+    "This account is not permitted to perform that operation.",
+  );
+  return false;
 }
 
 function validateTicketBody(body: unknown): { input?: TicketCreateInput; fieldErrors: Record<string, string[]> } {
@@ -194,7 +229,11 @@ function parseTicketListQuery(query: Request["query"]): { input?: TicketListQuer
   }
 
   const statusValue = read("currentStatus");
-  const currentStatus = statusValue === undefined ? null : statusValue === "NEW" ? "NEW" : null;
+  const currentStatus = statusValue === undefined
+    ? null
+    : ticketStatuses.includes(statusValue as TicketStatus)
+      ? (statusValue as TicketStatus)
+      : null;
   if (statusValue !== undefined && currentStatus === null) fieldErrors.currentStatus = ["Current status is invalid."];
 
   const sortByValue = read("sortBy");
@@ -262,8 +301,11 @@ function ticketResponse(ticket: {
   summary: string;
   description: string;
   requestedPriority: RequestedPriority;
-  currentStatus: string;
-  requester: { id: number; name: string; email: string };
+  itPriority: RequestedPriority;
+  currentStatus: TicketStatus;
+  version: number;
+  requester: { id: number; name: string; email: string; role: UserRole };
+  owner: { id: number; name: string; email: string; role: UserRole } | null;
   category: { id: number; name: string };
   relatedSystem: { id: number; name: string };
 }) {
@@ -276,8 +318,11 @@ function ticketResponse(ticket: {
     relatedSystem: ticket.relatedSystem,
     summary: ticket.summary,
     requestedPriority: ticket.requestedPriority,
+    itPriority: ticket.itPriority,
     description: ticket.description,
     currentStatus: ticket.currentStatus,
+    version: ticket.version,
+    ticketOwner: ticket.owner,
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
   };
@@ -288,11 +333,14 @@ function ticketSummaryResponse(ticket: {
   ticketNumber: string;
   summary: string;
   requestedPriority: RequestedPriority;
-  currentStatus: string;
+  itPriority: RequestedPriority;
+  currentStatus: TicketStatus;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
   category: { id: number; name: string };
   relatedSystem: { id: number; name: string };
+  owner: { id: number; name: string; email: string; role: UserRole } | null;
 }) {
   return {
     id: ticket.id,
@@ -301,7 +349,10 @@ function ticketSummaryResponse(ticket: {
     category: ticket.category,
     relatedSystem: ticket.relatedSystem,
     requestedPriority: ticket.requestedPriority,
+    itPriority: ticket.itPriority,
     currentStatus: ticket.currentStatus,
+    version: ticket.version,
+    ticketOwner: ticket.owner,
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
   };
@@ -315,8 +366,17 @@ function ticketDetailResponse(ticket: {
   summary: string;
   description: string;
   requestedPriority: RequestedPriority;
-  currentStatus: string;
-  requester: { id: number; name: string; email: string };
+  itPriority: RequestedPriority;
+  currentStatus: TicketStatus;
+  version: number;
+  resolutionSummary: string | null;
+  resolvedAt: Date | null;
+  closedAt: Date | null;
+  lastStatusReason: string | null;
+  requesterResolvedAt: Date | null;
+  requester: { id: number; name: string; email: string; role: UserRole };
+  owner: { id: number; name: string; email: string; role: UserRole } | null;
+  requesterResolved: { id: number; name: string; email: string; role: UserRole } | null;
   category: { id: number; name: string };
   relatedSystem: { id: number; name: string };
   attachments: Array<{
@@ -338,8 +398,17 @@ function ticketDetailResponse(ticket: {
     relatedSystem: ticket.relatedSystem,
     summary: ticket.summary,
     requestedPriority: ticket.requestedPriority,
+    itPriority: ticket.itPriority,
     description: ticket.description,
     currentStatus: ticket.currentStatus,
+    version: ticket.version,
+    ticketOwner: ticket.owner,
+    resolutionSummary: ticket.resolutionSummary,
+    resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
+    closedAt: ticket.closedAt?.toISOString() ?? null,
+    lastStatusReason: ticket.lastStatusReason,
+    requesterResolvedAt: ticket.requesterResolvedAt?.toISOString() ?? null,
+    requesterResolvedBy: ticket.requesterResolved,
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
     attachments: ticket.attachments.map((attachment) => ({
@@ -366,7 +435,7 @@ type AttachmentRecord = {
   removedReason: string | null;
 };
 
-type AttachmentUploadRequest = Request & {
+type AttachmentUploadRequest = AuthenticatedRequest & {
   attachmentContext?: { requesterId: number; ticketId: number };
 };
 
@@ -427,14 +496,18 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     },
     credentials: true,
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    // Keep the Lab 2 requester header temporarily CORS-allowlisted so the
-    // preserved client regression suite can run until Issue #55 removes it.
-    allowedHeaders: ["Content-Type", "X-CSRF-Token", "X-Requester-Id"],
+    allowedHeaders: process.env.LAB2_E2E_LEGACY_AUTH === "1"
+      ? ["Content-Type", "X-CSRF-Token", "X-Requester-Id"]
+      : ["Content-Type", "X-CSRF-Token"],
     exposedHeaders: ["Retry-After", "Content-Disposition"],
   }));
   app.use(express.json({ limit: "64kb" }));
 
   registerAuthRoutes(app, prisma as unknown as AuthPrisma);
+  app.use("/api/tickets", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
+  });
 
   app.get("/api/health", (_req: Request, res: Response) => {
     res.status(200).json({
@@ -443,7 +516,10 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     });
   });
 
-  app.get("/api/categories", async (_req: Request, res: Response) => {
+  // Lab 3 reference data is protected by the auth middleware registered by
+  // registerAuthRoutes. Keep these handlers after that registration so
+  // anonymous/restricted sessions fail before reference-data lookup.
+  app.get("/api/categories", async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const categories = await prisma.category.findMany({
         select: {
@@ -458,11 +534,11 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
 
       res.status(200).json(categories);
     } catch {
-      res.status(500).json({ error: "REFERENCE_DATA_UNAVAILABLE" });
+      return errorResponse(res, 500, "REFERENCE_DATA_UNAVAILABLE", "Unable to load Categories.");
     }
   });
 
-  app.get("/api/related-systems", async (_req: Request, res: Response) => {
+  app.get("/api/related-systems", async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const relatedSystems = await prisma.relatedSystem.findMany({
         where: { isActive: true },
@@ -472,11 +548,14 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
 
       res.status(200).json(relatedSystems);
     } catch {
-      res.status(500).json({ error: "REFERENCE_DATA_UNAVAILABLE" });
+      return errorResponse(res, 500, "REFERENCE_DATA_UNAVAILABLE", "Unable to load Related Systems.");
     }
   });
 
-  app.get("/api/development-requesters", async (_req: Request, res: Response) => {
+  app.get("/api/development-requesters", async (_req: AuthenticatedRequest, res: Response) => {
+    if (process.env.LAB2_E2E_LEGACY_AUTH !== "1") {
+      return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Resource not found.");
+    }
     try {
       const requesters = await prisma.requesterUser.findMany({
         where: { isActive: true, role: "REQUESTER" },
@@ -490,24 +569,14 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     }
   });
 
-  app.get("/api/tickets", async (req: Request, res: Response) => {
-    const requesterId = parseRequesterId(req);
-    if (!requesterId) {
-      return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
-    }
+  app.get("/api/tickets", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, ["REQUESTER"])) return;
+    const requesterId = authenticatedUser(req).id;
 
     const { input, fieldErrors } = parseTicketListQuery(req.query);
     if (!input) return errorResponse(res, 400, "INVALID_QUERY", "Please correct the query parameters.", fieldErrors);
 
     try {
-      const requester = await prisma.requesterUser.findFirst({
-        where: { id: requesterId, isActive: true, role: "REQUESTER" },
-        select: { id: true },
-      });
-      if (!requester) {
-        return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
-      }
-
       const where: Prisma.TicketWhereInput = { requesterId };
       if (input.search) {
         where.OR = [
@@ -536,11 +605,14 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
             ticketNumber: true,
             summary: true,
             requestedPriority: true,
+            itPriority: true,
             currentStatus: true,
+            version: true,
             createdAt: true,
             updatedAt: true,
             category: { select: { id: true, name: true } },
             relatedSystem: { select: { id: true, name: true } },
+            owner: { select: { id: true, name: true, email: true, role: true } },
           },
         }),
         prisma.ticket.count({ where }),
@@ -572,11 +644,9 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     }
   });
 
-  app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
-    const requesterId = parseRequesterId(req);
-    if (!requesterId) {
-      return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
-    }
+  app.get("/api/tickets/:ticketId", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, ["REQUESTER"])) return;
+    const requesterId = authenticatedUser(req).id;
 
     const ticketIdValue = req.params.ticketId;
     if (!/^[1-9]\d*$/.test(ticketIdValue) || !Number.isSafeInteger(Number(ticketIdValue))) {
@@ -585,41 +655,9 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     const ticketId = Number(ticketIdValue);
 
     try {
-      const requester = await prisma.requesterUser.findFirst({
-        where: { id: requesterId, isActive: true, role: "REQUESTER" },
-        select: { id: true },
-      });
-      if (!requester) {
-        return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
-      }
-
       const ticket = await prisma.ticket.findFirst({
         where: { id: ticketId, requesterId },
-        select: {
-          id: true,
-          ticketNumber: true,
-          createdAt: true,
-          updatedAt: true,
-          summary: true,
-          description: true,
-          requestedPriority: true,
-          currentStatus: true,
-          requester: { select: { id: true, name: true, email: true } },
-          category: { select: { id: true, name: true } },
-          relatedSystem: { select: { id: true, name: true } },
-          attachments: {
-            orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],
-            select: {
-              id: true,
-              originalName: true,
-              mimeType: true,
-              sizeBytes: true,
-              uploadedAt: true,
-              removedAt: true,
-              removedReason: true,
-            },
-          },
-        },
+        select: ticketDetailSelect,
       });
       if (!ticket) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Ticket not found.");
       return res.status(200).json(ticketDetailResponse(ticket));
@@ -631,13 +669,12 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
   app.post(
     "/api/tickets/:ticketId/attachments",
     async (req: AttachmentUploadRequest, res: Response, next: NextFunction) => {
-      const requesterId = parseRequesterId(req);
-      if (!requesterId) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+      if (!requireRole(req, res, ["REQUESTER"])) return;
+      if (!requireRequestCsrf(req, res)) return;
+      const requesterId = authenticatedUser(req).id;
       const ticketId = parsePositiveId(req.params.ticketId);
       if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
       try {
-        const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true, role: "REQUESTER" }, select: { id: true } });
-        if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
         const ownedTicket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } });
         if (!ownedTicket) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Ticket not found.");
         req.attachmentContext = { requesterId, ticketId };
@@ -707,17 +744,18 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     },
   );
 
-  app.get("/api/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
-    const requesterId = parseRequesterId(req);
-    if (!requesterId) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+  app.get("/api/tickets/:ticketId/attachments", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, ["REQUESTER", ...operationalRoles])) return;
+    const user = authenticatedUser(req);
     const ticketId = parsePositiveId(req.params.ticketId);
     if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
 
     try {
-      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true, role: "REQUESTER" }, select: { id: true } });
-      if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
-      const ownedTicket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } });
-      if (!ownedTicket) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Ticket not found.");
+      const visibleTicket = await prisma.ticket.findFirst({
+        where: user.role === "REQUESTER" ? { id: ticketId, requesterId: user.id } : { id: ticketId },
+        select: { id: true },
+      });
+      if (!visibleTicket) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Ticket not found.");
       const attachments = await prisma.attachment.findMany({
         where: { ticketId },
         orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],
@@ -729,19 +767,22 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     }
   });
 
-  app.get("/api/tickets/:ticketId/attachments/:attachmentId/download", async (req: Request, res: Response) => {
-    const requesterId = parseRequesterId(req);
-    if (!requesterId) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+  app.get("/api/tickets/:ticketId/attachments/:attachmentId/download", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, ["REQUESTER", ...operationalRoles])) return;
+    const user = authenticatedUser(req);
     const ticketId = parsePositiveId(req.params.ticketId);
     const attachmentId = parsePositiveId(req.params.attachmentId);
     if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
     if (!attachmentId) return errorResponse(res, 400, "INVALID_ATTACHMENT_ID", "Attachment ID must be a positive integer.");
 
     try {
-      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true, role: "REQUESTER" }, select: { id: true } });
-      if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
       const attachment = await prisma.attachment.findFirst({
-        where: { id: attachmentId, ticketId, removedAt: null, ticket: { requesterId } },
+        where: {
+          id: attachmentId,
+          ticketId,
+          removedAt: null,
+          ...(user.role === "REQUESTER" ? { ticket: { requesterId: user.id } } : {}),
+        },
         select: { id: true, originalName: true, mimeType: true, storageKey: true },
       });
       if (!attachment) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Attachment not found.");
@@ -755,9 +796,10 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     }
   });
 
-  app.delete("/api/tickets/:ticketId/attachments/:attachmentId", async (req: Request, res: Response) => {
-    const requesterId = parseRequesterId(req);
-    if (!requesterId) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+  app.delete("/api/tickets/:ticketId/attachments/:attachmentId", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, ["REQUESTER"])) return;
+    if (!requireRequestCsrf(req, res)) return;
+    const requesterId = authenticatedUser(req).id;
     const ticketId = parsePositiveId(req.params.ticketId);
     const attachmentId = parsePositiveId(req.params.attachmentId);
     if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
@@ -768,8 +810,6 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     }
 
     try {
-      const requester = await prisma.requesterUser.findFirst({ where: { id: requesterId, isActive: true, role: "REQUESTER" }, select: { id: true } });
-      if (!requester) return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
       const removed = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} AND "requesterId" = ${requesterId} FOR UPDATE`);
         const existing = await tx.attachment.findFirst({ where: { id: attachmentId, ticketId, removedAt: null, ticket: { requesterId } }, select: { id: true } });
@@ -787,11 +827,10 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     }
   });
 
-  app.post("/api/tickets", async (req: Request, res: Response) => {
-    const requesterId = parseRequesterId(req);
-    if (!requesterId) {
-      return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
-    }
+  app.post("/api/tickets", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, ["REQUESTER"])) return;
+    if (!requireRequestCsrf(req, res)) return;
+    const requesterId = authenticatedUser(req).id;
 
     const { input, fieldErrors } = validateTicketBody(req.body);
     if (!input) return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", fieldErrors);
@@ -809,9 +848,9 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       const ticket = await prisma.$transaction(async (tx) => {
         const requester = await tx.requesterUser.findFirst({
           where: { id: requesterId, isActive: true, role: "REQUESTER" },
-          select: { id: true, name: true, email: true },
+          select: { id: true, name: true, email: true, role: true },
         });
-        if (!requester) throw new Error("REQUESTER_CONTEXT_INVALID");
+        if (!requester) throw new Error("SESSION_REQUIRED");
 
         const [category, relatedSystem] = await Promise.all([
           tx.category.findFirst({ where: { id: input.categoryId, isActive: true }, select: { id: true, name: true } }),
@@ -824,7 +863,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
 
         const existing = await tx.ticket.findUnique({
           where: { requesterId_clientRequestId: { requesterId, clientRequestId: input.clientRequestId } },
-          include: { requester: true, category: true, relatedSystem: true },
+          select: { ...ticketDetailSelect, requestPayloadHash: true },
         });
         if (existing) {
           if (existing.requestPayloadHash !== requestPayloadHash) throw new Error("IDEMPOTENCY_CONFLICT");
@@ -845,22 +884,23 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
             summary: input.summary,
             description: input.description,
             requestedPriority: input.requestedPriority,
+            itPriority: input.requestedPriority,
             clientRequestId: input.clientRequestId,
             requestPayloadHash,
             createdAt,
           },
-          include: { requester: true, category: true, relatedSystem: true },
+          select: ticketDetailSelect,
         });
         return { ticket: created, replayed: false };
       });
 
       return res.status(ticket.replayed ? 200 : 201).json({
-        ticket: ticketResponse(ticket.ticket),
+        ticket: ticketDetailResponse(ticket.ticket),
         replayed: ticket.replayed,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "REQUESTER_CONTEXT_INVALID") {
-        return errorResponse(res, 400, "REQUESTER_CONTEXT_INVALID", "A valid Development Requester is required.");
+      if (error instanceof Error && error.message === "SESSION_REQUIRED") {
+        return errorResponse(res, 401, "SESSION_REQUIRED", "An active authentication session is required.");
       }
       if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") {
         return errorResponse(res, 409, "IDEMPOTENCY_CONFLICT", "This request ID was already used for different ticket data.");
@@ -873,13 +913,13 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
         try {
           const existing = await prisma.ticket.findUnique({
             where: { requesterId_clientRequestId: { requesterId, clientRequestId: input.clientRequestId } },
-            include: { requester: true, category: true, relatedSystem: true },
+            select: { ...ticketDetailSelect, requestPayloadHash: true },
           });
           if (existing) {
             if (existing.requestPayloadHash !== requestPayloadHash) {
               return errorResponse(res, 409, "IDEMPOTENCY_CONFLICT", "This request ID was already used for different ticket data.");
             }
-            return res.status(200).json({ ticket: ticketResponse(existing), replayed: true });
+            return res.status(200).json({ ticket: ticketDetailResponse(existing), replayed: true });
           }
         } catch {
           // Fall through to the safe generic error response.
@@ -888,6 +928,149 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       return errorResponse(res, 500, "TICKET_CREATE_FAILED", "Unable to create the Ticket.");
     }
   });
+
+  app.post(
+    "/api/tickets/:ticketId/resolution-indication",
+    async (req: AuthenticatedRequest, res: Response) => {
+      if (!requireRole(req, res, ["REQUESTER"])) return;
+      if (!requireRequestCsrf(req, res)) return;
+      const requesterId = authenticatedUser(req).id;
+      const ticketId = parsePositiveId(req.params.ticketId);
+      if (!ticketId) {
+        return errorResponse(
+          res,
+          400,
+          "VALIDATION_FAILED",
+          "Ticket ID must be a positive integer.",
+        );
+      }
+      const body = req.body as Record<string, unknown> | null;
+      const fieldErrors: Record<string, string[]> = {};
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        fieldErrors.body = ["Request body must be a JSON object."];
+      } else {
+        for (const key of Object.keys(body)) {
+          if (key !== "expectedVersion") {
+            fieldErrors[key] = ["This field is not supported."];
+          }
+        }
+        if (
+          typeof body.expectedVersion !== "number" ||
+          !Number.isSafeInteger(body.expectedVersion) ||
+          body.expectedVersion <= 0
+        ) {
+          fieldErrors.expectedVersion = ["Expected version must be a positive integer."];
+        }
+      }
+      if (Object.keys(fieldErrors).length > 0) {
+        return errorResponse(
+          res,
+          400,
+          "VALIDATION_FAILED",
+          "Please correct the highlighted fields.",
+          fieldErrors,
+        );
+      }
+      const expectedVersion = body!.expectedVersion as number;
+
+      try {
+        const detail = await prisma.$transaction(async (tx) => {
+          await tx.$queryRaw(
+            Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`,
+          );
+          const current = await tx.ticket.findFirst({
+            where: { id: ticketId, requesterId },
+            select: {
+              id: true,
+              version: true,
+              currentStatus: true,
+              requesterResolvedAt: true,
+            },
+          });
+          if (!current) throw new Error("RESOURCE_NOT_FOUND");
+          if (current.version !== expectedVersion) {
+            throw new Error("VERSION_CONFLICT");
+          }
+          if (
+            !["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(
+              current.currentStatus,
+            )
+          ) {
+            throw new Error("RESOLUTION_INDICATION_UNAVAILABLE");
+          }
+          if (current.requesterResolvedAt === null) {
+            const updated = await tx.ticket.updateMany({
+              where: { id: ticketId, requesterId, version: expectedVersion },
+              data: {
+                requesterResolvedAt: new Date(),
+                requesterResolvedById: requesterId,
+                version: { increment: 1 },
+              },
+            });
+            if (updated.count !== 1) throw new Error("VERSION_CONFLICT");
+          }
+          const saved = await tx.ticket.findFirst({
+            where: { id: ticketId, requesterId },
+            select: ticketDetailSelect,
+          });
+          if (!saved) throw new Error("RESOURCE_NOT_FOUND");
+          return saved;
+        });
+        return res.status(200).json(ticketDetailResponse(detail));
+      } catch (error) {
+        if (error instanceof Error && error.message === "RESOURCE_NOT_FOUND") {
+          return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Ticket not found.");
+        }
+        if (error instanceof Error && error.message === "VERSION_CONFLICT") {
+          return errorResponse(
+            res,
+            409,
+            "VERSION_CONFLICT",
+            "The Ticket changed. Refresh and try again.",
+          );
+        }
+        if (
+          error instanceof Error &&
+          error.message === "RESOLUTION_INDICATION_UNAVAILABLE"
+        ) {
+          return errorResponse(
+            res,
+            409,
+            "RESOLUTION_INDICATION_UNAVAILABLE",
+            "Resolution indication is unavailable for this Ticket status.",
+          );
+        }
+        return errorResponse(
+          res,
+          500,
+          "RESOLUTION_INDICATION_FAILED",
+          "Unable to save the resolution indication.",
+        );
+      }
+    },
+  );
+
+  const protectInternalNotes = (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    if (req.auth?.user.role === "REQUESTER") {
+      return errorResponse(
+        res,
+        403,
+        "ROLE_FORBIDDEN",
+        "This account is not permitted to access Internal Notes.",
+      );
+    }
+    return next();
+  };
+  app.get("/api/tickets/:ticketId/notes", protectInternalNotes);
+  app.post("/api/tickets/:ticketId/notes", protectInternalNotes);
+
+  app.use("/api", (_req: Request, res: Response) =>
+    errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Resource not found."),
+  );
 
   app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
     const typedError = error as { type?: string; status?: number; message?: string } | null;
@@ -904,6 +1087,41 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
 
   return app;
 }
+
+const ticketDetailSelect = Prisma.validator<Prisma.TicketSelect>()({
+  id: true,
+  ticketNumber: true,
+  createdAt: true,
+  updatedAt: true,
+  summary: true,
+  description: true,
+  requestedPriority: true,
+  itPriority: true,
+  currentStatus: true,
+  version: true,
+  resolutionSummary: true,
+  resolvedAt: true,
+  closedAt: true,
+  lastStatusReason: true,
+  requesterResolvedAt: true,
+  requester: { select: { id: true, name: true, email: true, role: true } },
+  owner: { select: { id: true, name: true, email: true, role: true } },
+  requesterResolved: { select: { id: true, name: true, email: true, role: true } },
+  category: { select: { id: true, name: true } },
+  relatedSystem: { select: { id: true, name: true } },
+  attachments: {
+    orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      originalName: true,
+      mimeType: true,
+      sizeBytes: true,
+      uploadedAt: true,
+      removedAt: true,
+      removedReason: true,
+    },
+  },
+});
 
 export const app = createApp();
 

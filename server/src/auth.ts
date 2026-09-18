@@ -58,6 +58,20 @@ type SessionContext = {
   tokenHash: string;
   restricted: boolean;
 };
+export type AuthenticatedRequest = Request & {
+  auth?: {
+    user: {
+      id: number;
+      name: string;
+      email: string;
+      role: AuthUser["role"];
+      mustChangePassword: boolean;
+    };
+    csrfToken: string;
+    sessionId: string;
+    legacyTestContext?: boolean;
+  };
+};
 type Bucket = {
   count: number;
   startedAt: number;
@@ -224,6 +238,26 @@ function equal(a: string, b: string) {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
   return left.length === right.length && timingSafeEqual(left, right);
+}
+
+export function requireRequestCsrf(
+  req: AuthenticatedRequest,
+  res: Response,
+) {
+  if (req.auth?.legacyTestContext) return true;
+  if (!requireAllowedOrigin(req, res)) return false;
+  const csrf = req.header("X-CSRF-Token") ?? "";
+  if (!req.auth || !equal(csrf, req.auth.csrfToken)) {
+    errorResponse(res, 403, "CSRF_INVALID", CSRF_INVALID_MESSAGE);
+    return false;
+  }
+  return true;
+}
+
+function positiveHeaderId(value: string | undefined) {
+  if (!value || !/^[1-9]\d*$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 function ip(req: Request) {
@@ -783,17 +817,79 @@ export function registerAuthRoutes(app: Express, prisma: AuthPrisma): void {
     }
   });
 
-  app.use(async (req, res, next) => {
+  app.use(async (req: AuthenticatedRequest, res, next) => {
     if (req.path === "/api/health") return next();
-    try {
-      const context = await load(prisma, req, false);
-      if (!context?.restricted) return next();
+    const legacyE2e =
+      process.env.LAB2_E2E_LEGACY_AUTH === "1" &&
+      process.env.NODE_ENV === "test" &&
+      process.env.CI === "true";
+    if (
+      legacyE2e &&
+      [
+        "/api/categories",
+        "/api/related-systems",
+        "/api/development-requesters",
+      ].includes(req.path)
+    ) {
+      return next();
+    }
+
+    const legacyRequesterId = positiveHeaderId(req.header("X-Requester-Id"));
+    const sessionDelegate = (prisma as unknown as { session?: unknown }).session;
+    // Temporary Lab 2 E2E compatibility only. This is deliberately gated by
+    // both the explicit adapter flag and the test/CI runtime so a normal
+    // staging/production process fails closed even if the adapter flag leaks.
+    // Remove this adapter in Issue #56 when the authenticated role shell
+    // removes the legacy requester client helper.
+    if (legacyRequesterId && legacyE2e) {
+      req.auth = {
+        user: {
+          id: legacyRequesterId,
+          name: "Legacy Requester test context",
+          email: "legacy-requester@example.test",
+          role: "REQUESTER",
+          mustChangePassword: false,
+        },
+        csrfToken: "",
+        sessionId: "legacy-test-context",
+        legacyTestContext: true,
+      };
+      return next();
+    }
+    if (!sessionDelegate) {
       return errorResponse(
         res,
-        403,
-        "PASSWORD_CHANGE_REQUIRED",
-        "Change the initial password before using the application.",
+        401,
+        "SESSION_REQUIRED",
+        SESSION_REQUIRED_MESSAGE,
       );
+    }
+
+    try {
+      const context = await load(prisma, req, true);
+      if (!context) {
+        clearCookie(res, req);
+        return errorResponse(
+          res,
+          401,
+          "SESSION_REQUIRED",
+          SESSION_REQUIRED_MESSAGE,
+        );
+      }
+      if (context.restricted) {
+        return errorResponse(
+          res,
+          403,
+          "PASSWORD_CHANGE_REQUIRED",
+          "Change the initial password before using the application.",
+        );
+      }
+      req.auth = {
+        user: safe(context.session.user),
+        csrfToken: context.session.csrfToken,
+        sessionId: context.session.id,
+      };
+      return next();
     } catch {
       return errorResponse(
         res,

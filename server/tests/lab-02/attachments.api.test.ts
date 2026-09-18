@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
+import { testClientOrigin, withMockRequesterSession } from "../helpers/auth-session.js";
 
 const storageDirectory = path.resolve(process.cwd(), "storage", "attachments");
 const pdfBytes = Buffer.from("%PDF-1.7\nfixture");
@@ -78,13 +79,14 @@ function makePrisma(options: {
 afterEach(async () => {
   await rm(storageDirectory, { recursive: true, force: true });
 });
-
 describe("Attachment APIs", () => {
   it.each(validFixtures)("accepts .$extension with matching MIME and signature", async ({ extension, mimeType, bytes }) => {
     const { prisma } = makePrisma();
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .attach("file", bytes, { filename: `valid.${extension}`, contentType: mimeType });
 
     expect(res.status).toBe(201);
@@ -94,9 +96,11 @@ describe("Attachment APIs", () => {
 
   it("uploads one supported file and returns active metadata", async () => {
     const { prisma, transaction } = makePrisma();
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .attach("file", pdfBytes, "../battery report.pdf");
 
     expect(res.status).toBe(201);
@@ -119,9 +123,11 @@ describe("Attachment APIs", () => {
   it("accepts the exact 5 MiB boundary", async () => {
     const { prisma } = makePrisma();
     const exactLimit = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(5_242_880 - 9)]);
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .attach("file", exactLimit, "exact-limit.pdf");
 
     expect(res.status).toBe(201);
@@ -129,39 +135,59 @@ describe("Attachment APIs", () => {
   });
 
   it("rejects missing, unsupported, signature-mismatched, oversized, and sixth active files", async () => {
-    const missing = await request(createApp(makePrisma().prisma)).post("/api/tickets/42/attachments").set("X-Requester-Id", "1");
+    const missingFixture = withMockRequesterSession(makePrisma().prisma);
+    const missing = await request(createApp(missingFixture.prisma))
+      .post("/api/tickets/42/attachments")
+      .set("Cookie", missingFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", missingFixture.csrfToken);
     expect(missing.status).toBe(400);
     expect(missing.body.error.code).toBe("ATTACHMENT_REQUIRED");
 
-    const unsupported = await request(createApp(makePrisma().prisma))
+    const unsupportedFixture = withMockRequesterSession(makePrisma().prisma);
+    const unsupported = await request(createApp(unsupportedFixture.prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", unsupportedFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", unsupportedFixture.csrfToken)
       .attach("file", Buffer.from("plain text"), "notes.txt");
     expect(unsupported.status).toBe(415);
     expect(unsupported.body.error.code).toBe("ATTACHMENT_TYPE_UNSUPPORTED");
 
-    const mismatch = await request(createApp(makePrisma().prisma))
+    const mismatchFixture = withMockRequesterSession(makePrisma().prisma);
+    const mismatch = await request(createApp(mismatchFixture.prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", mismatchFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", mismatchFixture.csrfToken)
       .attach("file", Buffer.from("plain text"), "notes.pdf");
     expect(mismatch.status).toBe(415);
 
-    const mimeMismatch = await request(createApp(makePrisma().prisma))
+    const mimeFixture = withMockRequesterSession(makePrisma().prisma);
+    const mimeMismatch = await request(createApp(mimeFixture.prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", mimeFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", mimeFixture.csrfToken)
       .attach("file", validFixtures[2].bytes, { filename: "image.png", contentType: "image/jpeg" });
     expect(mimeMismatch.status).toBe(415);
 
-    const oversized = await request(createApp(makePrisma().prisma))
+    const oversizedFixture = withMockRequesterSession(makePrisma().prisma);
+    const oversized = await request(createApp(oversizedFixture.prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", oversizedFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", oversizedFixture.csrfToken)
       .attach("file", Buffer.alloc(5_242_881), "large.pdf");
     expect(oversized.status).toBe(413);
     expect(oversized.body.error.code).toBe("ATTACHMENT_TOO_LARGE");
 
-    const limited = await request(createApp(makePrisma({ activeCount: 5 }).prisma))
+    const limitedFixture = withMockRequesterSession(makePrisma({ activeCount: 5 }).prisma);
+    const limited = await request(createApp(limitedFixture.prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", limitedFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", limitedFixture.csrfToken)
       .attach("file", pdfBytes, "limited.pdf");
     expect(limited.status).toBe(409);
     expect(limited.body.error.code).toBe("ATTACHMENT_LIMIT_REACHED");
@@ -173,7 +199,9 @@ describe("Attachment APIs", () => {
       makeAttachment({ id: 11, originalName: "removed.pdf", uploadedAt: new Date("2026-08-24T10:00:00.000Z"), removedAt: new Date("2026-08-25T10:00:00.000Z"), removedReason: "Duplicate" }),
     ];
     const { prisma, transaction } = makePrisma({ attachments });
-    const res = await request(createApp(prisma)).get("/api/tickets/42/attachments").set("X-Requester-Id", "1");
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets/42/attachments").set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken);
 
     expect(res.status).toBe(200);
     expect(res.body.map((item: { originalName: string }) => item.originalName)).toEqual(["first.pdf", "removed.pdf"]);
@@ -186,15 +214,17 @@ describe("Attachment APIs", () => {
   });
 
   it("returns safe list errors and does not expose non-owned Tickets", async () => {
-    const missing = await request(createApp(makePrisma({ missingTicket: true }).prisma))
+    const missingFixture = withMockRequesterSession(makePrisma({ missingTicket: true }).prisma);
+    const missing = await request(createApp(missingFixture.prisma))
       .get("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1");
+      .set("Cookie", missingFixture.cookie);
     expect(missing.status).toBe(404);
     expect(missing.body.error.code).toBe("RESOURCE_NOT_FOUND");
 
-    const failed = await request(createApp(makePrisma({ fail: true }).prisma))
+    const failedFixture = withMockRequesterSession(makePrisma({ fail: true }).prisma);
+    const failed = await request(createApp(failedFixture.prisma))
       .get("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1");
+      .set("Cookie", failedFixture.cookie);
     expect(failed.status).toBe(500);
     expect(failed.body.error.code).toBe("ATTACHMENT_LIST_FAILED");
   });
@@ -204,7 +234,9 @@ describe("Attachment APIs", () => {
     await mkdir(storageDirectory, { recursive: true });
     await writeFile(path.join(storageDirectory, `${attachment.storageKey}.pdf`), pdfBytes);
     const { prisma, transaction } = makePrisma({ attachment });
-    const res = await request(createApp(prisma)).get("/api/tickets/42/attachments/12/download").set("X-Requester-Id", "1");
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets/42/attachments/12/download").set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken);
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("application/pdf");
@@ -215,23 +247,27 @@ describe("Attachment APIs", () => {
   });
 
   it("rejects removed or unavailable downloads safely", async () => {
-    const removed = await request(createApp(makePrisma({ attachment: null }).prisma))
+    const removedFixture = withMockRequesterSession(makePrisma({ attachment: null }).prisma);
+    const removed = await request(createApp(removedFixture.prisma))
       .get("/api/tickets/42/attachments/12/download")
-      .set("X-Requester-Id", "1");
+      .set("Cookie", removedFixture.cookie);
     expect(removed.status).toBe(404);
 
-    const unavailable = await request(createApp(makePrisma().prisma))
+    const unavailableFixture = withMockRequesterSession(makePrisma().prisma);
+    const unavailable = await request(createApp(unavailableFixture.prisma))
       .get("/api/tickets/42/attachments/12/download")
-      .set("X-Requester-Id", "1");
+      .set("Cookie", unavailableFixture.cookie);
     expect(unavailable.status).toBe(500);
     expect(unavailable.body.error.code).toBe("ATTACHMENT_DOWNLOAD_FAILED");
   });
 
   it("soft-removes an active owned Attachment and validates the reason", async () => {
     const { prisma, transaction } = makePrisma();
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .delete("/api/tickets/42/attachments/12")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send({ reason: "No longer needed" });
 
     expect(res.status).toBe(200);
@@ -241,38 +277,53 @@ describe("Attachment APIs", () => {
       data: expect.objectContaining({ removedReason: "No longer needed", removedByRequesterId: 1 }),
     }));
 
-    const invalid = await request(createApp(makePrisma().prisma))
+    const invalidFixture = withMockRequesterSession(makePrisma().prisma);
+    const invalid = await request(createApp(invalidFixture.prisma))
       .delete("/api/tickets/42/attachments/12")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", invalidFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", invalidFixture.csrfToken)
       .send({ reason: "bad" });
     expect(invalid.status).toBe(400);
     expect(invalid.body.error.code).toBe("VALIDATION_FAILED");
   });
 
   it("accepts exact removal-reason boundaries and rejects an already removed file", async () => {
-    const minimum = await request(createApp(makePrisma().prisma))
+    const minimumFixture = withMockRequesterSession(makePrisma().prisma);
+    const minimum = await request(createApp(minimumFixture.prisma))
       .delete("/api/tickets/42/attachments/12")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", minimumFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", minimumFixture.csrfToken)
       .send({ reason: "12345" });
     expect(minimum.status).toBe(200);
 
-    const maximum = await request(createApp(makePrisma().prisma))
+    const maximumFixture = withMockRequesterSession(makePrisma().prisma);
+    const maximum = await request(createApp(maximumFixture.prisma))
       .delete("/api/tickets/42/attachments/12")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", maximumFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", maximumFixture.csrfToken)
       .send({ reason: "r".repeat(250) });
     expect(maximum.status).toBe(200);
 
-    const alreadyRemoved = await request(createApp(makePrisma({ attachment: null }).prisma))
+    const alreadyRemovedFixture = withMockRequesterSession(makePrisma({ attachment: null }).prisma);
+    const alreadyRemoved = await request(createApp(alreadyRemovedFixture.prisma))
       .delete("/api/tickets/42/attachments/12")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", alreadyRemovedFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", alreadyRemovedFixture.csrfToken)
       .send({ reason: "No longer needed" });
     expect(alreadyRemoved.status).toBe(404);
   });
 
   it("removes a written file when metadata transaction fails", async () => {
-    const res = await request(createApp(makePrisma({ failTransaction: true }).prisma))
+    const failedFixture = withMockRequesterSession(makePrisma({ failTransaction: true }).prisma);
+    const res = await request(createApp(failedFixture.prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", failedFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", failedFixture.csrfToken)
       .attach("file", pdfBytes, "failed.pdf");
 
     expect(res.status).toBe(500);
@@ -280,33 +331,24 @@ describe("Attachment APIs", () => {
     expect(await readdir(storageDirectory).catch(() => [])).toEqual([]);
   });
 
-  it("rejects unknown or inactive Requesters before Ticket/Attachment access", async () => {
-    const unknown = makePrisma();
-    vi.mocked(unknown.prisma.requesterUser.findFirst).mockResolvedValue(null);
-    const unknownResponse = await request(createApp(unknown.prisma)).get("/api/tickets/42/attachments").set("X-Requester-Id", "999");
-    expect(unknownResponse.status).toBe(400);
-    expect(unknown.transaction.ticket.findFirst).not.toHaveBeenCalled();
-    expect(unknown.transaction.attachment.findMany).not.toHaveBeenCalled();
-
-    const inactive = makePrisma({ inactiveRequester: true });
-    const inactiveResponse = await request(createApp(inactive.prisma)).get("/api/tickets/42/attachments").set("X-Requester-Id", "1");
-    expect(inactiveResponse.status).toBe(400);
-    expect(inactive.transaction.ticket.findFirst).not.toHaveBeenCalled();
-  });
-
   it("sanitizes unsafe names and truncates Unicode names without splitting emoji", async () => {
     const { prisma } = makePrisma();
-    const unsafe = await request(createApp(prisma))
+    const unsafe = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .attach("file", pdfBytes, "../bad\nname.pdf");
     expect(unsafe.status).toBe(201);
     expect(unsafe.body.originalName).toBe("bad_name.pdf");
 
     const longName = `${"😀".repeat(300)}.pdf`;
-    const unicode = await request(createApp(makePrisma().prisma))
+    const unicodeFixture = withMockRequesterSession(makePrisma().prisma);
+    const unicode = await request(createApp(unicodeFixture.prisma))
       .post("/api/tickets/42/attachments")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", unicodeFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", unicodeFixture.csrfToken)
       .attach("file", pdfBytes, longName);
     expect(unicode.status).toBe(201);
     expect(Array.from(unicode.body.originalName).length).toBe(255);

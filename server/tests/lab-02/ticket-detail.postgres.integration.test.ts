@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { createApp } from "../../src/app.js";
 import { assertIntegrationDatabase, createIntegrationPrisma, isDatabaseIntegrationRequested } from "../../src/prisma.js";
+import { createProvisionedTestUser, createTestSession, testClientOrigin } from "../helpers/auth-session.js";
 
 const runIntegration = isDatabaseIntegrationRequested();
 if (runIntegration) assertIntegrationDatabase();
@@ -16,22 +17,33 @@ integration("GET /api/tickets/:ticketId PostgreSQL integration", () => {
   let categoryId: number;
   let relatedSystemId: number;
   let ticketId: number;
+  let authA: Awaited<ReturnType<typeof createTestSession>>;
+  let authB: Awaited<ReturnType<typeof createTestSession>>;
+  let testUserIds: number[] = [];
 
   beforeAll(async () => {
     prisma = createIntegrationPrisma();
     await prisma.$connect();
-    const [requesters, category, relatedSystem] = await Promise.all([
-      prisma.requesterUser.findMany({ where: { isActive: true, role: "REQUESTER" }, select: { id: true }, orderBy: { id: "asc" }, take: 2 }),
+    const [category, relatedSystem] = await Promise.all([
       prisma.category.findFirst({ where: { isActive: true }, select: { id: true } }),
       prisma.relatedSystem.findFirst({ where: { isActive: true }, select: { id: true } }),
     ]);
-    if (requesters.length < 2 || !category || !relatedSystem) {
+    if (!category || !relatedSystem) {
       throw new Error("Integration test requires two active Requesters and seeded reference data.");
     }
-    requesterA = requesters[0].id;
-    requesterB = requesters[1].id;
+    const [userA, userB] = await Promise.all([
+      createProvisionedTestUser(prisma, "REQUESTER", "Detail A"),
+      createProvisionedTestUser(prisma, "REQUESTER", "Detail B"),
+    ]);
+    requesterA = userA.id;
+    requesterB = userB.id;
+    testUserIds = [userA.id, userB.id];
     categoryId = category.id;
     relatedSystemId = relatedSystem.id;
+    [authA, authB] = await Promise.all([
+      createTestSession(prisma, requesterA),
+      createTestSession(prisma, requesterB),
+    ]);
 
     const [{ nextval }] = await prisma.$queryRaw<Array<{ nextval: bigint }>>(
       Prisma.sql`SELECT nextval('"TicketNumberSequence"')`,
@@ -45,7 +57,7 @@ integration("GET /api/tickets/:ticketId PostgreSQL integration", () => {
         summary: "Ticket detail integration fixture",
         description: "Fixture for owner isolation and Attachment ordering.",
         requestedPriority: "HIGH",
-        currentStatus: "NEW",
+        currentStatus: "OPEN",
         clientRequestId: randomUUID(),
         requestPayloadHash: "a".repeat(64),
         attachments: {
@@ -77,12 +89,13 @@ integration("GET /api/tickets/:ticketId PostgreSQL integration", () => {
   afterAll(async () => {
     if (!prisma) return;
     if (ticketId) await prisma.ticket.delete({ where: { id: ticketId } });
+    for (const id of testUserIds) await prisma.requesterUser.delete({ where: { id } }).catch(() => undefined);
     await prisma.$disconnect();
   });
 
   it("returns ordered details to the owner and safely rejects another owner", async () => {
     const app = createApp(prisma);
-    const owned = await request(app).get(`/api/tickets/${ticketId}`).set("X-Requester-Id", String(requesterA));
+    const owned = await request(app).get(`/api/tickets/${ticketId}`).set("Cookie", authA.cookie);
     expect(owned.status).toBe(200);
     expect(owned.body.attachments.map((attachment: { originalName: string }) => attachment.originalName)).toEqual(["first.txt", "removed.txt"]);
     expect(owned.body.attachments[0]).toMatchObject({ state: "ACTIVE", downloadUrl: `/api/tickets/${ticketId}/attachments/${owned.body.attachments[0].id}/download` });
@@ -90,8 +103,43 @@ integration("GET /api/tickets/:ticketId PostgreSQL integration", () => {
     expect(owned.body.attachments[0].storageKey).toBeUndefined();
     expect(owned.body.requestPayloadHash).toBeUndefined();
 
-    const nonOwner = await request(app).get(`/api/tickets/${ticketId}`).set("X-Requester-Id", String(requesterB));
+    const nonOwner = await request(app).get(`/api/tickets/${ticketId}`).set("Cookie", authB.cookie);
     expect(nonOwner.status).toBe(404);
     expect(nonOwner.body).toEqual({ error: { code: "RESOURCE_NOT_FOUND", message: "Ticket not found." } });
+  });
+
+  it("records the owner resolution indication with optimistic versioning", async () => {
+    const app = createApp(prisma);
+    const indicated = await request(app)
+      .post(`/api/tickets/${ticketId}/resolution-indication`)
+      .set("Cookie", authA.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", authA.csrfToken)
+      .send({ expectedVersion: 1 });
+    expect(indicated.status).toBe(200);
+    expect(indicated.body).toMatchObject({ currentStatus: "OPEN", version: 2, requesterResolvedBy: { id: requesterA } });
+    await expect(prisma.ticket.findUnique({ where: { id: ticketId } })).resolves.toMatchObject({
+      currentStatus: "OPEN",
+      version: 2,
+      requesterResolvedAt: expect.any(Date),
+      requesterResolvedById: requesterA,
+    });
+
+    const repeated = await request(app)
+      .post(`/api/tickets/${ticketId}/resolution-indication`)
+      .set("Cookie", authA.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", authA.csrfToken)
+      .send({ expectedVersion: 2 });
+    expect(repeated.status).toBe(200);
+    expect(repeated.body.version).toBe(2);
+
+    const nonOwner = await request(app)
+      .post(`/api/tickets/${ticketId}/resolution-indication`)
+      .set("Cookie", authB.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", authB.csrfToken)
+      .send({ expectedVersion: 2 });
+    expect(nonOwner.status).toBe(404);
   });
 });
