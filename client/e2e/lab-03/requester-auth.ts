@@ -27,18 +27,30 @@ export async function enterAuthenticatedRequester(page: Page, requesterId = 1): 
   const changed = replacementPassword(requesterId);
   let signedIn = false;
   for (const candidate of [INITIAL_PASSWORD, changed]) {
+    await expect(page.getByLabel("Email")).toBeEnabled();
     await page.getByLabel("Email").fill(email);
     await page.getByRole("textbox", { name: "Password", exact: true }).fill(candidate);
     await page.getByRole("button", { name: "Sign In", exact: true }).click();
-    if (await page.getByRole("heading", { name: "My Tickets", exact: true }).isVisible().catch(() => false)) {
+
+    // Login is asynchronous.  Do not start the fallback-password attempt while
+    // the first submission still owns the disabled form; wait for one of the
+    // three authoritative post-submit states instead.
+    const outcome = await Promise.race([
+      page.getByRole("heading", { name: "My Tickets", exact: true }).waitFor({ state: "visible" }).then(() => "workspace" as const),
+      page.getByRole("heading", { name: "Change your initial password", exact: true }).waitFor({ state: "visible" }).then(() => "change-password" as const),
+      page.getByRole("alert").waitFor({ state: "visible" }).then(() => "rejected" as const),
+    ]);
+
+    if (outcome === "workspace") {
       signedIn = true;
       break;
     }
-    if (await page.getByRole("heading", { name: "Change your initial password", exact: true }).isVisible().catch(() => false)) {
+    if (outcome === "change-password") {
       await page.getByLabel("Current Password").fill(candidate);
       await page.getByLabel("New Password").fill(changed);
       await page.getByLabel("Confirm New Password").fill(changed);
       await page.getByRole("button", { name: "Save Password", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "My Tickets", exact: true })).toBeVisible();
       signedIn = true;
       break;
     }
