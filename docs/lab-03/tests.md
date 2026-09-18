@@ -1,6 +1,6 @@
 # Lab 3 Test Plan and Traceability
 
-Version 1.0, planned 2026-09-15 before Lab 3 implementation. Rows remain **Planned / Not run** until an implementation PR records reproducible evidence; rows marked below have reproducible evidence from PR #70, PR #71 or PR #72. A marked row records the executed coverage while any unlisted parameterized cases remain part of the planned matrix.
+Version 1.0, planned 2026-09-15 before Lab 3 implementation. Rows remain **Planned / Not run** until an implementation PR records reproducible evidence; rows marked below have reproducible evidence from PR #70, PR #71, PR #72 or the Issue #56 implementation PR. A marked row records the executed coverage while any unlisted parameterized cases remain part of the planned matrix.
 
 ## 1. Baseline, execution and isolation
 
@@ -28,7 +28,7 @@ Server contract paths: server/tests/lab-03/*.test.ts. UI paths follow this repo'
 | API-03 | API/PostgreSQL | AC-03 | Wrong current password401 and invalid new/confirmation/same400; fault injection at User update/session delete/replacement insert proves full rollback; success atomically commits password+revocation+one normal session before cookie, and simulated lost response recovers by new-password login | server/tests/lab-03/auth.api.test.ts, server/tests/lab-03/auth.postgres.integration.test.ts, server/tests/lab-03/auth.rollback.postgres.integration.test.ts | Passed real PostgreSQL User-update/session-delete/replacement-insert rollback fault injection and simulated post-commit response-loss recovery in Server CI run [35248063736](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35248063736) |
 | API-04 | API | AC-04 | me returns actual role/flag; missing/expired/idle/revoked/inactive sessions401; store failure safe500/no access | server/tests/lab-03/auth.api.test.ts | Passed covered session cases in Server CI run [35236849889](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35236849889) |
 | API-05 | API | AC-05 | Valid logout204 clears/deletes token; old token protected replay401; repeated/absent/expired logout204; valid-session CSRF failure403 leaves session intact; invalid Origin403 | server/tests/lab-03/auth.api.test.ts, server/tests/lab-03/auth.postgres.integration.test.ts | Passed covered logout/CSRF/idempotency cases in Server CI run [35236849889](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35236849889) |
-| API-06 | API | AC-06 | Parameterize every protected endpoint/method against every role, including restricted/anonymous; matrix denial precedes resource lookup | server/tests/lab-03/authorization.api.test.ts | Issue #55 authorization/Requester-regression scope only. Reference data explicitly covers anonymous 401, restricted 403 and Requester/IT Staff/Administrator 200 without legacy-header identity. Covered Requester resource routes assert exact allowed/denied contracts. Internal Note GET/POST are authorization stubs here: only anonymous/restricted/Requester denial is claimed; Staff/Admin success remains Planned / Not run until the Comments/Notes implementation. CI evidence pending this revision. |
+| API-06 | API | AC-06 | Parameterize every protected endpoint/method against every role, including restricted/anonymous; matrix denial precedes resource lookup | server/tests/lab-03/authorization.api.test.ts | Issue #55 authorization/Requester-regression scope only. Reference data explicitly covers anonymous 401, restricted 403 and Requester/IT Staff/Administrator 200 without legacy-header identity. Covered Requester resource routes assert exact allowed/denied contracts. Internal Note GET/POST are authorization stubs here: only anonymous/restricted/Requester denial is claimed; Staff/Admin success remains Planned / Not run until child Issue #61. Server CI evidence: [run 35337013360](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35337013360). |
 | API-07 | API | AC-06 | A cookie plus B requester header cannot impersonate B; requesterId body/query400; non-owner resource safe404/no bytes | server/tests/lab-03/authorization.api.test.ts | Passed spoofed header/body/query identity, owner isolation, and fail-closed legacy adapter runtime guard in Server CI run [35340891839](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35340891839) |
 | API-08 | API | AC-20 | Requester Note GET/POST403 even for missing parents; no note content/author/count through detail/comments/errors | server/tests/lab-03/comments-notes.api.test.ts | Planned / Not run |
 | API-09 | API | AC-27 | Trusted/untrusted/missing Origin, exact credentialed CORS; JSON login only; CSRF on active-session JSON/multipart/logout writes, absent-session logout204 with trusted Origin | server/tests/lab-03/auth.api.test.ts | Passed covered Origin/CORS/CSRF/JSON cases in Server CI run [35236849889](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35236849889) |
@@ -95,6 +95,24 @@ Consolidated Issue #56 implemented the client authentication/session shell and a
 | Client E2E / responsive / manual visual checklist | Not run; remains pending. |
 
 Public Comments/Internal Notes were not implemented or mocked in Issue #56. They remain child Issue #61 API scope with integrated Staff UI in #75; the UI truthfully marks Public Comments unavailable. Staff and Administrator destinations are role-guarded landing placeholders only; queue, operational detail and user management feature evidence remains pending its dedicated issues. Because required integration/E2E/visual rows remain skipped or not run, RELEASE-01 and the Product Definition of Done remain incomplete.
+
+### Current Issue mapping — 2026-09-19
+
+The original Test IDs remain stable while implementation uses one Issue, one feature branch and one peer-reviewed PR per stage:
+
+| Issue | Scope | Evidence groups |
+| --- | --- | --- |
+| #56 | Authenticated shell and Requester experience | UI-01-04, UI-07 Requester indication, A11Y-01 partial; E2E-01/02 pending |
+| #58 umbrella | Staff operations tracker only | Child Issues #59/#62/#60/#61/#75 own implementation evidence |
+| #59 | Staff Queue API/UI | UNIT-04, API-18/19, UI-05 pending |
+| #62 | Operational Ticket Detail | API-20 pending |
+| #60 | Ownership, priority and Workflow API | UNIT-03, API-21-25/22, DB-04 pending |
+| #61 | Public Comments/Internal Notes APIs | UNIT-06, API-08/27/28/34 pending |
+| #75 | Staff Detail/UI integration | UI-06/07, STYLE-01, A11Y-01, E2E-03 pending |
+| #63 | Administrator User Management | API-29-33, UI-08/09, E2E-04 pending |
+| #65 | Final integration/release/PDF | RELEASE-01 and final evidence pending |
+
+Issue #56 has reproducible local client evidence in this branch; PostgreSQL integration, E2E, responsive and final visual evidence remain pending.
 
 ## 3. AC-to-test index
 
