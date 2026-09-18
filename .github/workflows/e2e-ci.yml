@@ -33,7 +33,7 @@ jobs:
       LAB_SEED_INITIAL_PASSWORD: "local-lab-only-seed-password-2026"
       TEST_ATTACHMENT_STORAGE_DIR: ${{ github.workspace }}/e2e/.tmp/attachments
       E2E_API_URL: http://127.0.0.1:3000
-      VITE_API_URL: http://127.0.0.1:3000
+      VITE_API_URL: http://localhost:3000
     steps:
       - name: Checkout
         uses: actions/checkout@v4
