@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { enterAuthenticatedRequester } from "../lab-03/requester-auth.js";
 
 const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3000";
 
@@ -15,16 +16,9 @@ type ReferenceItem = { id: number; name: string };
 type Requester = ReferenceItem;
 
 async function enterRequesterWorkspace(page: Page, requestedRequesterId?: number): Promise<number> {
-  await page.goto("/");
-  const requesterSelect = page.locator("#requester-select");
-  await expect(requesterSelect).toBeVisible();
-  const activeRequesterOption = requesterSelect.locator('option:not([value=""])').first();
-  await expect(activeRequesterOption).toHaveCount(1);
-  const requesterId = requestedRequesterId ?? Number(await activeRequesterOption.getAttribute("value"));
+  const requesterId = requestedRequesterId ?? 1;
   expect(Number.isSafeInteger(requesterId)).toBeTruthy();
-  await requesterSelect.selectOption(String(requesterId));
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Welcome to TokTickIT" })).toBeVisible();
+  await enterAuthenticatedRequester(page, requesterId);
   return requesterId;
 }
 
@@ -276,12 +270,9 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await expect(page.locator("#ticket-page-size")).toHaveValue("20");
     await expect(page.locator(".tickets-table tbody").getByText(targetSummary, { exact: true })).toBeVisible();
 
-    // Switch the active context through the real selector and prove A's state is gone before B loads.
-    await page.getByRole("button", { name: "Change Requester", exact: true }).click();
-    await expect(page.locator("#requester-select")).toBeVisible();
-    await page.locator("#requester-select").selectOption(String(requesterB.id));
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Welcome to TokTickIT" })).toBeVisible();
+    // Switch through Logout and a fresh authenticated session; the old selector is retired.
+    await page.getByRole("button", { name: "Logout", exact: true }).click();
+    await enterAuthenticatedRequester(page, requesterB.id);
     await page.getByRole("button", { name: "My Tickets", exact: true }).click();
     await expect(page.locator(".tickets-table tbody").getByText(bSummary, { exact: true })).toBeVisible();
     await expect(page.getByText(targetSummary, { exact: true })).toHaveCount(0);

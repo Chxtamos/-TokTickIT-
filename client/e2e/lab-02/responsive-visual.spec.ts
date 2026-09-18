@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { enterAuthenticatedRequester } from "../lab-03/requester-auth.js";
 
 const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3000";
 
@@ -47,12 +48,7 @@ async function seedScenario(request: APIRequestContext): Promise<Scenario> {
 }
 
 async function enterRequesterWorkspace(page: Page, requesterId: number) {
-  await page.goto("/");
-  const requesterSelect = page.locator("#requester-select");
-  await expect(requesterSelect).toBeVisible();
-  await requesterSelect.selectOption(String(requesterId));
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Welcome to TokTickIT" })).toBeVisible();
+  await enterAuthenticatedRequester(page, requesterId);
 }
 
 async function assertNoPageOverflow(page: Page) {
