@@ -833,7 +833,9 @@ export function registerAuthRoutes(app: Express, prisma: AuthPrisma): void {
 
     const legacyRequesterId = positiveHeaderId(req.header("X-Requester-Id"));
     const sessionDelegate = (prisma as unknown as { session?: unknown }).session;
-    if (legacyRequesterId && (legacyE2e || !sessionDelegate)) {
+    // Temporary Lab 2 E2E compatibility only. Remove this adapter in Issue #56
+    // when the authenticated role shell removes the legacy requester client helper.
+    if (legacyRequesterId && legacyE2e) {
       req.auth = {
         user: {
           id: legacyRequesterId,
