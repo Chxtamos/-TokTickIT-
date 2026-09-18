@@ -47,8 +47,8 @@ export async function enterAuthenticatedRequester(page: Page, requesterId = 1): 
     }
     if (outcome === "change-password") {
       await page.getByLabel("Current Password").fill(candidate);
-      await page.getByLabel("New Password").fill(changed);
-      await page.getByLabel("Confirm New Password").fill(changed);
+      await page.getByRole("textbox", { name: "New Password", exact: true }).fill(changed);
+      await page.getByRole("textbox", { name: "Confirm New Password", exact: true }).fill(changed);
       await page.getByRole("button", { name: "Save Password", exact: true }).click();
       await expect(page.getByRole("heading", { name: "My Tickets", exact: true })).toBeVisible();
       signedIn = true;
