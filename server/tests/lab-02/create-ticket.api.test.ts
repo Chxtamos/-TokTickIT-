@@ -3,6 +3,7 @@ import request from "supertest";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
+import { withMockRequesterSession } from "../helpers/auth-session.js";
 
 const validBody = {
   clientRequestId: "f13f2298-1153-4cea-966d-3bc466d53d7b",
@@ -80,9 +81,9 @@ describe("POST /api/tickets", () => {
   it("creates a Ticket with normalized text, server number, and NEW status", async () => {
     const { prisma } = makePrisma();
 
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send(validBody);
 
     expect(res.status).toBe(201);
@@ -107,9 +108,9 @@ describe("POST /api/tickets", () => {
     expect(missingContext.status).toBe(401);
     expect(missingContext.body.error.code).toBe("SESSION_REQUIRED");
 
-    const invalidBody = await request(createApp(prisma))
+    const invalidBody = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send({ ...validBody, requesterId: 1, summary: "x", unknown: true });
     expect(invalidBody.status).toBe(400);
     expect(invalidBody.body.error.code).toBe("VALIDATION_FAILED");
@@ -136,9 +137,9 @@ describe("POST /api/tickets", () => {
 
   it("rejects invalid UUID, unsafe reference IDs, whitespace-only text, and invalid priority", async () => {
     const { prisma } = makePrisma();
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send({
         ...validBody,
         clientRequestId: "not-a-uuid",
@@ -168,9 +169,9 @@ describe("POST /api/tickets", () => {
       description: "1234567890",
     };
 
-    const minimum = await request(createApp(prisma))
+    const minimum = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send(body);
     expect(minimum.status).toBe(201);
 
@@ -186,9 +187,9 @@ describe("POST /api/tickets", () => {
 
   it("accepts URGENT priority", async () => {
     const { prisma, transaction } = makePrisma();
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send({ ...validBody, requestedPriority: "URGENT" });
 
     expect(res.status).toBe(201);
@@ -201,9 +202,9 @@ describe("POST /api/tickets", () => {
     const { prisma, transaction } = makePrisma();
     transaction.category.findFirst.mockResolvedValue(null);
 
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send(validBody);
 
     expect(res.status).toBe(400);
@@ -218,9 +219,9 @@ describe("POST /api/tickets", () => {
     const { prisma, transaction } = makePrisma({ existing });
     transaction.ticket.findUnique.mockResolvedValue({ ...existing, requestPayloadHash: hashFor(validBody) });
 
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send(validBody);
 
     expect(res.status).toBe(200);
@@ -234,9 +235,9 @@ describe("POST /api/tickets", () => {
     const { prisma, transaction } = makePrisma({ existing });
     transaction.ticket.findUnique.mockResolvedValue({ ...existing, requestPayloadHash: "different-hash" });
 
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send(validBody);
 
     expect(res.status).toBe(409);
@@ -258,9 +259,9 @@ describe("POST /api/tickets", () => {
       }),
     );
 
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send(validBody);
 
     expect(res.status).toBe(200);
@@ -278,9 +279,9 @@ describe("POST /api/tickets", () => {
       }),
     );
 
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send(validBody);
 
     expect(res.status).toBe(500);
@@ -290,9 +291,9 @@ describe("POST /api/tickets", () => {
   it("returns a safe 500 response when ticket creation fails", async () => {
     const { prisma } = makePrisma({ failTransaction: true });
 
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
       .send(validBody);
 
     expect(res.status).toBe(500);
