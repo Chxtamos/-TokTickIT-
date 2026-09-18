@@ -66,7 +66,7 @@ async function createTicketForRequester(
 }
 
 async function openCreateTicket(page: Page) {
-  await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
+  await page.getByRole("link", { name: "Create Ticket", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
   await expect(page.locator("#category-id")).toBeEnabled();
   await expect(page.locator("#related-system-id")).toBeEnabled();
@@ -219,7 +219,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await createTicketForRequester(request, requesterB.id, bSummary, references, "HIGH");
 
     await enterRequesterWorkspace(page, requesterA.id);
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.getByRole("heading", { name: "My Tickets" })).toBeVisible();
     await expect(page.locator(".result-count")).toContainText("Tickets");
     await expect(page.getByText(bSummary, { exact: true })).toHaveCount(0);
@@ -273,7 +273,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     // Switch through Logout and a fresh authenticated session; the old selector is retired.
     await page.getByRole("button", { name: "Logout", exact: true }).click();
     await enterAuthenticatedRequester(page, requesterB.id);
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.locator(".tickets-table tbody").getByText(bSummary, { exact: true })).toBeVisible();
     await expect(page.getByText(targetSummary, { exact: true })).toHaveCount(0);
   });
@@ -306,7 +306,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     expect(missingBody.error.code).toBe("RESOURCE_NOT_FOUND");
 
     await enterRequesterWorkspace(page, requesterB.id);
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.locator(".tickets-table tbody").getByText(bSummary, { exact: true })).toBeVisible();
     await page.route("**/api/tickets/*", async (route) => {
       if (route.request().method() === "GET" && route.request().url().endsWith(`/api/tickets/${bTicket.id}`)) {
@@ -335,7 +335,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     const fileBuffer = pdfFixture();
 
     await enterRequesterWorkspace(page, requesterA.id);
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await page.locator("#ticket-search").fill(summary);
     await expect(page.locator(".tickets-table tbody").getByText(summary, { exact: true })).toBeVisible();
     await page.locator(".tickets-table tbody tr").filter({ hasText: summary }).getByRole("button", { name: "View Ticket", exact: true }).click();

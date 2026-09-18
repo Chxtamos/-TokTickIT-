@@ -72,7 +72,7 @@ async function fillTicket(page: Page, summary: string) {
 }
 
 async function openDetail(page: Page, scenario: Scenario) {
-  await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+  await page.getByRole("link", { name: "My Tickets", exact: true }).click();
   await page.locator("#ticket-search").fill(scenario.summary);
   await expect(page.locator(".result-count")).toHaveText("Showing 1 of 1 Tickets");
   const container = page.viewportSize()!.width < 768 ? ".tickets-cards .ticket-card" : ".tickets-table tbody tr";
@@ -95,7 +95,7 @@ test.describe("Lab 2 screenshot evidence", () => {
 
     // Create Ticket: initial, validation, submitting, API failure, success, and invalid file.
     await enterRequester(page, scenario.requesterId);
-    await page.locator("nav").getByRole("button", { name: "Create Ticket", exact: true }).click();
+    await page.locator("nav").getByRole("link", { name: "Create Ticket", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
     await capture(page, "create-ticket", "initial-desktop");
     await page.getByRole("button", { name: "Submit Ticket", exact: true }).click();
@@ -125,7 +125,7 @@ test.describe("Lab 2 screenshot evidence", () => {
     await capture(page, "create-ticket", "success");
 
     // My Tickets: A/B, search/filter/sort/page, empty, no-results, and failure.
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.locator(".result-count")).toBeVisible();
     await capture(page, "my-tickets", "requester-a-desktop");
     await page.locator("#ticket-search").fill(scenario.summary);
@@ -140,15 +140,15 @@ test.describe("Lab 2 screenshot evidence", () => {
     await page.unroute("**/api/tickets*");
     await page.locator("form.ticket-filters").getByRole("button", { name: "Clear Filters", exact: true }).click();
     await page.route("**/api/tickets*", (route) => route.request().method() === "GET" ? route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { code: "TICKET_LIST_FAILED", message: "Unable to load Tickets." } }) }) : route.continue());
-    await page.locator("nav").getByRole("button", { name: "Create Ticket", exact: true }).click();
+    await page.locator("nav").getByRole("link", { name: "Create Ticket", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("Unable to load Tickets");
     await capture(page, "my-tickets", "failure");
     await page.unroute("**/api/tickets*");
     await leaveAuthenticatedRequester(page);
     await enterRequester(page, scenario.otherRequesterId);
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.locator(".result-count")).toBeVisible();
     await capture(page, "my-tickets", "requester-b-desktop");
 
@@ -156,7 +156,7 @@ test.describe("Lab 2 screenshot evidence", () => {
     await clearRequester(page);
     await enterRequester(page, scenario.requesterId);
     await page.route("**/api/tickets*", (route) => route.request().method() === "GET" ? route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [], pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false }, applied: { search: "", categoryId: null, relatedSystemId: null, requestedPriority: null, currentStatus: null, sortBy: "updatedAt", sortDirection: "desc" } }) }) : route.continue());
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.getByText("You have not created any tickets yet", { exact: false })).toBeVisible();
     await capture(page, "my-tickets", "empty");
     await page.unroute("**/api/tickets*");
@@ -183,7 +183,7 @@ test.describe("Lab 2 screenshot evidence", () => {
     // Unauthorized result: B can see only its own list, while an attempted A detail resolves safely.
     await clearRequester(page);
     await enterRequester(page, scenario.otherRequesterId);
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await page.route("**/api/tickets/*", async (route) => {
       if (route.request().method() !== "GET") return route.continue();
       const response = await route.fetch({ url: `${API_URL}/api/tickets/${scenario.ticketId}`, headers: { ...route.request().headers(), "x-requester-id": String(scenario.otherRequesterId) } });
@@ -204,7 +204,7 @@ test.describe("Lab 2 screenshot evidence", () => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await clearRequester(page);
       await enterRequester(page, viewportScenario.requesterId);
-      await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
+      await page.getByRole("link", { name: "Create Ticket", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
       await capture(page, "create-ticket", `${viewport.name}`);
       await openDetail(page, viewportScenario);
