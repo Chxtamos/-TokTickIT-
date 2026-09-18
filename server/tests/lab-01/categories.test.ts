@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import request from "supertest";
 import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
+import { withMockRequesterSession } from "../helpers/auth-session.js";
 
 describe("GET /api/categories", () => {
   it("returns the four seeded categories in id order", async () => {
@@ -14,9 +15,9 @@ describe("GET /api/categories", () => {
         ]),
       },
     } as unknown as ReferenceDataPrisma;
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .get("/api/categories")
-      .set("X-Requester-Id", "1");
+      .set("Cookie", withMockRequesterSession(prisma).cookie);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([
