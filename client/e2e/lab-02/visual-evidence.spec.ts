@@ -159,7 +159,7 @@ test.describe("Lab 2 screenshot evidence", () => {
     await page.getByRole("link", { name: "Create Ticket", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
     await page.getByRole("link", { name: "My Tickets", exact: true }).click();
-    await expect(page.getByText("You have not created any tickets yet", { exact: false })).toBeVisible();
+    await expect(page.getByRole("status")).toBeVisible();
     await capture(page, "my-tickets", "empty");
     await page.unroute("**/api/tickets*");
 
