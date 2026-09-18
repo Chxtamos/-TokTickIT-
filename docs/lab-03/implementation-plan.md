@@ -1,8 +1,31 @@
 # Lab 3 Implementation Plan and Ready-to-Create Issues
 
-จัดทำวันที่ 2026-09-15 จาก Lab sheet และโค้ด Lab 2 ของโปรเจคนี้ มีแผนทั้งหมด **17 Issues** ซึ่งสร้างบน GitHub แล้วเป็น #51-#67 เลข 01-17 เป็นลำดับแผน ไม่ใช่ GitHub Issue number Contract PR คือ #68
+จัดทำวันที่ 2026-09-15 จาก Lab sheet และโค้ด Lab 2 ของโปรเจคนี้ เดิมมีแผน **17 Issues** ซึ่งสร้างบน GitHub เป็น #51-#67 เลข 01-17 เป็นลำดับแผน ไม่ใช่ GitHub Issue number หลัง implementation มี 4 active product umbrellas, 5 independently reviewable Staff child Issues และ 1 documentation Issue; ตาราง 17 งานด้านล่างเก็บไว้เป็น historical traceability Contract PR คือ #68
 
-## GitHub Issues created
+## Current consolidated Issue plan (2026-09-18)
+
+GitHub Issue numbers เปลี่ยนหรือ reuse ไม่ได้ จึงเก็บประวัติเดิมไว้ และใช้ #58 เป็น umbrella tracker โดยแยกแต่ละ Staff stage เป็น child Issue → feature branch → peer-reviewed PR:
+
+| Current Issue | Consolidated historical scope | Current purpose | Dependencies |
+| --- | --- | --- | --- |
+| [#56](https://github.com/Chxtamos/-TokTickIT-/issues/56) | #56 + #57 | Authenticated shell, mandatory Change Password, role navigation/guards, remove selector/legacy identity, preserve Requester experience | #54, #55 |
+| [#58](https://github.com/Chxtamos/-TokTickIT-/issues/58) | Umbrella for former #58-#62 | Tracks Staff stages and links each child Issue; it is not the originating Issue for multiple implementation branches | #55, #56; coordinate owner safety with #63 |
+| [#63](https://github.com/Chxtamos/-TokTickIT-/issues/63) | #63 + #64 | Administrator User Management APIs/UI, account safety, session revocation and owner cleanup | #54, #55; coordinate with #58 |
+| [#65](https://github.com/Chxtamos/-TokTickIT-/issues/65) | #65 + #66 + #67 | Complete integration/release evidence, visual/accessibility review, final main verification and Part 1-9 PDF | #56, #58, #63 |
+
+Documentation synchronization is tracked separately in [#73](https://github.com/Chxtamos/-TokTickIT-/issues/73). It updates this plan and traceability files without changing the normative FR/BR/AC/API contract.
+
+### Staff child Issue map
+
+| Stage | Child Issue | One-branch/one-PR scope | Dependencies |
+| --- | --- | --- | --- |
+| Queue API/UI | [#59](https://github.com/Chxtamos/-TokTickIT-/issues/59) | Queue search/filter/sort/pagination and responsive states | #55, #56 |
+| Operational Ticket Detail | [#62](https://github.com/Chxtamos/-TokTickIT-/issues/62) | Detail read model, submitted fields and Attachment continuity | #55 |
+| Workflow API | [#60](https://github.com/Chxtamos/-TokTickIT-/issues/60) | Owner, priority, status, reasons, concurrency and provenance | #55; coordinate #63 |
+| Public Comments/Internal Notes | [#61](https://github.com/Chxtamos/-TokTickIT-/issues/61) | Append-only conversation services/projections and Note isolation | #55 |
+| Staff Detail/UI integration | [#75](https://github.com/Chxtamos/-TokTickIT-/issues/75) | Integrated Staff UI, accessibility/responsive states and E2E evidence | #56, #59, #60, #61, #62 |
+
+## Historical GitHub Issues (original 17)
 
 | Plan | GitHub Issue | Title |
 | --- | --- | --- |
@@ -24,7 +47,7 @@
 | 16 | [#66](https://github.com/Chxtamos/-TokTickIT-/issues/66) | Lab 3: Complete Zen Green, accessibility and responsive visual evidence |
 | 17 | [#67](https://github.com/Chxtamos/-TokTickIT-/issues/67) | Lab 3: Finalize reviewed staging release, main verification and nine-part PDF |
 
-## ลำดับการทำงาน
+## ลำดับการทำงานเดิม (historical 17-issue plan)
 
 1. ตรวจและรีวิว contract (01) ให้สอดคล้องกันก่อน implementation ที่พึ่งพาข้อกำหนดนั้น
 2. แยกฐานข้อมูลทดสอบและปรับ CI (02) -> migration/provisioning/seed (03) -> authentication API (04) -> authorization และ Requester API regression (05)
@@ -35,13 +58,14 @@
 
 แต่ละงานเพิ่มหรือปรับ planned tests ก่อนหรือพร้อม implementation ตาม Test DD/TDD และเชื่อม FR/BR/AC ใน PR ไม่รอสร้างแผนทดสอบจากโค้ดที่เขียนเสร็จแล้ว
 
-## Branch และ review flow
+## Current branch และ review flow
 
 - งาน contract นี้ใช้ `feature/24-lab3-engineering-contract` จาก baseline `main`; `lab3-staging` ตั้งต้นจาก main เดียวกัน ทั้งคู่ถูก push แล้ว
-- งานถัดไปใช้ Feature number ต่อจาก 24 เช่น Issue #52 -> `feature/25-lab3-test-isolation-ci` จาก latest `lab3-staging` GitHub Issue number กับ Feature number ไม่เท่ากัน
+- Feature branches ที่ทำเสร็จแล้วเดินจาก Feature 24 ถึง Feature 28; GitHub Issue number กับ Feature number ไม่เท่ากัน
+- หลังการ consolidate งาน product umbrellas คือ #56, #58, #63, #65 และ Staff child Issues คือ #59, #60, #61, #62, #75; เอกสาร consolidation คือ #73. งานใหม่ทุกงานต้อง branch จาก latest `lab3-staging` และใช้ one-Issue/one-feature-branch/one-PR
 - สร้าง feature PR -> `lab3-staging`, เชื่อม Issue จริงผ่าน GitHub Development relationship, ตรวจ tests/CI/evidence และให้เพื่อนรีวิวก่อน merge ตั้ง Issue ที่เริ่มทำเป็น Started และ PR เป็น PR Review ใน Project #6; งานอื่นคง Backlog
 - Release PR จาก `lab3-staging` -> `main`; เก็บ merge history แล้วตรวจ final main เพื่อใช้เป็นหลักฐานส่งงาน
-- ใช้ Kanban statuses จริงของ [Project #6](https://github.com/users/Chxtamos/projects/6): Issue #51 Started, #52-#67 Backlog และ PR #68 PR Review ณ รอบแก้ feedback นี้ ตรวจกลับหลังเปิด PR เพราะ automation อาจเปลี่ยน Issue เป็น Fixing; ไป Done เมื่อ review/merge/evidence ครบตาม Lab sheet
+- สถานะที่ตรวจล่าสุดใน [Project #6](https://github.com/users/Chxtamos/projects/6): Issues #51-#55 Done, #56 Started, #58/#59/#60/#61/#62/#63/#65/#75 Backlog, PRs #68-#72 Done และ Issue #73 Started; ตรวจกลับหลังเปิด PR เพราะ automation อาจเปลี่ยน Issue เป็น Fixing
 - เพิ่ม `lab3-staging` ใน trigger ของ CI ทั้งสาม workflow ในงาน 02 งาน contract นี้ยังไม่แก้ runtime/schema/CI
 
 ## Issue 01
@@ -299,9 +323,9 @@ Acceptance/evidence: FR-25, AC-31/32, RELEASE-01 และ Product DoD ทุก
 
 Dependencies: [#66](https://github.com/Chxtamos/-TokTickIT-/issues/66) และ actual contract/feature/release reviews
 
-## Checklist ก่อนสร้าง Issues บน GitHub
+## Historical checklist ก่อนสร้าง Issues บน GitHub
 
-- Copy Title/Description ของ 01-17 แล้วใส่เลขจริง/ลิงก์/dependencies ในเอกสารหลังสร้าง
+- เดิม copy Title/Description ของ 01-17 แล้วใส่เลขจริง/ลิงก์/dependencies; ปัจจุบันใช้ Current consolidated Issue plan ด้านบนเป็น active source of truth
 - เพิ่มลง Project เดิมและตรวจชื่อ Kanban statuses จริง; ไม่ mark Done เพียงเพราะมี commit
 - หลังผู้ใช้ push ให้สร้าง contract PR เข้า lab3-staging และเชื่อม Issue จริง ให้ peer review ก่อน main implementation completion
-- ใช้เลข GitHub Issue จริง #51-#67 ใน PR/Project; สำหรับ staging PR เชื่อม Development relationship แบบ manual และตรวจ merge/review evidence ก่อนปิด Issue อย่าพึ่ง `Closes #...` เป็นหลักฐาน auto-close บน default branch
+- ใช้เลข GitHub Issue จริงใน PR/Project; อย่า reuse closed Issue numbers และตรวจ merge/review evidence ก่อนปิด Issue อย่าพึ่ง `Closes #...` เป็นหลักฐาน auto-close บน default branch
