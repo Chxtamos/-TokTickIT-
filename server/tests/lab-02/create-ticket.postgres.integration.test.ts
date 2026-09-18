@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { createApp } from "../../src/app.js";
 import { assertIntegrationDatabase, createIntegrationPrisma, isDatabaseIntegrationRequested } from "../../src/prisma.js";
-import { createTestSession, testClientOrigin } from "../helpers/auth-session.js";
+import { createProvisionedTestUser, createTestSession, testClientOrigin } from "../helpers/auth-session.js";
 
 const runIntegration = isDatabaseIntegrationRequested();
 if (runIntegration) assertIntegrationDatabase();
@@ -16,21 +16,23 @@ integration("POST /api/tickets PostgreSQL integration", () => {
   let categoryId: number;
   let relatedSystemId: number;
   let auth: Awaited<ReturnType<typeof createTestSession>>;
+  let testUserId: number;
   const requestIds: string[] = [];
 
   beforeAll(async () => {
     prisma = createIntegrationPrisma();
     await prisma.$connect();
 
-    const [requester, category, relatedSystem] = await Promise.all([
-      prisma.requesterUser.findFirst({ where: { isActive: true, role: "REQUESTER" }, select: { id: true } }),
+    const [category, relatedSystem] = await Promise.all([
       prisma.category.findFirst({ where: { isActive: true }, select: { id: true } }),
       prisma.relatedSystem.findFirst({ where: { isActive: true }, select: { id: true } }),
     ]);
-    if (!requester || !category || !relatedSystem) {
+    if (!category || !relatedSystem) {
       throw new Error("Integration test requires seeded active requester, category, and related system data.");
     }
-    requesterId = requester.id;
+    const testUser = await createProvisionedTestUser(prisma, "REQUESTER", "Create Ticket");
+    testUserId = testUser.id;
+    requesterId = testUser.id;
     categoryId = category.id;
     relatedSystemId = relatedSystem.id;
     auth = await createTestSession(prisma, requesterId);
@@ -41,6 +43,7 @@ integration("POST /api/tickets PostgreSQL integration", () => {
     if (requestIds.length > 0) {
       await prisma.ticket.deleteMany({ where: { clientRequestId: { in: requestIds } } });
     }
+    if (testUserId) await prisma.requesterUser.delete({ where: { id: testUserId } }).catch(() => undefined);
     await prisma.$disconnect();
   });
 

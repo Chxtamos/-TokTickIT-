@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { createApp } from "../../src/app.js";
 import { assertIntegrationDatabase, createIntegrationPrisma, isDatabaseIntegrationRequested } from "../../src/prisma.js";
-import { createTestSession } from "../helpers/auth-session.js";
+import { createProvisionedTestUser, createTestSession, testClientOrigin } from "../helpers/auth-session.js";
 
 const runIntegration = isDatabaseIntegrationRequested();
 if (runIntegration) assertIntegrationDatabase();
@@ -19,20 +19,25 @@ integration("GET /api/tickets/:ticketId PostgreSQL integration", () => {
   let ticketId: number;
   let authA: Awaited<ReturnType<typeof createTestSession>>;
   let authB: Awaited<ReturnType<typeof createTestSession>>;
+  let testUserIds: number[] = [];
 
   beforeAll(async () => {
     prisma = createIntegrationPrisma();
     await prisma.$connect();
-    const [requesters, category, relatedSystem] = await Promise.all([
-      prisma.requesterUser.findMany({ where: { isActive: true, role: "REQUESTER" }, select: { id: true }, orderBy: { id: "asc" }, take: 2 }),
+    const [category, relatedSystem] = await Promise.all([
       prisma.category.findFirst({ where: { isActive: true }, select: { id: true } }),
       prisma.relatedSystem.findFirst({ where: { isActive: true }, select: { id: true } }),
     ]);
-    if (requesters.length < 2 || !category || !relatedSystem) {
+    if (!category || !relatedSystem) {
       throw new Error("Integration test requires two active Requesters and seeded reference data.");
     }
-    requesterA = requesters[0].id;
-    requesterB = requesters[1].id;
+    const [userA, userB] = await Promise.all([
+      createProvisionedTestUser(prisma, "REQUESTER", "Detail A"),
+      createProvisionedTestUser(prisma, "REQUESTER", "Detail B"),
+    ]);
+    requesterA = userA.id;
+    requesterB = userB.id;
+    testUserIds = [userA.id, userB.id];
     categoryId = category.id;
     relatedSystemId = relatedSystem.id;
     [authA, authB] = await Promise.all([
@@ -84,6 +89,7 @@ integration("GET /api/tickets/:ticketId PostgreSQL integration", () => {
   afterAll(async () => {
     if (!prisma) return;
     if (ticketId) await prisma.ticket.delete({ where: { id: ticketId } });
+    for (const id of testUserIds) await prisma.requesterUser.delete({ where: { id } }).catch(() => undefined);
     await prisma.$disconnect();
   });
 
@@ -107,7 +113,7 @@ integration("GET /api/tickets/:ticketId PostgreSQL integration", () => {
     const indicated = await request(app)
       .post(`/api/tickets/${ticketId}/resolution-indication`)
       .set("Cookie", authA.cookie)
-      .set("Origin", process.env.CLIENT_ORIGIN ?? "http://127.0.0.1:5173")
+      .set("Origin", testClientOrigin)
       .set("X-CSRF-Token", authA.csrfToken)
       .send({ expectedVersion: 1 });
     expect(indicated.status).toBe(200);
@@ -122,7 +128,7 @@ integration("GET /api/tickets/:ticketId PostgreSQL integration", () => {
     const repeated = await request(app)
       .post(`/api/tickets/${ticketId}/resolution-indication`)
       .set("Cookie", authA.cookie)
-      .set("Origin", process.env.CLIENT_ORIGIN ?? "http://127.0.0.1:5173")
+      .set("Origin", testClientOrigin)
       .set("X-CSRF-Token", authA.csrfToken)
       .send({ expectedVersion: 2 });
     expect(repeated.status).toBe(200);
@@ -131,7 +137,7 @@ integration("GET /api/tickets/:ticketId PostgreSQL integration", () => {
     const nonOwner = await request(app)
       .post(`/api/tickets/${ticketId}/resolution-indication`)
       .set("Cookie", authB.cookie)
-      .set("Origin", process.env.CLIENT_ORIGIN ?? "http://127.0.0.1:5173")
+      .set("Origin", testClientOrigin)
       .set("X-CSRF-Token", authB.csrfToken)
       .send({ expectedVersion: 2 });
     expect(nonOwner.status).toBe(404);

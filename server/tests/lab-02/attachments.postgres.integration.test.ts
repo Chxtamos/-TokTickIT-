@@ -6,7 +6,7 @@ import path from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { createApp } from "../../src/app.js";
 import { assertIntegrationDatabase, createIntegrationPrisma, isDatabaseIntegrationRequested } from "../../src/prisma.js";
-import { createTestSession, testClientOrigin } from "../helpers/auth-session.js";
+import { createProvisionedTestUser, createTestSession, testClientOrigin } from "../helpers/auth-session.js";
 
 const runIntegration = isDatabaseIntegrationRequested();
 if (runIntegration) assertIntegrationDatabase();
@@ -23,6 +23,7 @@ integration("Attachment APIs PostgreSQL integration", () => {
   let authA: Awaited<ReturnType<typeof createTestSession>>;
   let authB: Awaited<ReturnType<typeof createTestSession>>;
   let authStaff: Awaited<ReturnType<typeof createTestSession>>;
+  let testUserIds: number[] = [];
   const ticketIds: number[] = [];
 
   async function createTicket(requesterId: number, summary: string) {
@@ -52,17 +53,21 @@ integration("Attachment APIs PostgreSQL integration", () => {
     await rm(storageDirectory, { recursive: true, force: true });
     prisma = createIntegrationPrisma();
     await prisma.$connect();
-    const [requesters, category, relatedSystem, staff] = await Promise.all([
-      prisma.requesterUser.findMany({ where: { isActive: true, role: "REQUESTER" }, select: { id: true }, orderBy: { id: "asc" }, take: 2 }),
+    const [category, relatedSystem] = await Promise.all([
       prisma.category.findFirst({ where: { isActive: true }, select: { id: true } }),
       prisma.relatedSystem.findFirst({ where: { isActive: true }, select: { id: true } }),
-      prisma.requesterUser.findFirst({ where: { isActive: true, role: "IT_STAFF" }, select: { id: true } }),
     ]);
-    if (requesters.length < 2 || !category || !relatedSystem || !staff) {
+    if (!category || !relatedSystem) {
       throw new Error("Integration test requires two active Requesters and seeded reference data.");
     }
-    requesterA = requesters[0].id;
-    requesterB = requesters[1].id;
+    const [userA, userB, staff] = await Promise.all([
+      createProvisionedTestUser(prisma, "REQUESTER", "Attachment A"),
+      createProvisionedTestUser(prisma, "REQUESTER", "Attachment B"),
+      createProvisionedTestUser(prisma, "IT_STAFF", "Attachment Staff"),
+    ]);
+    requesterA = userA.id;
+    requesterB = userB.id;
+    testUserIds = [userA.id, userB.id, staff.id];
     categoryId = category.id;
     relatedSystemId = relatedSystem.id;
     [authA, authB] = await Promise.all([
@@ -75,6 +80,7 @@ integration("Attachment APIs PostgreSQL integration", () => {
   afterAll(async () => {
     if (prisma) {
       if (ticketIds.length > 0) await prisma.ticket.deleteMany({ where: { id: { in: ticketIds } } });
+      for (const id of testUserIds) await prisma.requesterUser.delete({ where: { id } }).catch(() => undefined);
       await prisma.$disconnect();
     }
     await rm(storageDirectory, { recursive: true, force: true });
