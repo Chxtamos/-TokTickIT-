@@ -168,6 +168,19 @@ describe("Lab 3 authorization and Requester regression", () => {
     expect(staff.transaction.ticket.findMany).not.toHaveBeenCalled();
   });
 
+  it("fails closed when the session delegate is unavailable unless the explicit legacy E2E gate is enabled", async () => {
+    const fixture = makePrisma("REQUESTER");
+    const withoutSession = { ...fixture.prisma } as any;
+    delete withoutSession.session;
+
+    const denied = await request(createApp(withoutSession))
+      .get("/api/tickets")
+      .set("X-Requester-Id", "1");
+
+    expect(denied.status).toBe(401);
+    expect(denied.body.error.code).toBe("SESSION_REQUIRED");
+  });
+
   it("uses the authenticated Requester and ignores spoofed requester headers and fields", async () => {
     const fixture = makePrisma("REQUESTER");
     const application = createApp(fixture.prisma);
