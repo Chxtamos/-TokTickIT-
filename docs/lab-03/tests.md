@@ -1,6 +1,6 @@
 # Lab 3 Test Plan and Traceability
 
-Version 1.0, planned 2026-09-15 before Lab 3 implementation. Rows remain **Planned / Not run** until an implementation PR records reproducible evidence; rows marked below have reproducible evidence from PR #70, PR #71, PR #72 or the Issue #56 execution record. The original test IDs remain stable after consolidating the active work into Issues #56, #58, #63 and #65.
+Version 1.0, planned 2026-09-15 before Lab 3 implementation. Rows remain **Planned / Not run** until an implementation PR records reproducible evidence; rows marked below have reproducible evidence from the merged implementation PRs #70, #71 and #72. The original test IDs remain stable after consolidating the active work into Issues #56, #58, #63 and #65.
 
 ## 1. Baseline, execution and isolation
 
