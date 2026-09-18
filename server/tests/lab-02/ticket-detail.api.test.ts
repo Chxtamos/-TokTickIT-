@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
+import { withMockRequesterSession } from "../helpers/auth-session.js";
 
 const createdAt = new Date("2026-08-24T10:00:00.000Z");
 const updatedAt = new Date("2026-08-25T10:00:00.000Z");
@@ -70,7 +71,7 @@ function makePrisma(options: { ticket?: unknown; fail?: boolean } = {}) {
 describe("GET /api/tickets/:ticketId", () => {
   it("returns owned Ticket detail with safe active and removed Attachment metadata", async () => {
     const prisma = makePrisma();
-    const res = await request(createApp(prisma)).get("/api/tickets/42").set("X-Requester-Id", "1");
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets/42").set("Cookie", withMockRequesterSession(prisma).cookie);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
@@ -143,8 +144,8 @@ describe("GET /api/tickets/:ticketId", () => {
   it("requires authentication and rejects malformed Ticket IDs", async () => {
     const prisma = makePrisma();
     const missingRequester = await request(createApp(prisma)).get("/api/tickets/42");
-    const malformedTicket = await request(createApp(prisma)).get("/api/tickets/0").set("X-Requester-Id", "1");
-    const unsafeTicket = await request(createApp(prisma)).get("/api/tickets/9007199254740992").set("X-Requester-Id", "1");
+    const malformedTicket = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets/0").set("Cookie", withMockRequesterSession(prisma).cookie);
+    const unsafeTicket = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets/9007199254740992").set("Cookie", withMockRequesterSession(prisma).cookie);
 
     expect(missingRequester.status).toBe(401);
     expect(missingRequester.body.error.code).toBe("SESSION_REQUIRED");
