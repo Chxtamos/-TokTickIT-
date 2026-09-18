@@ -156,6 +156,8 @@ test.describe("Lab 2 screenshot evidence", () => {
     await clearRequester(page);
     await enterRequester(page, scenario.requesterId);
     await page.route("**/api/tickets*", (route) => route.request().method() === "GET" ? route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [], pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false }, applied: { search: "", categoryId: null, relatedSystemId: null, requestedPriority: null, currentStatus: null, sortBy: "updatedAt", sortDirection: "desc" } }) }) : route.continue());
+    await page.getByRole("link", { name: "Create Ticket", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
     await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.getByText("You have not created any tickets yet", { exact: false })).toBeVisible();
     await capture(page, "my-tickets", "empty");
