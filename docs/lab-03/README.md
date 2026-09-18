@@ -1,10 +1,10 @@
 # Lab 3 Engineering Contract: สรุปและจุดเริ่มทำงาน
 
-จัดทำวันที่ 2026-09-15 และอัปเดต 2026-09-18 สถานะ: **implementation ผ่าน PR #68-#72 แล้ว; product backlog เหลือ 4 Issues และ documentation consolidation #73 กำลังดำเนินการ**
+จัดทำวันที่ 2026-09-15 และอัปเดต 2026-09-19 สถานะ: **implementation ผ่าน PR #68-#72 แล้ว; product backlog มี 4 umbrella Issues และ 5 independently reviewable Staff child Issues; documentation consolidation #73/PR #74 กำลังรอ re-review**
 
 ## งานนี้ทำอะไร
 
-อ่าน Lab_3_sheet.pdf ครบ 18 หน้า รวมภาพตัวอย่างและเกณฑ์ส่งงาน ตรวจโค้ด/เอกสาร Lab 1-2 ของ repository จริง แล้วจัดทำ Engineering Contract ของ Sprint 3, แผนทดสอบที่เชื่อม Acceptance Criteria และแผน Issue เดิม 17 งาน ก่อน consolidate เหลือ 4 active product Issues (#56, #58, #63, #65) พร้อม documentation Issue #73
+อ่าน Lab_3_sheet.pdf ครบ 18 หน้า รวมภาพตัวอย่างและเกณฑ์ส่งงาน ตรวจโค้ด/เอกสาร Lab 1-2 ของ repository จริง แล้วจัดทำ Engineering Contract ของ Sprint 3, แผนทดสอบที่เชื่อม Acceptance Criteria และแผน Issue เดิม 17 งาน ก่อนจัดเป็น 4 product umbrellas (#56, #58, #63, #65) พร้อม Staff child Issues #59/#60/#61/#62/#75 และ documentation Issue #73
 
 Implementation ที่ merge แล้วครอบคลุม Issue #51-#55 ผ่าน PR #68-#72; งาน #56/#58/#63/#65 ยังเป็น product backlog ตาม Project และ #73 เป็นงาน sync เอกสาร ไม่มีการอ้างว่า Lab 3 เสร็จสมบูรณ์จนกว่าจะมี final evidence/PR/main verification
 
@@ -53,10 +53,10 @@ Implementation ที่ merge แล้วครอบคลุม Issue #51-#5
 
 ## งานถัดไป
 
-Issues เดิม #51-#67 ถูกสร้างจาก implementation-plan.md และถูกเก็บเป็น historical traceability ปัจจุบัน Issue #51-#55 Done, #56 Started, #58/#63/#65 Backlog และ #73 Started ใน Project #6; PR #68-#71 merged และ PR #72 merged/recorded ตาม GitHub state ล่าสุด ขั้นถัดไปคือทำ #73 documentation sync แล้วเดินต่อ #56 -> #58/#63 -> #65 ตาม consolidated dependencies
+Issues เดิม #51-#67 ถูกสร้างจาก implementation-plan.md และถูกเก็บเป็น traceability ปัจจุบัน Issue #51-#55 Done, #56 Started, #58/#59/#60/#61/#62/#63/#65/#75 Backlog และ #73 Started ใน Project #6; PR #68-#72 merged/recorded ตาม GitHub state ล่าสุด. งาน Staff ใช้ child flow #59/#62/#60/#61/#75 โดยแต่ละ Issue ต้องมี feature branch และ PR ของตัวเองเข้า `lab3-staging` ก่อนรวม evidence ใน #65
 
 ## สถานะและ document validation
 
-Contract/implementation evidence: PR #68-#72 มี review/merge/CI records ตาม GitHub และ `tests.md`; remaining product/UI/release evidence ยังไม่ครบ. Product DoD: Incomplete. Active Issues: [#56](https://github.com/Chxtamos/-TokTickIT-/issues/56), [#58](https://github.com/Chxtamos/-TokTickIT-/issues/58), [#63](https://github.com/Chxtamos/-TokTickIT-/issues/63), [#65](https://github.com/Chxtamos/-TokTickIT-/issues/65), documentation [#73](https://github.com/Chxtamos/-TokTickIT-/issues/73)
+Contract/implementation evidence: PR #68-#72 มี review/merge/CI records ตาม GitHub และ `tests.md`; remaining product/UI/release evidence ยังไม่ครบ. Product DoD: Incomplete. Active Issues: [#56](https://github.com/Chxtamos/-TokTickIT-/issues/56), umbrella [#58](https://github.com/Chxtamos/-TokTickIT-/issues/58), child [#59](https://github.com/Chxtamos/-TokTickIT-/issues/59)/[#62](https://github.com/Chxtamos/-TokTickIT-/issues/62)/[#60](https://github.com/Chxtamos/-TokTickIT-/issues/60)/[#61](https://github.com/Chxtamos/-TokTickIT-/issues/61)/[#75](https://github.com/Chxtamos/-TokTickIT-/issues/75), [#63](https://github.com/Chxtamos/-TokTickIT-/issues/63), [#65](https://github.com/Chxtamos/-TokTickIT-/issues/65), documentation [#73](https://github.com/Chxtamos/-TokTickIT-/issues/73)
 
 ตรวจเอกสารก่อน commit: FR/BR/AC numbering, AC coverage/index, referenced Test IDs, issue count/dependencies, local Markdown links, API/workflow/role/password consistency และ `git diff --check` การตรวจเหล่านี้เป็น document validation ไม่ใช่ runtime/security/migration test passes

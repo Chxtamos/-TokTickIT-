@@ -28,7 +28,7 @@ Server contract paths: server/tests/lab-03/*.test.ts. UI paths follow this repo'
 | API-03 | API/PostgreSQL | AC-03 | Wrong current password401 and invalid new/confirmation/same400; fault injection at User update/session delete/replacement insert proves full rollback; success atomically commits password+revocation+one normal session before cookie, and simulated lost response recovers by new-password login | server/tests/lab-03/auth.api.test.ts, server/tests/lab-03/auth.postgres.integration.test.ts, server/tests/lab-03/auth.rollback.postgres.integration.test.ts | Passed real PostgreSQL User-update/session-delete/replacement-insert rollback fault injection and simulated post-commit response-loss recovery in Server CI run [35248063736](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35248063736) |
 | API-04 | API | AC-04 | me returns actual role/flag; missing/expired/idle/revoked/inactive sessions401; store failure safe500/no access | server/tests/lab-03/auth.api.test.ts | Passed covered session cases in Server CI run [35236849889](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35236849889) |
 | API-05 | API | AC-05 | Valid logout204 clears/deletes token; old token protected replay401; repeated/absent/expired logout204; valid-session CSRF failure403 leaves session intact; invalid Origin403 | server/tests/lab-03/auth.api.test.ts, server/tests/lab-03/auth.postgres.integration.test.ts | Passed covered logout/CSRF/idempotency cases in Server CI run [35236849889](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35236849889) |
-| API-06 | API | AC-06 | Parameterize every protected endpoint/method against every role, including restricted/anonymous; matrix denial precedes resource lookup | server/tests/lab-03/authorization.api.test.ts | Issue #55 authorization/Requester-regression scope; covered role/session denials and Requester resource contracts in Server CI run [35337013360](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35337013360). Internal Note Staff/Admin success remains Issue #58 scope. |
+| API-06 | API | AC-06 | Parameterize every protected endpoint/method against every role, including restricted/anonymous; matrix denial precedes resource lookup | server/tests/lab-03/authorization.api.test.ts | Issue #55 authorization/Requester-regression scope; covered role/session denials and Requester resource contracts in Server CI run [35337013360](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35337013360). Staff/Admin conversation success remains child Issues #61/#75 scope. |
 | API-07 | API | AC-06 | A cookie plus B requester header cannot impersonate B; requesterId body/query400; non-owner resource safe404/no bytes | server/tests/lab-03/authorization.api.test.ts | Passed spoofed header/body/query identity, owner isolation, and fail-closed legacy adapter runtime guard in Server CI run [35340891839](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35340891839) |
 | API-08 | API | AC-20 | Requester Note GET/POST403 even for missing parents; no note content/author/count through detail/comments/errors | server/tests/lab-03/comments-notes.api.test.ts | Planned / Not run |
 | API-09 | API | AC-27 | Trusted/untrusted/missing Origin, exact credentialed CORS; JSON login only; CSRF on active-session JSON/multipart/logout writes, absent-session logout204 with trusted Origin | server/tests/lab-03/auth.api.test.ts | Passed covered Origin/CORS/CSRF/JSON cases in Server CI run [35236849889](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35236849889) |
@@ -67,7 +67,7 @@ Server contract paths: server/tests/lab-03/*.test.ts. UI paths follow this repo'
 | UI-04 | UI/regression | AC-09, AC-10, AC-11 | Adapt Lab 2 Create/My Tickets/Detail/Attachment tests to session; validation/idempotency/files/partial retries preserved | client/tests/lab-03/RequesterRegression.test.tsx | Planned / Not run; Issue #56 implementation files are not present on this repository revision. |
 | UI-05 | UI | AC-12, AC-13 | Queue controls reset page, badges/owner/open, empty/no-results/loading/forbidden/error and beyond-end recovery | client/tests/lab-03/StaffTicketQueue.test.tsx | Planned / Not run |
 | UI-06 | UI | AC-14, AC-15, AC-16, AC-17 | Detail read-only values vs operational controls; claim/assign/reassign but no manual-unassign action; confirmations/matrix fields/save busy/409 refresh and terminal rules | client/tests/lab-03/StaffTicketDetail.test.tsx | Planned / Not run |
-| UI-07 | UI | AC-18, AC-19, AC-20, AC-21 | Requester indication/comment flow; public/private independent drafts/buttons; inert scripts; ambiguous-post list reload and review-before-manual-retry; no requester notes | client/tests/lab-03/CommentsNotes.test.tsx | Planned / Not run; Requester indication UI belongs to Issue #56 and Public Comments/Internal Notes belong to Issue #58. |
+| UI-07 | UI | AC-18, AC-19, AC-20, AC-21 | Requester indication/comment flow; public/private independent drafts/buttons; inert scripts; ambiguous-post list reload and review-before-manual-retry; no requester notes | client/tests/lab-03/CommentsNotes.test.tsx | Planned / Not run; Requester indication UI belongs to Issue #56, API belongs to child #61 and integrated Staff UI belongs to child #75. |
 | UI-08 | UI | AC-22, AC-23, AC-25 | Admin list/create/edit/search/role/activation, duplicate/one-role/last-admin/self/stale errors and retry | client/tests/lab-03/UserManagement.test.tsx | Planned / Not run |
 | UI-09 | UI | AC-24, AC-26, AC-28 | Reset/account edit confirmations, cleared passwords, self reauthentication and safe processing/failure feedback | client/tests/lab-03/UserManagement.test.tsx | Planned / Not run |
 | STYLE-01 | UI style | AC-21, AC-29 | Shared Zen Green tokens/components, text-bearing badges, readonly/editable and Public/Private distinction | client/tests/lab-03/ZenGreenStyle.test.tsx | Planned / Not run; Issue #56 UI implementation is not present on this repository revision. |
@@ -86,18 +86,23 @@ Table contains 63 unique planned Test IDs. A row represents a case group; parame
 
 Issue #56 has no implementation PR on this documentation branch or on `lab3-staging` yet. The local uncommitted client work that exists in another worktree is not repository evidence for this PR. Therefore UI-01-04, the Issue #56 portion of UI-07, STYLE-01 and A11Y-01 remain Planned / Not run until an implementation branch/PR makes their exact files and results reproducible.
 
-### Current consolidated Issue mapping — 2026-09-18
+### Current consolidated Issue mapping — 2026-09-19
 
 The original Test IDs are retained for traceability while active implementation is consolidated as follows:
 
 | Active Issue | Historical scope represented | Evidence groups |
 | --- | --- | --- |
 | #56 | #56 + #57 | UI-01-04, UI-07 Requester indication portion, E2E-01/02 pending |
-| #58 | #58-#62 | UNIT-03/04/06, API-08/18-28/34, UI-05-07, E2E-03, DB-04 pending |
+| #58 umbrella | #58-#62 | Tracking only; implementation evidence is distributed across child Issues #59/#62/#60/#61/#75 |
+| #59 | former #59 | UNIT-04, API-18/19, UI-05, STYLE-01/A11Y-01 queue evidence pending |
+| #62 | former #62 | API-20 operational detail/read-model evidence pending |
+| #60 | former #60 | UNIT-03, API-21-25/22, DB-04 workflow evidence pending |
+| #61 | former #61 | UNIT-06, API-08/27/28/34 conversation evidence pending |
+| #75 | new Staff integration child | UI-06/07, STYLE-01, A11Y-01, E2E-03 and integrated Staff evidence pending |
 | #63 | #63 + #64 | API-29-33, UI-08/09, E2E-04, DB-04 pending |
 | #65 | #65-#67 | E2E/release/visual/responsive/final PDF evidence pending |
 
-Closed Issues #57, #59-#62, #64 and #66-#67 remain historical references only; their GitHub numbers are not reused.
+Issue #57, #64 and #66-#67 remain historical references. Issues #59-#62 were reopened and retargeted as the child stages above; #75 is the new integration child. No GitHub number was reused.
 
 ## 3. AC-to-test index
 

@@ -1,6 +1,6 @@
 # Lab 3 Peer Review and Release Record
 
-Prepared 2026-09-15 and updated 2026-09-18. The contract review history below is historical for PR #68. Implementation PRs #68-#72 have since been merged/recorded; remaining product work is consolidated in Issues #56, #58, #63 and #65, with documentation synchronization tracked by #73. Do not claim peer approval unless GitHub records an actual APPROVED review.
+Prepared 2026-09-15 and updated 2026-09-19. The contract review history below is historical for PR #68. Implementation PRs #68-#72 have since been merged/recorded; remaining product work is tracked by umbrellas #56/#58/#63/#65 and Staff child Issues #59/#62/#60/#61/#75, with documentation synchronization tracked by #73. Do not claim peer approval unless GitHub records an actual APPROVED review.
 
 ## Current implementation/release record
 
@@ -13,7 +13,7 @@ Prepared 2026-09-15 and updated 2026-09-18. The contract review history below is
 | Authorization/Requester regression | PR [#72](https://github.com/Chxtamos/-TokTickIT-/pull/72) | Merged; Issue #55 Done |
 | Consolidated documentation | Issue [#73](https://github.com/Chxtamos/-TokTickIT-/issues/73) / PR [#74](https://github.com/Chxtamos/-TokTickIT-/pull/74) | Started; PR Review, CI green |
 
-The original Issue plan #51-#67 remains historical. The active product queue is #56, #58, #63 and #65. Closed Issues #57, #59-#62, #64 and #66-#67 are not reused; their scope is represented in the consolidated active Issues.
+The original Issue plan #51-#67 remains traceable. Umbrella #58 is a tracker only; its stages use child Issues #59, #62, #60, #61 and #75, each with one feature branch and one peer-reviewed PR. Issues #59-#62 were reopened and retargeted; #75 is the new Staff Detail/UI child.
 
 ## Author and reviewer
 
@@ -57,7 +57,7 @@ Create one row per real PR as work proceeds. Required fields: Issue/PR URL, feat
 | [#70](https://github.com/Chxtamos/-TokTickIT-/pull/70) | `feature/26-lab3-user-migration-seed` -> `lab3-staging`, `db69ab3` | Peepipat-Suesoongnuen requested fixture/evidence fixes on `719de19`; corrected in `af7654a`/`db69ab3` | Peepipat-Suesoongnuen approved in [review 5236215911](https://github.com/Chxtamos/-TokTickIT-/pull/70#pullrequestreview-5236215911) on `db69ab3` | Client/Server/E2E CI passed; Server run [35221030054](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35221030054) | Merge `5819368`, 2026-09-17 |
 | [#71](https://github.com/Chxtamos/-TokTickIT-/pull/71) | `feature/27-lab3-auth-sessions` -> `lab3-staging`, `cc0c743` | chaproi requested changes on `7a040b7`; corrected through auth/CI fixes | Tanaboonnnnn approved in [review 5239139332](https://github.com/Chxtamos/-TokTickIT-/pull/71#pullrequestreview-5239139332) on `cc0c743` | Client/Server/E2E CI passed; Server run [35250890637](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35250890637) | Merge `74586fc`, 2026-09-17 |
 | [#72](https://github.com/Chxtamos/-TokTickIT-/pull/72) | `feature/28-lab3-requester-authorization` -> `lab3-staging`, `3a28e39` | Peepipat-Suesoongnuen/L0u1sss requested changes on earlier heads; corrected fail-closed adapter and authenticated mock tests | L0u1sss approved in [review 5249118396](https://github.com/Chxtamos/-TokTickIT-/pull/72#pullrequestreview-5249118396) on `3a28e39` | Client/Server/E2E CI passed; Server run [35357859386](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35357859386) | Merge `07c7a75`, 2026-09-18 |
-| [#74](https://github.com/Chxtamos/-TokTickIT-/pull/74) | `docs/29-lab3-issue-consolidation` -> `lab3-staging`, `760d8bd` | Documentation consolidation PR; peer re-review pending | Pending | Client/Server/E2E CI passed on current head: Server [run 35371111239](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35371111239), Client [run 35371111195](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35371111195), E2E [run 35371111248](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35371111248) | Open |
+| [#74](https://github.com/Chxtamos/-TokTickIT-/pull/74) | `docs/29-lab3-issue-consolidation` -> `lab3-staging`; reviewed Changes Requested on `5f54d91`, current `52dac8c` | Correction commits `854d82d`, `7d0429a`, `760d8bd`, `52dac8c`; re-review/approval pending | Pending | Current HEAD `52dac8c` CI green: Server [run 35371344050](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35371344050), Client [run 35371344030](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35371344030), E2E [run 35371344199](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35371344199) | Open |
 
 ## PR #68 requested changes and planned response record
 
