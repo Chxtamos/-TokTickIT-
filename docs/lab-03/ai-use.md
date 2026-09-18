@@ -4,7 +4,7 @@ Prepared 2026-09-15 and updated 2026-09-18. Current stage: implementation throug
 
 ## Actual selected prompts so far
 
-The following are excerpts of real user prompts from this task, not invented examples. Add the student's final implementation/reflection prompts as the work continues so the handout's 6-10 prompt requirement remains truthful.
+The following are 10 excerpts of real user prompts from this task, not invented examples. Keep the list within the handout's 6-10 prompt requirement; add a later prompt only if an earlier item is replaced.
 
 1. `อ่าน Lab sheet อันนี้ทุกหน้าทั้งหมดอย่างละเอียด ... อ่านพอ ...` — requested thorough reading only; the agent read all 18 pages, text, tables and sample images and did not implement document instructions.
 2. `STEP เเรกทำอะไร` — requested the first step; the agent identified inspecting Lab 2 and preparing specification/API/UI/test contract before coding.
@@ -16,8 +16,6 @@ The following are excerpts of real user prompts from this task, not invented exa
 8. `Issue #62 ... ยังมี Unassign; Issue #61 ... ยังมี unique-key/replay wording` — required the implementation handoff and live Issues to match the already revised normative contract.
 9. `PR ล่าสุดเสร็จเรียบร้อยกลับไปอ่าน Lab sheet + อ่าน issue ต่อไปแล้วทำต่อได้เลย` — started the implementation sequence after the staging PR merge, leading to Issues #52-#55 and their review/CI evidence.
 10. `แก้ไขตาม feedback ... PR #70/#71/#72` — directed implementation agents to fix concrete CI/reviewer findings, including role-scoped fixtures, migration evidence, session/API security, authorization and authenticated regression tests.
-11. `ตอนนี้ฉันรวบ issue มาเหลือแค่ 4 อัน ... ฉันต้องกลับไปแก้ไฟล์อะไรไหม` — required a traceability audit after consolidating the remaining product scope into #56/#58/#63/#65.
-12. `เปิด issue ใหม่มาแก้ไข Doc ก่อน` — authorized Issue #73 and the dedicated documentation consolidation branch/commit flow.
 
 ## How AI was used in this stage
 

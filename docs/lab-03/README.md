@@ -17,8 +17,8 @@ Implementation ที่ merge แล้วครอบคลุม Issue #51-#5
 | [ui-spec.md](ui-spec.md) | Routes/role shell, modes/feedback, screen controls, Zen Green, responsive/accessibility และ visual checklist |
 | [tests.md](tests.md) | 63 planned test groups รวม PERF-01, AC traceability, Lab 1/2 regression disposition, isolated database และ final verification rules |
 | [implementation-plan.md](implementation-plan.md) | Historical 17-issue plan, current consolidated 4-issue queue, #73 documentation task, dependencies และ branch flow |
-| [reviewer.md](reviewer.md) | Review ที่ยัง pending และข้อมูลที่ต้องเก็บจาก peer review จริง |
-| [ai-use.md](ai-use.md) | Prompts ที่ใช้จริงในงานนี้ และ reflection ที่นักศึกษายังต้องเขียนเอง |
+| [reviewer.md](reviewer.md) | Historical contract reviews plus implementation/release evidence and remaining peer/release records |
+| [ai-use.md](ai-use.md) | Actual prompts, implementation-use record and student reflection; keep the student's own voice |
 
 ## Baseline ที่ตรวจพบจริง
 
