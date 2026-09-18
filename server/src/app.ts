@@ -516,6 +516,9 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     });
   });
 
+  // Lab 3 reference data is protected by the auth middleware registered by
+  // registerAuthRoutes. Keep these handlers after that registration so
+  // anonymous/restricted sessions fail before reference-data lookup.
   app.get("/api/categories", async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const categories = await prisma.category.findMany({

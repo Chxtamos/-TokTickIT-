@@ -150,15 +150,32 @@ describe("Lab 3 authorization and Requester regression", () => {
     delete process.env.LAB2_E2E_LEGACY_AUTH;
   });
 
-  it("requires a session, denies wrong roles before lookup and permits reference data to every normal role", async () => {
-    const anonymous = await request(createApp(makePrisma().prisma)).get("/api/categories");
-    expect(anonymous.status).toBe(401);
-    expect(anonymous.body.error.code).toBe("SESSION_REQUIRED");
+  it("protects both reference-data APIs for anonymous/restricted sessions and permits every normal role", async () => {
+    for (const path of ["/api/categories", "/api/related-systems"]) {
+      const anonymousFixture = makePrisma();
+      const anonymous = await request(createApp(anonymousFixture.prisma)).get(path);
+      expect(anonymous.status, `${path} anonymous`).toBe(401);
+      expect(anonymous.body.error.code, `${path} anonymous code`).toBe("SESSION_REQUIRED");
+      expect((anonymousFixture.prisma as any).category.findMany, `${path} anonymous category lookup`).not.toHaveBeenCalled();
+      expect((anonymousFixture.prisma as any).relatedSystem.findMany, `${path} anonymous system lookup`).not.toHaveBeenCalled();
 
-    for (const role of ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"] as const) {
-      const fixture = makePrisma(role);
-      const references = await authenticated(createApp(fixture.prisma)).get("/api/categories");
-      expect(references.status).toBe(200);
+      const legacyHeaderFixture = makePrisma();
+      const legacyHeader = await request(createApp(legacyHeaderFixture.prisma))
+        .get(path)
+        .set("X-Requester-Id", "999");
+      expect(legacyHeader.status, `${path} legacy header`).toBe(401);
+      expect(legacyHeader.body.error.code, `${path} legacy header code`).toBe("SESSION_REQUIRED");
+
+      for (const role of ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"] as const) {
+        const restrictedFixture = makePrisma(role, { restricted: true });
+        const restricted = await authenticated(createApp(restrictedFixture.prisma)).get(path);
+        expect(restricted.status, `${path} ${role} restricted`).toBe(403);
+        expect(restricted.body.error.code, `${path} ${role} restricted code`).toBe("PASSWORD_CHANGE_REQUIRED");
+
+        const fixture = makePrisma(role);
+        const references = await authenticated(createApp(fixture.prisma)).get(path);
+        expect(references.status, `${path} ${role}`).toBe(200);
+      }
     }
 
     const staff = makePrisma("IT_STAFF");
