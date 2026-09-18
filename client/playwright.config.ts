@@ -26,6 +26,10 @@ export default defineConfig({
       url: "http://127.0.0.1:5173",
       reuseExistingServer: !process.env.CI && process.env.RUN_DB_INTEGRATION !== "1",
       timeout: 120_000,
+      env: {
+        ...process.env,
+        VITE_API_URL: process.env.E2E_API_URL ?? "http://127.0.0.1:3000",
+      },
     },
     {
       command: "npm run dev",
