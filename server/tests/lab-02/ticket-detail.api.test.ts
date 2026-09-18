@@ -132,8 +132,10 @@ describe("GET /api/tickets/:ticketId", () => {
   });
 
   it("returns the same safe 404 for missing and non-owned Tickets", async () => {
-    const missing = await request(createApp(makePrisma({ ticket: null }))).get("/api/tickets/42").set("X-Requester-Id", "1");
-    const nonOwned = await request(createApp(makePrisma({ ticket: null }))).get("/api/tickets/42").set("X-Requester-Id", "2");
+    const missingFixture = withMockRequesterSession(makePrisma({ ticket: null }));
+    const missing = await request(createApp(missingFixture.prisma)).get("/api/tickets/42").set("Cookie", missingFixture.cookie);
+    const nonOwnerFixture = withMockRequesterSession(makePrisma({ ticket: null }), 2);
+    const nonOwned = await request(createApp(nonOwnerFixture.prisma)).get("/api/tickets/42").set("Cookie", nonOwnerFixture.cookie);
 
     expect(missing.status).toBe(404);
     expect(nonOwned.status).toBe(404);
@@ -157,7 +159,8 @@ describe("GET /api/tickets/:ticketId", () => {
   });
 
   it("returns a safe error when detail lookup fails", async () => {
-    const res = await request(createApp(makePrisma({ fail: true }))).get("/api/tickets/42").set("X-Requester-Id", "1");
+    const fixture = withMockRequesterSession(makePrisma({ fail: true }));
+    const res = await request(createApp(fixture.prisma)).get("/api/tickets/42").set("Cookie", fixture.cookie);
 
     expect(res.status).toBe(500);
     expect(res.body.error).toMatchObject({ code: "TICKET_DETAIL_FAILED", message: "Unable to load Ticket details." });

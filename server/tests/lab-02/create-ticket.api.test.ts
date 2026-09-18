@@ -3,7 +3,7 @@ import request from "supertest";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
-import { withMockRequesterSession } from "../helpers/auth-session.js";
+import { testClientOrigin, withMockRequesterSession } from "../helpers/auth-session.js";
 
 const validBody = {
   clientRequestId: "f13f2298-1153-4cea-966d-3bc466d53d7b",
@@ -46,7 +46,6 @@ function makeTicket() {
     attachments: [],
   };
 }
-
 function makePrisma(options: { existing?: ReturnType<typeof makeTicket>; failTransaction?: boolean } = {}) {
   const createdTicket = makeTicket();
   const ticket = options.existing;
@@ -84,6 +83,8 @@ describe("POST /api/tickets", () => {
     const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send(validBody);
 
     expect(res.status).toBe(201);
@@ -111,6 +112,8 @@ describe("POST /api/tickets", () => {
     const invalidBody = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send({ ...validBody, requesterId: 1, summary: "x", unknown: true });
     expect(invalidBody.status).toBe(400);
     expect(invalidBody.body.error.code).toBe("VALIDATION_FAILED");
@@ -140,6 +143,8 @@ describe("POST /api/tickets", () => {
     const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send({
         ...validBody,
         clientRequestId: "not-a-uuid",
@@ -172,12 +177,17 @@ describe("POST /api/tickets", () => {
     const minimum = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send(body);
     expect(minimum.status).toBe(201);
 
-    const maximum = await request(createApp(makePrisma().prisma))
+    const maximumFixture = withMockRequesterSession(makePrisma().prisma);
+    const maximum = await request(createApp(maximumFixture.prisma))
       .post("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", maximumFixture.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", maximumFixture.csrfToken)
       .send({ ...body, clientRequestId: "6f0e0f5e-0f66-4a2e-89f8-6abacb67fd57", summary: "s".repeat(120), description: "d".repeat(5000) });
     expect(maximum.status).toBe(201);
     expect(transaction.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
@@ -190,6 +200,8 @@ describe("POST /api/tickets", () => {
     const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send({ ...validBody, requestedPriority: "URGENT" });
 
     expect(res.status).toBe(201);
@@ -205,6 +217,8 @@ describe("POST /api/tickets", () => {
     const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send(validBody);
 
     expect(res.status).toBe(400);
@@ -222,6 +236,8 @@ describe("POST /api/tickets", () => {
     const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send(validBody);
 
     expect(res.status).toBe(200);
@@ -238,6 +254,8 @@ describe("POST /api/tickets", () => {
     const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send(validBody);
 
     expect(res.status).toBe(409);
@@ -262,6 +280,8 @@ describe("POST /api/tickets", () => {
     const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send(validBody);
 
     expect(res.status).toBe(200);
@@ -282,6 +302,8 @@ describe("POST /api/tickets", () => {
     const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send(validBody);
 
     expect(res.status).toBe(500);
@@ -294,6 +316,8 @@ describe("POST /api/tickets", () => {
     const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .post("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .send(validBody);
 
     expect(res.status).toBe(500);

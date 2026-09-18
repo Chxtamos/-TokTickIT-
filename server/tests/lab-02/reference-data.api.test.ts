@@ -59,7 +59,8 @@ function makeReferenceDataPrisma(): ReferenceDataPrisma {
 
 describe("Lab 2 reference-data endpoints", () => {
   it("returns active categories in the existing Lab 1 id order", async () => {
-    const res = await request(createApp(makeSeededReferenceDataPrisma())).get("/api/categories").set("X-Requester-Id", "1");
+    const fixture = withMockRequesterSession(makeSeededReferenceDataPrisma());
+    const res = await request(createApp(fixture.prisma)).get("/api/categories").set("Cookie", fixture.cookie);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([
@@ -71,7 +72,8 @@ describe("Lab 2 reference-data endpoints", () => {
   });
 
   it("returns active related systems ordered by name then id", async () => {
-    const res = await request(createApp(makeSeededReferenceDataPrisma())).get("/api/related-systems").set("X-Requester-Id", "1");
+    const fixture = withMockRequesterSession(makeSeededReferenceDataPrisma());
+    const res = await request(createApp(fixture.prisma)).get("/api/related-systems").set("Cookie", fixture.cookie);
 
     expect(res.status).toBe(200);
     expect(res.body.map((item: { name: string }) => item.name)).toEqual([
@@ -86,9 +88,10 @@ describe("Lab 2 reference-data endpoints", () => {
   });
 
   it("retires the Development Requester listing endpoint", async () => {
-    const res = await request(createApp(makeSeededReferenceDataPrisma()))
+    const fixture = withMockRequesterSession(makeSeededReferenceDataPrisma());
+    const res = await request(createApp(fixture.prisma))
       .get("/api/development-requesters")
-      .set("X-Requester-Id", "1");
+      .set("Cookie", fixture.cookie);
 
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe("RESOURCE_NOT_FOUND");
@@ -96,11 +99,12 @@ describe("Lab 2 reference-data endpoints", () => {
 
   it("excludes inactive categories, systems, and requesters", async () => {
     const prisma = makeReferenceDataPrisma();
-    const testApp = createApp(prisma);
+    const fixture = withMockRequesterSession(prisma);
+    const testApp = createApp(fixture.prisma);
 
     const [categories, systems] = await Promise.all([
-      request(testApp).get("/api/categories").set("X-Requester-Id", "1"),
-      request(testApp).get("/api/related-systems").set("X-Requester-Id", "1"),
+      request(testApp).get("/api/categories").set("Cookie", fixture.cookie),
+      request(testApp).get("/api/related-systems").set("Cookie", fixture.cookie),
     ]);
 
     expect(categories.body).toEqual([{ id: 1, name: "Active Category" }]);

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
-import { withMockRequesterSession } from "../helpers/auth-session.js";
+import { testClientOrigin, withMockRequesterSession } from "../helpers/auth-session.js";
 
 const ticket = {
   id: 42,
@@ -33,7 +33,9 @@ function makePrisma(options: { tickets?: unknown[]; totalItems?: number; inactiv
 describe("GET /api/tickets", () => {
   it("returns owner-scoped summaries with the contract defaults", async () => {
     const prisma = makePrisma();
-    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets").set("Cookie", withMockRequesterSession(prisma).cookie);
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets").set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -70,6 +72,8 @@ describe("GET /api/tickets", () => {
     const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .get("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .query({
         search: "  VPN ",
         categoryId: "2",
@@ -113,7 +117,9 @@ describe("GET /api/tickets", () => {
 
   it("returns an empty valid page beyond the final page with accurate totals", async () => {
     const prisma = makePrisma({ tickets: [], totalItems: 21 });
-    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets").set("Cookie", withMockRequesterSession(prisma).cookie).query({ page: "4", pageSize: "10" });
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets").set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken).query({ page: "4", pageSize: "10" });
 
     expect(res.status).toBe(200);
     expect(res.body.items).toEqual([]);
@@ -132,6 +138,8 @@ describe("GET /api/tickets", () => {
     const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .get("/api/tickets")
       .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .query({ unknown: "true", categoryId: "9007199254740992", page: "0", pageSize: "15", sortDirection: ["asc", "desc"] });
 
     expect(res.status).toBe(400);
@@ -147,7 +155,8 @@ describe("GET /api/tickets", () => {
   });
 
   it("returns a safe error when listing fails", async () => {
-    const res = await request(createApp(makePrisma({ fail: true }))).get("/api/tickets").set("X-Requester-Id", "1");
+    const fixture = withMockRequesterSession(makePrisma({ fail: true }));
+    const res = await request(createApp(fixture.prisma)).get("/api/tickets").set("Cookie", fixture.cookie);
 
     expect(res.status).toBe(500);
     expect(res.body.error).toMatchObject({ code: "TICKET_LIST_FAILED", message: "Unable to load Tickets." });

@@ -42,8 +42,9 @@ export async function createTestSession(prisma: PrismaClient, userId: number) {
 
 
 export function withMockRequesterSession<T extends object>(prisma: T, userId = 1) {
+  process.env.CLIENT_ORIGIN ??= testClientOrigin;
   const token = "legacy-unit-session-token";
-  const csrfToken = "legacy-unit-session-csrf";
+  const csrfToken = "a".repeat(64);
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const user = {
     id: userId,
