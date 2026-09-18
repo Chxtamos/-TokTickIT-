@@ -47,4 +47,26 @@ describe("Lab 3 Login", () => {
     expect(api.login).toHaveBeenCalledWith("alice@example.test", "temporary password");
     await waitFor(() => expect(window.location.pathname).toBe("/change-password"));
   });
+
+  it("shows rate-limit feedback and keeps the form retryable", async () => {
+    vi.spyOn(api, "login").mockRejectedValue(Object.assign(new Error("Too many sign-in attempts."), { statusCode: 429, code: "LOGIN_RATE_LIMITED", retryAfter: 17 }));
+    await renderLogin();
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "alice@example.test" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "temporary password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Try again in 17 seconds");
+    expect(screen.getByRole("button", { name: "Sign In" })).toBeEnabled();
+    expect(screen.getByLabelText("Password")).toHaveValue("");
+  });
+
+  it("recovers from a network failure without retaining the password", async () => {
+    vi.spyOn(api, "login").mockRejectedValue(new TypeError("Failed to fetch"));
+    await renderLogin();
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "alice@example.test" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "temporary password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign In" })).toBeEnabled();
+    expect(screen.getByLabelText("Password")).toHaveValue("");
+  });
 });

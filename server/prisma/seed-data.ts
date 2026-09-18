@@ -75,10 +75,6 @@ function payloadHash(input: object): string {
 
 export async function seedLab3Fixtures(prisma: PrismaClient) {
   const initialPassword = process.env.LAB_SEED_INITIAL_PASSWORD;
-  const existingRequesters = await prisma.requesterUser.findMany({
-    where: { role: "REQUESTER" },
-    select: { id: true, passwordHash: true },
-  });
   const existingStaff = await prisma.requesterUser.findMany({
     where: { email: { in: lab3StaffFixtures.map((fixture) => fixture.email) } },
     select: { email: true, passwordHash: true },
@@ -91,19 +87,6 @@ export async function seedLab3Fixtures(prisma: PrismaClient) {
     throw new Error("LAB_SEED_INITIAL_PASSWORD does not satisfy the local password policy.");
   }
   const fixtureHash = initialPassword ? await hashPassword(initialPassword) : undefined;
-
-  if (existingRequesters.some((user) => !user.passwordHash) && !fixtureHash) {
-    throw new Error("LAB_SEED_INITIAL_PASSWORD is required to provision Requester fixture accounts.");
-  }
-  if (fixtureHash) {
-    for (const requester of existingRequesters) {
-      if (requester.passwordHash) continue;
-      await prisma.requesterUser.update({
-        where: { id: requester.id },
-        data: { passwordHash: fixtureHash, mustChangePassword: true, version: { increment: 1 } },
-      });
-    }
-  }
 
   for (const fixture of lab3StaffFixtures) {
     await prisma.requesterUser.upsert({

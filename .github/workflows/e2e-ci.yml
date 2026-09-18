@@ -61,6 +61,9 @@ jobs:
         run: |
           npm run prisma:seed:test
           npm run prisma:seed:test
+      - name: Provision isolated E2E Requester credentials
+        working-directory: server
+        run: npm run lab3:provision-e2e-requesters
       - name: Install Playwright browser
         working-directory: client
         run: npx playwright install --with-deps chromium

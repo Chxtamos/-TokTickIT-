@@ -76,4 +76,18 @@ describe("Lab 3 Change Password", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Sign in with the new password");
     await waitFor(() => expect(window.location.pathname).toBe("/login"));
   });
+
+  it("keeps a rejected pre-commit save retryable and clears all secrets", async () => {
+    vi.spyOn(api, "changePassword").mockRejectedValue(Object.assign(new Error("Unable to change the password. Please try again."), { statusCode: 500, code: "INTERNAL_ERROR" }));
+    await renderChangePassword(false);
+    fireEvent.change(screen.getByLabelText("Current Password"), { target: { value: "current password value" } });
+    fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "another valid password" } });
+    fireEvent.change(screen.getByLabelText("Confirm New Password"), { target: { value: "another valid password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to change the password");
+    expect(screen.getByRole("button", { name: "Save Password" })).toBeEnabled();
+    expect(screen.getByLabelText("Current Password")).toHaveValue("");
+    expect(screen.getByLabelText("New Password")).toHaveValue("");
+    expect(screen.getByLabelText("Confirm New Password")).toHaveValue("");
+  });
 });

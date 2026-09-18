@@ -72,4 +72,21 @@ describe("Lab 3 authenticated shell", () => {
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     expect(screen.queryByText("Support One · IT Staff")).not.toBeInTheDocument();
   });
+
+  it("discards a delayed Requester response after logout", async () => {
+    setRoute("/requester/tickets");
+    sessionFor(requesterUser);
+    let resolveTickets!: (value: api.TicketListResponse) => void;
+    vi.spyOn(api, "getTickets").mockImplementation(() => new Promise((resolve) => { resolveTickets = resolve; }));
+    vi.spyOn(api, "getCategories").mockResolvedValue([]);
+    vi.spyOn(api, "getRelatedSystems").mockResolvedValue([]);
+    vi.spyOn(api, "logout").mockResolvedValue();
+    render(<App />);
+    await screen.findByRole("heading", { name: "My Tickets" });
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    await act(async () => resolveTickets({ items: [], pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false }, applied: { search: "", categoryId: null, relatedSystemId: null, requestedPriority: null, currentStatus: null, sortBy: "updatedAt", sortDirection: "desc" } }));
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "My Tickets" })).not.toBeInTheDocument();
+  });
 });
