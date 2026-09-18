@@ -39,3 +39,48 @@ export async function createTestSession(prisma: PrismaClient, userId: number) {
   });
   return { cookie: `toktickit.sid=${token}`, csrfToken };
 }
+
+
+export function withMockRequesterSession<T extends object>(prisma: T, userId = 1) {
+  const token = "legacy-unit-session-token";
+  const csrfToken = "legacy-unit-session-csrf";
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const user = {
+    id: userId,
+    name: "Legacy unit requester",
+    email: "legacy-unit-requester@example.test",
+    role: "REQUESTER" as const,
+    isActive: true,
+    passwordHash: "unused",
+    mustChangePassword: false,
+    passwordChangedAt: new Date("2026-09-01T00:00:00.000Z"),
+    version: 1,
+    createdAt: new Date("2026-08-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-09-01T00:00:00.000Z"),
+  };
+
+  return {
+    prisma: {
+      ...prisma,
+      session: {
+        findUnique: async ({ where }: { where: { tokenHash: string } }) =>
+          where.tokenHash === tokenHash
+            ? {
+                id: "00000000-0000-4000-8000-000000000099",
+                tokenHash,
+                userId,
+                csrfToken,
+                createdAt: new Date(),
+                lastSeenAt: new Date(),
+                expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+                user,
+              }
+            : null,
+        update: async () => ({}),
+        deleteMany: async () => ({ count: 0 }),
+      },
+    } as T,
+    cookie: `toktickit.sid=${token}`,
+    csrfToken,
+  };
+}
