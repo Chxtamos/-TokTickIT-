@@ -1,6 +1,19 @@
 # Lab 3 Peer Review and Release Record
 
-Prepared 2026-09-15 and updated 2026-09-16. Status: **Changes requested; follow-up correction prepared, re-review/approval/merge pending**. GitHub Issue #51 and PR #68 track this contract. No hosted check, approval or merge is claimed.
+Prepared 2026-09-15 and updated 2026-09-18. The contract review history below is historical for PR #68. Implementation PRs #68-#72 have since been merged/recorded; remaining product work is consolidated in Issues #56, #58, #63 and #65, with documentation synchronization tracked by #73. Do not claim peer approval unless GitHub records an actual APPROVED review.
+
+## Current implementation/release record
+
+| Work | GitHub evidence | Current state |
+| --- | --- | --- |
+| Engineering Contract | PR [#68](https://github.com/Chxtamos/-TokTickIT-/pull/68) | Merged; Issue #51 Done |
+| Test isolation/CI | PR [#69](https://github.com/Chxtamos/-TokTickIT-/pull/69) | Merged; Issue #52 Done |
+| Migration/seed/provisioning | PR [#70](https://github.com/Chxtamos/-TokTickIT-/pull/70) | Merged; Issue #53 Done |
+| Authentication/session APIs | PR [#71](https://github.com/Chxtamos/-TokTickIT-/pull/71) | Merged; Issue #54 Done |
+| Authorization/Requester regression | PR [#72](https://github.com/Chxtamos/-TokTickIT-/pull/72) | Merged; Issue #55 Done |
+| Consolidated documentation | Issue [#73](https://github.com/Chxtamos/-TokTickIT-/issues/73) | Started; docs PR still required |
+
+The original Issue plan #51-#67 remains historical. The active product queue is #56, #58, #63 and #65. Closed Issues #57, #59-#62, #64 and #66-#67 are not reused; their scope is represented in the consolidated active Issues.
 
 ## Author and reviewer
 
@@ -42,10 +55,10 @@ Create one row per real PR as work proceeds. Required fields: Issue/PR URL, feat
 | Review point | Contract correction prepared in this branch | Evidence status |
 | --- | --- | --- |
 | Logout disagreement | BR-11, authorization matrix, API, UI, AC-05 and API-05 use 204 for present/absent/expired/repeated logout; active session still needs CSRF. Review text called this BR-08, but BR-08 is the password policy in the reviewed head. | Corrected in e03f005; re-review pending |
-| Staging Issue linkage | PR #68 was linked through GitHub's Development relationship via manual closing reference. `Closes #51` was removed from the PR body; GitHub GraphQL still showed the closing reference afterward. Contract Issue remains Started and PR is PR Review in Project #6. Closing/Done will be based on reviewed staging merge plus evidence, not assumed from the default-main auto-close rule. | Manual GraphQL link verified after PR edit; merge/closure pending |
+| Staging Issue linkage | PR #68 was linked through GitHub's Development relationship via manual closing reference. `Closes #51` was removed from the PR body; GitHub GraphQL showed the closing reference during the contract review. | Historical review-time state; PR #68 is now merged and Issue #51 is Done |
 | Terminal owner | Account-driven cleanup may unassign CLOSED/CANCELLED owners despite forbidden staff terminal owner API. TicketOwnerChange preserves former owner/actor/time atomically; status/resolution history survives. | Implementation/tests planned |
 | Project-choice scope | Retained safety decisions are identified as DoD commitments; persisted/distributed throttle storage and backend conversation request-key deduplication are deferred from Lab 3. | Updated contract, implementation pending |
-| Scrypt cost | Proposed profile now requires PERF-01 local/CI latency and memory gate before auth coding/freeze. | Benchmark not run; Issue #54 dependency |
+| Scrypt cost | Proposed profile now requires PERF-01 local/CI latency and memory gate before auth coding/freeze. | Completed in PR #71; actual local/CI benchmark evidence is recorded in tests.md |
 | AC-31 evidence | RELEASE-01 now references all 63 planned groups and actual final-main suite/build/regression/migration evidence. | Final audit pending |
 | Issue #51 README path | Deliverable is exactly `docs/lab-03/README.md` in the plan and Issue description. | Remote Issue #51 edited; re-review pending |
 
@@ -71,4 +84,4 @@ Create one row per real PR as work proceeds. Required fields: Issue/PR URL, feat
 - Issue 11 acceptance wording and live Issue #61 no longer mention PostgreSQL unique-key/replay. They require append semantics, chronological ordering, terminal-state access, ambiguous-retry list refresh and parent/projection isolation, matching the deferred-deduplication contract.
 - The normative contract was already correct; this correction removes stale implementation handoff wording so a coding agent cannot reintroduce the old scope.
 
-The peer reviewer must re-review the revised contract before implementation depends on these choices. Real approval, implementation PRs, test outputs, screenshots, release PR, final PDF and final-main evidence remain pending. Local document checks are coding-agent checks, never peer-review evidence. Historical Lab 2 approval verifies identity/history only and does not approve this sprint.
+The review-response sections above describe the state at the time of PR #68 contract review. Current implementation/merge/CI evidence is recorded in the implementation/release table at the top and in tests.md. Final screenshots, release PR, final PDF and final-main evidence remain pending. Local document checks are coding-agent checks, never peer-review evidence. Historical Lab 2 approval verifies identity/history only and does not approve this sprint.

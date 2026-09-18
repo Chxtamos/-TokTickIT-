@@ -1,12 +1,12 @@
 # Lab 3 Engineering Contract: สรุปและจุดเริ่มทำงาน
 
-จัดทำวันที่ 2026-09-15 สถานะ: **เตรียมเอกสารสำหรับตรวจ/รีวิว ก่อน implementation**
+จัดทำวันที่ 2026-09-15 และอัปเดต 2026-09-18 สถานะ: **implementation ผ่าน PR #68-#72 แล้ว; product backlog เหลือ 4 Issues และ documentation consolidation #73 กำลังดำเนินการ**
 
 ## งานนี้ทำอะไร
 
-อ่าน Lab_3_sheet.pdf ครบ 18 หน้า รวมภาพตัวอย่างและเกณฑ์ส่งงาน ตรวจโค้ด/เอกสาร Lab 1-2 ของ repository จริง แล้วจัดทำ Engineering Contract ของ Sprint 3, แผนทดสอบที่เชื่อม Acceptance Criteria และแผน **17 Issues** พร้อม Title/Description สำหรับให้ผู้ใช้สร้างเอง
+อ่าน Lab_3_sheet.pdf ครบ 18 หน้า รวมภาพตัวอย่างและเกณฑ์ส่งงาน ตรวจโค้ด/เอกสาร Lab 1-2 ของ repository จริง แล้วจัดทำ Engineering Contract ของ Sprint 3, แผนทดสอบที่เชื่อม Acceptance Criteria และแผน Issue เดิม 17 งาน ก่อน consolidate เหลือ 4 active product Issues (#56, #58, #63, #65) พร้อม documentation Issue #73
 
-ยังไม่เขียนฟีเจอร์ Lab 3, ไม่เปลี่ยน schema และไม่ migrate/seed ฐานข้อมูล สร้าง GitHub Issues #51-#67, push staging/feature branches และเปิด PR #68 เข้า lab3-staging แล้ว
+Implementation ที่ merge แล้วครอบคลุม Issue #51-#55 ผ่าน PR #68-#72; งาน #56/#58/#63/#65 ยังเป็น product backlog ตาม Project และ #73 เป็นงาน sync เอกสาร ไม่มีการอ้างว่า Lab 3 เสร็จสมบูรณ์จนกว่าจะมี final evidence/PR/main verification
 
 ## เอกสารที่ต้องอ่าน
 
@@ -16,7 +16,7 @@
 | [api-spec.md](api-spec.md) | Exact endpoints/request/response/status, DTOs, session/cookie/CSRF, query/error/concurrency rules |
 | [ui-spec.md](ui-spec.md) | Routes/role shell, modes/feedback, screen controls, Zen Green, responsive/accessibility และ visual checklist |
 | [tests.md](tests.md) | 63 planned test groups รวม PERF-01, AC traceability, Lab 1/2 regression disposition, isolated database และ final verification rules |
-| [implementation-plan.md](implementation-plan.md) | ลำดับงาน/dependencies/branch flow และ Title/Description ของทั้ง 17 Issues พร้อมนำไปใช้ |
+| [implementation-plan.md](implementation-plan.md) | Historical 17-issue plan, current consolidated 4-issue queue, #73 documentation task, dependencies และ branch flow |
 | [reviewer.md](reviewer.md) | Review ที่ยัง pending และข้อมูลที่ต้องเก็บจาก peer review จริง |
 | [ai-use.md](ai-use.md) | Prompts ที่ใช้จริงในงานนี้ และ reflection ที่นักศึกษายังต้องเขียนเอง |
 
@@ -53,10 +53,10 @@
 
 ## งานถัดไป
 
-Issues #51-#67 ถูกสร้างจาก implementation-plan.md แล้ว contract branch ถูก push และ PR #68 เข้า lab3-staging แล้ว Project #6 มี Issue #51 Started, #52-#67 Backlog และ PR #68 PR Review ขั้นถัดไปคือ re-review/approval ของ contract แล้วเริ่มงาน #52 test isolation/CI -> #53 migration -> #54 auth -> #55 authorization/regression ตามด้วย UI/staff/admin/E2E/visual/release ตาม dependencies
+Issues เดิม #51-#67 ถูกสร้างจาก implementation-plan.md และถูกเก็บเป็น historical traceability ปัจจุบัน Issue #51-#55 Done, #56 Started, #58/#63/#65 Backlog และ #73 Started ใน Project #6; PR #68-#71 merged และ PR #72 merged/recorded ตาม GitHub state ล่าสุด ขั้นถัดไปคือทำ #73 documentation sync แล้วเดินต่อ #56 -> #58/#63 -> #65 ตาม consolidated dependencies
 
 ## สถานะและ document validation
 
-Contract approval: PR #68 มี CHANGES_REQUESTED จาก peer และกำลังแก้ feedback; ยังไม่ได้รับ approval. Feature tests: Planned / Not run. Product DoD: Incomplete. GitHub Issues: [#51-#67](https://github.com/Chxtamos/-TokTickIT-/issues); PR: [#68](https://github.com/Chxtamos/-TokTickIT-/pull/68) ทุก Product DoD checklist ยังคง pending จนมีหลักฐานจริง
+Contract/implementation evidence: PR #68-#72 มี review/merge/CI records ตาม GitHub และ `tests.md`; remaining product/UI/release evidence ยังไม่ครบ. Product DoD: Incomplete. Active Issues: [#56](https://github.com/Chxtamos/-TokTickIT-/issues/56), [#58](https://github.com/Chxtamos/-TokTickIT-/issues/58), [#63](https://github.com/Chxtamos/-TokTickIT-/issues/63), [#65](https://github.com/Chxtamos/-TokTickIT-/issues/65), documentation [#73](https://github.com/Chxtamos/-TokTickIT-/issues/73)
 
 ตรวจเอกสารก่อน commit: FR/BR/AC numbering, AC coverage/index, referenced Test IDs, issue count/dependencies, local Markdown links, API/workflow/role/password consistency และ `git diff --check` การตรวจเหล่านี้เป็น document validation ไม่ใช่ runtime/security/migration test passes
