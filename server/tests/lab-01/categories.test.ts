@@ -14,7 +14,9 @@ describe("GET /api/categories", () => {
         ]),
       },
     } as unknown as ReferenceDataPrisma;
-    const res = await request(createApp(prisma)).get("/api/categories");
+    const res = await request(createApp(prisma))
+      .get("/api/categories")
+      .set("X-Requester-Id", "1");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([

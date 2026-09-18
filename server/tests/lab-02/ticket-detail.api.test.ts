@@ -13,11 +13,20 @@ function makeTicket() {
     summary: "Laptop battery drains quickly",
     description: "Battery drops from full to empty in about one hour.",
     requestedPriority: "MEDIUM" as const,
+    itPriority: "MEDIUM" as const,
     currentStatus: "NEW",
+    version: 1,
+    resolutionSummary: null,
+    resolvedAt: null,
+    closedAt: null,
+    lastStatusReason: null,
+    requesterResolvedAt: null,
     createdAt,
     updatedAt,
     requestPayloadHash: "private-hash",
-    requester: { id: 1, name: "Anan Srisuk", email: "anan.srisuk@example.test" },
+    requester: { id: 1, name: "Anan Srisuk", email: "anan.srisuk@example.test", role: "REQUESTER" },
+    owner: null,
+    requesterResolved: null,
     category: { id: 2, name: "Hardware" },
     relatedSystem: { id: 7, name: "Corporate Laptop" },
     attachments: [
@@ -68,13 +77,22 @@ describe("GET /api/tickets/:ticketId", () => {
       id: 42,
       ticketNumber: "TKT-2026-000042",
       ticketDate: "2026-08-24T10:00:00.000Z",
-      requester: { id: 1, name: "Anan Srisuk", email: "anan.srisuk@example.test" },
+      requester: { id: 1, name: "Anan Srisuk", email: "anan.srisuk@example.test", role: "REQUESTER" },
       category: { id: 2, name: "Hardware" },
       relatedSystem: { id: 7, name: "Corporate Laptop" },
       summary: "Laptop battery drains quickly",
       requestedPriority: "MEDIUM",
+      itPriority: "MEDIUM",
       description: "Battery drops from full to empty in about one hour.",
       currentStatus: "NEW",
+      version: 1,
+      ticketOwner: null,
+      resolutionSummary: null,
+      resolvedAt: null,
+      closedAt: null,
+      lastStatusReason: null,
+      requesterResolvedAt: null,
+      requesterResolvedBy: null,
       createdAt: "2026-08-24T10:00:00.000Z",
       updatedAt: "2026-08-25T10:00:00.000Z",
       attachments: [
@@ -122,36 +140,19 @@ describe("GET /api/tickets/:ticketId", () => {
     expect(nonOwned.body).toEqual(missing.body);
   });
 
-  it("rejects missing or malformed Requester and Ticket context", async () => {
+  it("requires authentication and rejects malformed Ticket IDs", async () => {
     const prisma = makePrisma();
     const missingRequester = await request(createApp(prisma)).get("/api/tickets/42");
     const malformedTicket = await request(createApp(prisma)).get("/api/tickets/0").set("X-Requester-Id", "1");
     const unsafeTicket = await request(createApp(prisma)).get("/api/tickets/9007199254740992").set("X-Requester-Id", "1");
 
-    expect(missingRequester.status).toBe(400);
-    expect(missingRequester.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
+    expect(missingRequester.status).toBe(401);
+    expect(missingRequester.body.error.code).toBe("SESSION_REQUIRED");
     expect(malformedTicket.status).toBe(400);
     expect(malformedTicket.body.error.code).toBe("INVALID_TICKET_ID");
     expect(unsafeTicket.status).toBe(400);
     expect(unsafeTicket.body.error.code).toBe("INVALID_TICKET_ID");
     expect(prisma.ticket.findFirst).not.toHaveBeenCalled();
-  });
-
-  it("rejects unknown or inactive Requester before querying Ticket data", async () => {
-    const unknownPrisma = makePrisma();
-    vi.mocked(unknownPrisma.requesterUser.findFirst).mockResolvedValue(null);
-    const unknown = await request(createApp(unknownPrisma)).get("/api/tickets/42").set("X-Requester-Id", "999");
-
-    const inactivePrisma = makePrisma();
-    vi.mocked(inactivePrisma.requesterUser.findFirst).mockResolvedValue(null);
-    const inactive = await request(createApp(inactivePrisma)).get("/api/tickets/42").set("X-Requester-Id", "1");
-
-    expect(unknown.status).toBe(400);
-    expect(inactive.status).toBe(400);
-    expect(unknown.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
-    expect(inactive.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
-    expect(unknownPrisma.ticket.findFirst).not.toHaveBeenCalled();
-    expect(inactivePrisma.ticket.findFirst).not.toHaveBeenCalled();
   });
 
   it("returns a safe error when detail lookup fails", async () => {

@@ -24,14 +24,25 @@ function makeTicket() {
     summary: "Laptop battery drains quickly",
     description: "Battery drops from full to empty in about one hour.",
     requestedPriority: "MEDIUM" as const,
+    itPriority: "MEDIUM" as const,
     currentStatus: "NEW",
+    version: 1,
+    resolutionSummary: null,
+    resolvedAt: null,
+    closedAt: null,
+    requesterResolvedAt: null,
+    requesterResolvedById: null,
+    lastStatusReason: null,
     clientRequestId: validBody.clientRequestId,
     requestPayloadHash: "hash",
     createdAt,
     updatedAt: createdAt,
-    requester: { id: 1, name: "Anan Srisuk", email: "anan.srisuk@example.test" },
+    requester: { id: 1, name: "Anan Srisuk", email: "anan.srisuk@example.test", role: "REQUESTER" as const },
+    owner: null,
+    requesterResolved: null,
     category: { id: 2, name: "Hardware" },
     relatedSystem: { id: 7, name: "Corporate Laptop" },
+    attachments: [],
   };
 }
 
@@ -89,12 +100,12 @@ describe("POST /api/tickets", () => {
     });
   });
 
-  it("rejects missing requester context and invalid body fields", async () => {
+  it("requires authentication and rejects invalid body fields", async () => {
     const { prisma } = makePrisma();
 
     const missingContext = await request(createApp(prisma)).post("/api/tickets").send(validBody);
-    expect(missingContext.status).toBe(400);
-    expect(missingContext.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
+    expect(missingContext.status).toBe(401);
+    expect(missingContext.body.error.code).toBe("SESSION_REQUIRED");
 
     const invalidBody = await request(createApp(prisma))
       .post("/api/tickets")
@@ -110,7 +121,7 @@ describe("POST /api/tickets", () => {
   });
 
   it.each(["0", "-1", "01", "1.0", "1abc", "1e2", "9007199254740992"])(
-    "rejects malformed or unsafe requester ID %s",
+    "does not accept malformed legacy requester ID %s as authentication",
     async (requesterId) => {
       const { prisma } = makePrisma();
       const res = await request(createApp(prisma))
@@ -118,8 +129,8 @@ describe("POST /api/tickets", () => {
         .set("X-Requester-Id", requesterId)
         .send(validBody);
 
-      expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
+      expect(res.status).toBe(401);
+      expect(res.body.error.code).toBe("SESSION_REQUIRED");
     },
   );
 
@@ -200,19 +211,6 @@ describe("POST /api/tickets", () => {
       code: "VALIDATION_FAILED",
       fieldErrors: { categoryId: ["Category does not exist or is inactive."] },
     });
-  });
-
-  it("rejects an inactive requester context", async () => {
-    const { prisma, transaction } = makePrisma();
-    transaction.requesterUser.findFirst.mockResolvedValue(null);
-
-    const res = await request(createApp(prisma))
-      .post("/api/tickets")
-      .set("X-Requester-Id", "1")
-      .send(validBody);
-
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
   });
 
   it("returns the existing Ticket on an idempotent replay", async () => {

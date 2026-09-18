@@ -119,15 +119,11 @@ describe("GET /api/tickets", () => {
     expect(res.body.pagination).toEqual({ page: 4, pageSize: 10, totalItems: 21, totalPages: 3, hasPreviousPage: true, hasNextPage: false });
   });
 
-  it("rejects missing or inactive requester context", async () => {
+  it("requires an authenticated session", async () => {
     const prisma = makePrisma();
     const missing = await request(createApp(prisma)).get("/api/tickets");
-    expect(missing.status).toBe(400);
-    expect(missing.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
-
-    const inactive = await request(createApp(makePrisma({ inactiveRequester: true }))).get("/api/tickets").set("X-Requester-Id", "1");
-    expect(inactive.status).toBe(400);
-    expect(inactive.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
+    expect(missing.status).toBe(401);
+    expect(missing.body.error.code).toBe("SESSION_REQUIRED");
   });
 
   it("rejects unsupported and malformed query values", async () => {

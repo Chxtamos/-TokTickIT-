@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { createApp } from "../../src/app.js";
 import { assertIntegrationDatabase, createIntegrationPrisma, isDatabaseIntegrationRequested } from "../../src/prisma.js";
+import { createTestSession, testClientOrigin } from "../helpers/auth-session.js";
 
 const runIntegration = isDatabaseIntegrationRequested();
 if (runIntegration) assertIntegrationDatabase();
@@ -14,6 +15,7 @@ integration("POST /api/tickets PostgreSQL integration", () => {
   let requesterId: number;
   let categoryId: number;
   let relatedSystemId: number;
+  let auth: Awaited<ReturnType<typeof createTestSession>>;
   const requestIds: string[] = [];
 
   beforeAll(async () => {
@@ -31,6 +33,7 @@ integration("POST /api/tickets PostgreSQL integration", () => {
     requesterId = requester.id;
     categoryId = category.id;
     relatedSystemId = relatedSystem.id;
+    auth = await createTestSession(prisma, requesterId);
   });
 
   afterAll(async () => {
@@ -55,7 +58,14 @@ integration("POST /api/tickets PostgreSQL integration", () => {
       description: "Created against the real PostgreSQL database for Lab 2 verification.",
     };
 
-    const first = await request(app).post("/api/tickets").set("X-Requester-Id", String(requesterId)).send(firstBody);
+    const postTicket = () => request(app)
+      .post("/api/tickets")
+      .set("Cookie", auth.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", auth.csrfToken);
+    const first = await postTicket()
+      .set("X-Requester-Id", String(requesterId + 999_999))
+      .send(firstBody);
     expect(first.status).toBe(201);
     expect(first.body).toMatchObject({ replayed: false, ticket: { currentStatus: "NEW", requestedPriority: "URGENT" } });
 
@@ -72,20 +82,16 @@ integration("POST /api/tickets PostgreSQL integration", () => {
       requestedPriority: "URGENT",
     });
 
-    const replay = await request(app).post("/api/tickets").set("X-Requester-Id", String(requesterId)).send(firstBody);
+    const replay = await postTicket().send(firstBody);
     expect(replay.status).toBe(200);
     expect(replay.body).toMatchObject({ replayed: true, ticket: { ticketNumber: first.body.ticket.ticketNumber } });
 
-    const conflict = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+    const conflict = await postTicket()
       .send({ ...firstBody, summary: "A different ticket payload" });
     expect(conflict.status).toBe(409);
     expect(conflict.body.error.code).toBe("IDEMPOTENCY_CONFLICT");
 
-    const second = await request(app)
-      .post("/api/tickets")
-      .set("X-Requester-Id", String(requesterId))
+    const second = await postTicket()
       .send({ ...firstBody, clientRequestId: secondRequestId, summary: "Second PostgreSQL ticket" });
     expect(second.status).toBe(201);
 

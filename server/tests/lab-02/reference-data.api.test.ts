@@ -58,7 +58,7 @@ function makeReferenceDataPrisma(): ReferenceDataPrisma {
 
 describe("Lab 2 reference-data endpoints", () => {
   it("returns active categories in the existing Lab 1 id order", async () => {
-    const res = await request(createApp(makeSeededReferenceDataPrisma())).get("/api/categories");
+    const res = await request(createApp(makeSeededReferenceDataPrisma())).get("/api/categories").set("X-Requester-Id", "1");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([
@@ -70,7 +70,7 @@ describe("Lab 2 reference-data endpoints", () => {
   });
 
   it("returns active related systems ordered by name then id", async () => {
-    const res = await request(createApp(makeSeededReferenceDataPrisma())).get("/api/related-systems");
+    const res = await request(createApp(makeSeededReferenceDataPrisma())).get("/api/related-systems").set("X-Requester-Id", "1");
 
     expect(res.status).toBe(200);
     expect(res.body.map((item: { name: string }) => item.name)).toEqual([
@@ -84,46 +84,37 @@ describe("Lab 2 reference-data endpoints", () => {
     ]);
   });
 
-  it("returns active development requesters only, ordered by name then id", async () => {
-    const res = await request(createApp(makeSeededReferenceDataPrisma())).get("/api/development-requesters");
+  it("retires the Development Requester listing endpoint", async () => {
+    const res = await request(createApp(makeSeededReferenceDataPrisma()))
+      .get("/api/development-requesters")
+      .set("X-Requester-Id", "1");
 
-    expect(res.status).toBe(200);
-    expect(res.body.map((item: { name: string }) => item.name)).toEqual([
-      "Anan Srisuk",
-      "Benjamas Kittipong",
-      "Chaiwat Somchai",
-      "Daranee Ploy",
-    ]);
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("RESOURCE_NOT_FOUND");
   });
 
   it("excludes inactive categories, systems, and requesters", async () => {
     const prisma = makeReferenceDataPrisma();
     const testApp = createApp(prisma);
 
-    const [categories, systems, requesters] = await Promise.all([
-      request(testApp).get("/api/categories"),
-      request(testApp).get("/api/related-systems"),
-      request(testApp).get("/api/development-requesters"),
+    const [categories, systems] = await Promise.all([
+      request(testApp).get("/api/categories").set("X-Requester-Id", "1"),
+      request(testApp).get("/api/related-systems").set("X-Requester-Id", "1"),
     ]);
 
     expect(categories.body).toEqual([{ id: 1, name: "Active Category" }]);
     expect(systems.body).toEqual([{ id: 1, name: "Active System" }]);
-    expect(requesters.body).toEqual([{ id: 1, name: "Active Requester" }]);
     expect(prisma.category.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { isActive: true } }),
     );
     expect(prisma.relatedSystem.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { isActive: true } }),
     );
-    expect(prisma.requesterUser.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { isActive: true, role: "REQUESTER" } }),
-    );
   });
 
   it.each([
     ["/api/categories", "category"],
     ["/api/related-systems", "relatedSystem"],
-    ["/api/development-requesters", "requesterUser"],
   ] as const)("returns a safe 500 when %s reference data fails", async (path, model) => {
     const prisma = {
       category: { findMany: vi.fn().mockRejectedValue(new Error("database unavailable")) },
@@ -131,10 +122,11 @@ describe("Lab 2 reference-data endpoints", () => {
       requesterUser: { findMany: vi.fn().mockRejectedValue(new Error("database unavailable")) },
     } as unknown as ReferenceDataPrisma;
 
-    const res = await request(createApp(prisma)).get(path);
+    const res = await request(createApp(prisma)).get(path).set("X-Requester-Id", "1");
 
     expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: "REFERENCE_DATA_UNAVAILABLE" });
+    expect(res.body.error).toMatchObject({ code: "REFERENCE_DATA_UNAVAILABLE" });
+    expect(res.body.error.correlationId).toEqual(expect.any(String));
     expect(prisma[model].findMany).toHaveBeenCalledOnce();
   });
 });

@@ -280,20 +280,6 @@ describe("Attachment APIs", () => {
     expect(await readdir(storageDirectory).catch(() => [])).toEqual([]);
   });
 
-  it("rejects unknown or inactive Requesters before Ticket/Attachment access", async () => {
-    const unknown = makePrisma();
-    vi.mocked(unknown.prisma.requesterUser.findFirst).mockResolvedValue(null);
-    const unknownResponse = await request(createApp(unknown.prisma)).get("/api/tickets/42/attachments").set("X-Requester-Id", "999");
-    expect(unknownResponse.status).toBe(400);
-    expect(unknown.transaction.ticket.findFirst).not.toHaveBeenCalled();
-    expect(unknown.transaction.attachment.findMany).not.toHaveBeenCalled();
-
-    const inactive = makePrisma({ inactiveRequester: true });
-    const inactiveResponse = await request(createApp(inactive.prisma)).get("/api/tickets/42/attachments").set("X-Requester-Id", "1");
-    expect(inactiveResponse.status).toBe(400);
-    expect(inactive.transaction.ticket.findFirst).not.toHaveBeenCalled();
-  });
-
   it("sanitizes unsafe names and truncates Unicode names without splitting emoji", async () => {
     const { prisma } = makePrisma();
     const unsafe = await request(createApp(prisma))
