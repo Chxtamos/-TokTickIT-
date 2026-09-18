@@ -28,7 +28,7 @@ export async function enterAuthenticatedRequester(page: Page, requesterId = 1): 
   let signedIn = false;
   for (const candidate of [INITIAL_PASSWORD, changed]) {
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(candidate);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill(candidate);
     await page.getByRole("button", { name: "Sign In", exact: true }).click();
     if (await page.getByRole("heading", { name: "My Tickets", exact: true }).isVisible().catch(() => false)) {
       signedIn = true;
