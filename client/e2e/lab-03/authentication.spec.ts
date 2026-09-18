@@ -20,7 +20,9 @@ test.describe("Lab 3 authentication", () => {
     expect(inactive.status()).toBe(401);
     expect((await inactive.json()).error.code).toBe("INVALID_CREDENTIALS");
 
-    const valid = await login(request, "anan.srisuk@example.test", INITIAL_PASSWORD);
+    // This dedicated test-only account is not used by the parallel Requester
+    // regression suites, which rotate migrated fixture passwords on first use.
+    const valid = await login(request, "e2e.auth.requester@example.test", INITIAL_PASSWORD);
     expect(valid.status()).toBe(200);
     const body = await valid.json();
     expect(body.user).toMatchObject({ role: "REQUESTER", mustChangePassword: true });

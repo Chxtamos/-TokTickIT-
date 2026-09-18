@@ -18,6 +18,18 @@ async function main() {
   }
   const prisma = getPrisma();
   const passwordHash = await hashPassword(initialPassword);
+  await prisma.requesterUser.upsert({
+    where: { email: "e2e.auth.requester@example.test" },
+    update: { passwordHash, mustChangePassword: true, isActive: true, role: "REQUESTER" },
+    create: {
+      name: "E2E Auth Requester",
+      email: "e2e.auth.requester@example.test",
+      role: "REQUESTER",
+      isActive: true,
+      passwordHash,
+      mustChangePassword: true,
+    },
+  });
   const result = await prisma.requesterUser.updateMany({
     where: { email: { in: REQUESTER_EMAILS }, role: "REQUESTER" },
     data: { passwordHash, mustChangePassword: true, version: { increment: 1 } },
