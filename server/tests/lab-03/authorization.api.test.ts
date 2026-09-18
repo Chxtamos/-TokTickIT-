@@ -211,41 +211,35 @@ describe("Lab 3 authorization and Requester regression", () => {
     type MatrixCase = {
       name: string;
       allowed: UserRole[];
+      expectedAllowed: { status: number; errorCode?: string };
       run: (application: ReturnType<typeof createApp>, authenticatedRequest: boolean) => Promise<request.Response>;
     };
     const cases: MatrixCase[] = [
-      { name: "categories GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/categories") : request(app).get("/api/categories")) },
-      { name: "related systems GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/related-systems") : request(app).get("/api/related-systems")) },
-      { name: "retired development requester GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/development-requesters") : request(app).get("/api/development-requesters")) },
-      { name: "ticket list GET", allowed: ["REQUESTER"], run: (app, auth) => (auth ? authenticated(app).get("/api/tickets") : request(app).get("/api/tickets")) },
-      { name: "ticket detail GET", allowed: ["REQUESTER"], run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42") : request(app).get("/api/tickets/42")) },
-      { name: "attachment list GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/attachments") : request(app).get("/api/tickets/42/attachments")) },
-      { name: "attachment download GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/attachments/1/download") : request(app).get("/api/tickets/42/attachments/1/download")) },
-      { name: "attachment upload POST", allowed: ["REQUESTER"], run: (app, auth) => {
+      { name: "categories GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/categories") : request(app).get("/api/categories")) },
+      { name: "related systems GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/related-systems") : request(app).get("/api/related-systems")) },
+      { name: "ticket list GET", allowed: ["REQUESTER"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets") : request(app).get("/api/tickets")) },
+      { name: "ticket detail GET", allowed: ["REQUESTER"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42") : request(app).get("/api/tickets/42")) },
+      { name: "attachment list GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/attachments") : request(app).get("/api/tickets/42/attachments")) },
+      { name: "attachment download GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 404, errorCode: "RESOURCE_NOT_FOUND" }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/attachments/1/download") : request(app).get("/api/tickets/42/attachments/1/download")) },
+      { name: "attachment upload POST", allowed: ["REQUESTER"], expectedAllowed: { status: 400, errorCode: "ATTACHMENT_REQUIRED" }, run: (app, auth) => {
         const call = request(app).post("/api/tickets/42/attachments");
         if (auth) call.set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken);
-        return call.attach("file", Buffer.from("%PDF-1.7\nfixture"), "fixture.pdf");
+        return call;
       } },
-      { name: "attachment remove DELETE", allowed: ["REQUESTER"], run: (app, auth) => {
+      { name: "attachment remove DELETE", allowed: ["REQUESTER"], expectedAllowed: { status: 404, errorCode: "RESOURCE_NOT_FOUND" }, run: (app, auth) => {
         const call = request(app).delete("/api/tickets/42/attachments/1");
         if (auth) call.set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken);
         return call.send({ reason: "matrix removal" });
       } },
-      { name: "ticket create POST", allowed: ["REQUESTER"], run: (app, auth) => {
+      { name: "ticket create POST", allowed: ["REQUESTER"], expectedAllowed: { status: 201 }, run: (app, auth) => {
         const call = request(app).post("/api/tickets");
         if (auth) call.set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken);
         return call.send({ clientRequestId: "f13f2298-1153-4cea-966d-3bc466d53d7b", categoryId: 2, relatedSystemId: 7, summary: "Matrix create", requestedPriority: "MEDIUM", description: "Authorization matrix request." });
       } },
-      { name: "resolution indication POST", allowed: ["REQUESTER"], run: (app, auth) => {
+      { name: "resolution indication POST", allowed: ["REQUESTER"], expectedAllowed: { status: 200 }, run: (app, auth) => {
         const call = request(app).post("/api/tickets/42/resolution-indication");
         if (auth) call.set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken);
         return call.send({ expectedVersion: 1 });
-      } },
-      { name: "internal notes GET", allowed: ["IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/notes") : request(app).get("/api/tickets/42/notes")) },
-      { name: "internal notes POST", allowed: ["IT_STAFF", "ADMINISTRATOR"], run: (app, auth) => {
-        const call = request(app).post("/api/tickets/42/notes");
-        if (auth) call.set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken);
-        return call.send({ content: "matrix note" });
       } },
     ];
 
@@ -264,12 +258,43 @@ describe("Lab 3 authorization and Requester regression", () => {
         const fixture = makePrisma(role);
         const response = await entry.run(createApp(fixture.prisma), true);
         if (entry.allowed.includes(role)) {
-          expect(response.body?.error?.code, `${entry.name} ${role} allowed`).not.toBe("ROLE_FORBIDDEN");
+          expect(response.status, `${entry.name} ${role} allowed status`).toBe(entry.expectedAllowed.status);
+          if (entry.expectedAllowed.errorCode) {
+            expect(response.body.error.code, `${entry.name} ${role} allowed contract`).toBe(entry.expectedAllowed.errorCode);
+          }
         } else {
           expect(response.status, `${entry.name} ${role} denied`).toBe(403);
           expect(response.body.error.code, `${entry.name} ${role} denied code`).toBe("ROLE_FORBIDDEN");
         }
       }
+    }
+  });
+
+  it("tests the current Internal Note authorization stub without claiming unimplemented Staff/Admin success", async () => {
+    for (const method of ["get", "post"] as const) {
+      const anonymousFixture = makePrisma("REQUESTER");
+      const anonymousCall = request(createApp(anonymousFixture.prisma))[method]("/api/tickets/42/notes");
+      const anonymous = method === "post" ? await anonymousCall.send({ content: "private" }) : await anonymousCall;
+      expect(anonymous.status, `internal notes ${method} anonymous`).toBe(401);
+      expect(anonymous.body.error.code).toBe("SESSION_REQUIRED");
+
+      for (const role of ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"] as const) {
+        const restrictedFixture = makePrisma(role, { restricted: true });
+        const restrictedApp = createApp(restrictedFixture.prisma);
+        const restricted = method === "get"
+          ? await authenticated(restrictedApp).get("/api/tickets/42/notes")
+          : await authenticated(restrictedApp).post("/api/tickets/42/notes").send({ content: "private" });
+        expect(restricted.status, `internal notes ${method} ${role} restricted`).toBe(403);
+        expect(restricted.body.error.code).toBe("PASSWORD_CHANGE_REQUIRED");
+      }
+
+      const requesterFixture = makePrisma("REQUESTER");
+      const requesterApp = createApp(requesterFixture.prisma);
+      const requesterResponse = method === "get"
+        ? await authenticated(requesterApp).get("/api/tickets/42/notes")
+        : await authenticated(requesterApp).post("/api/tickets/42/notes").send({ content: "private" });
+      expect(requesterResponse.status).toBe(403);
+      expect(requesterResponse.body.error.code).toBe("ROLE_FORBIDDEN");
     }
   });
 
