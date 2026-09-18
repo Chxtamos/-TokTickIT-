@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
+import { withMockRequesterSession } from "../helpers/auth-session.js";
 
 function makeSeededReferenceDataPrisma(): ReferenceDataPrisma {
   return {
@@ -122,7 +123,7 @@ describe("Lab 2 reference-data endpoints", () => {
       requesterUser: { findMany: vi.fn().mockRejectedValue(new Error("database unavailable")) },
     } as unknown as ReferenceDataPrisma;
 
-    const res = await request(createApp(prisma)).get(path).set("X-Requester-Id", "1");
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get(path).set("Cookie", withMockRequesterSession(prisma).cookie);
 
     expect(res.status).toBe(500);
     expect(res.body.error).toMatchObject({ code: "REFERENCE_DATA_UNAVAILABLE" });
