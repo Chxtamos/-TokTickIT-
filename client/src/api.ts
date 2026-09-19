@@ -91,6 +91,33 @@ export interface TicketListResponse {
   applied: Omit<TicketListQuery, "page" | "pageSize">;
 }
 
+export interface EligibleOwner extends SafeUser { role: "IT_STAFF" | "ADMINISTRATOR" }
+export interface StaffTicketSummary extends TicketSummary {
+  itPriority: Priority;
+  version: number;
+  ticketOwner: EligibleOwner | null;
+  requester: SafeUser & { role: Role };
+}
+export type StaffQueueOwner = "all" | "unassigned" | "mine" | number;
+export interface StaffQueueQuery {
+  search: string;
+  categoryId: number | null;
+  relatedSystemId: number | null;
+  requestedPriority: Priority | null;
+  itPriority: Priority | null;
+  currentStatus: TicketStatus | null;
+  owner: StaffQueueOwner;
+  sortBy: "createdAt" | "updatedAt" | "ticketNumber" | "itPriority";
+  sortDirection: "asc" | "desc";
+  page: number;
+  pageSize: 10 | 20 | 50;
+}
+export interface StaffTicketListResponse {
+  items: StaffTicketSummary[];
+  pagination: { page: number; pageSize: 10 | 20 | 50; totalItems: number; totalPages: number; hasPreviousPage: boolean; hasNextPage: boolean };
+  applied: Omit<StaffQueueQuery, "page" | "pageSize">;
+}
+
 export interface ApiValidationError extends Error {
   statusCode?: number;
   code?: string;
@@ -205,6 +232,38 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   if (!response.ok) return throwApiError(response, "Unable to load Tickets");
   const value = await response.json() as TicketListResponse;
   if (!value || !Array.isArray(value.items) || !value.pagination || typeof value.pagination.totalItems !== "number") throw new Error("TokTickIT API returned invalid Ticket list data");
+  return value;
+}
+
+export async function getStaffTickets(query: StaffQueueQuery): Promise<StaffTicketListResponse> {
+  const params = new URLSearchParams();
+  if (query.search.trim()) params.set("search", query.search.trim());
+  if (query.categoryId !== null) params.set("categoryId", String(query.categoryId));
+  if (query.relatedSystemId !== null) params.set("relatedSystemId", String(query.relatedSystemId));
+  if (query.requestedPriority !== null) params.set("requestedPriority", query.requestedPriority);
+  if (query.itPriority !== null) params.set("itPriority", query.itPriority);
+  if (query.currentStatus !== null) params.set("currentStatus", query.currentStatus);
+  if (query.owner !== "all") params.set("owner", String(query.owner));
+  if (query.sortBy !== "updatedAt") params.set("sortBy", query.sortBy);
+  if (query.sortDirection !== "desc") params.set("sortDirection", query.sortDirection);
+  if (query.page !== 1) params.set("page", String(query.page));
+  if (query.pageSize !== 10) params.set("pageSize", String(query.pageSize));
+  const response = await apiFetch(`/staff/tickets${params.size ? `?${params}` : ""}`, {}, { authenticated: true });
+  if (!response.ok) return throwApiError(response, "Unable to load the Ticket Queue.");
+  const value = await response.json() as StaffTicketListResponse;
+  if (!value || !Array.isArray(value.items) || !value.pagination || typeof value.pagination.totalItems !== "number" || !value.applied) {
+    throw new Error("TokTickIT API returned invalid Staff Ticket Queue data");
+  }
+  return value;
+}
+
+export async function getEligibleTicketOwners(): Promise<EligibleOwner[]> {
+  const response = await apiFetch("/staff/ticket-owners", {}, { authenticated: true });
+  if (!response.ok) return throwApiError(response, "Unable to load eligible Ticket owners.");
+  const value = await response.json() as EligibleOwner[];
+  if (!Array.isArray(value) || value.some((owner) => typeof owner?.id !== "number" || typeof owner.name !== "string" || typeof owner.email !== "string" || (owner.role !== "IT_STAFF" && owner.role !== "ADMINISTRATOR"))) {
+    throw new Error("TokTickIT API returned invalid eligible-owner data");
+  }
   return value;
 }
 

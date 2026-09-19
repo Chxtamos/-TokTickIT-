@@ -65,6 +65,7 @@ function makePrisma(role: UserRole = "REQUESTER", options: { nonOwned?: boolean;
   const transaction: any = {
     requesterUser: {
       findFirst: vi.fn().mockResolvedValue(ticket.requester),
+      findMany: vi.fn().mockResolvedValue([{ id: 10, name: "IT Staff", email: "staff@example.test", role: "IT_STAFF" }]),
     },
     category: {
       findFirst: vi.fn().mockResolvedValue(ticket.category),
@@ -235,6 +236,8 @@ describe("Lab 3 authorization and Requester regression", () => {
       { name: "categories GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/categories") : request(app).get("/api/categories")) },
       { name: "related systems GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/related-systems") : request(app).get("/api/related-systems")) },
       { name: "ticket list GET", allowed: ["REQUESTER"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets") : request(app).get("/api/tickets")) },
+      { name: "staff queue GET", allowed: ["IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/staff/tickets") : request(app).get("/api/staff/tickets")) },
+      { name: "eligible owners GET", allowed: ["IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/staff/ticket-owners") : request(app).get("/api/staff/ticket-owners")) },
       { name: "ticket detail GET", allowed: ["REQUESTER"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42") : request(app).get("/api/tickets/42")) },
       { name: "attachment list GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/attachments") : request(app).get("/api/tickets/42/attachments")) },
       { name: "attachment download GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 404, errorCode: "RESOURCE_NOT_FOUND" }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/attachments/1/download") : request(app).get("/api/tickets/42/attachments/1/download")) },
