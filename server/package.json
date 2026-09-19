@@ -12,6 +12,8 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:seed:test": "tsx scripts/prisma-test.ts seed",
     "lab3:password-benchmark": "tsx scripts/lab3/password-benchmark.ts",
+    "lab3:provision-e2e-requesters": "tsx scripts/lab3/provision-e2e-requesters.ts",
+    "lab3:set-e2e-session-boundary": "tsx scripts/lab3/set-e2e-session-boundary.ts",
     "lab3:provision-migrated-users": "tsx scripts/provision-migrated-users.ts",
     "test": "vitest run"
   },

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { createTicket, CreatedTicket, DevelopmentRequester, downloadTicketAttachment, getCategories, getDevelopmentRequesters, getRelatedSystems, getTicketDetail, getTickets, ReferenceItem, removeTicketAttachment, TicketAttachmentMetadata, TicketDetail, TicketListQuery, TicketListResponse, TicketSummary, uploadTicketAttachment } from "./api.js";
+import { changePassword, clearInMemoryAuth, createTicket, CreatedTicket, downloadTicketAttachment, getCategories, getCurrentUser, getRelatedSystems, getTicketDetail, getTickets, indicateResolution, login, logout, ReferenceItem, removeTicketAttachment, type ApiValidationError, type AuthUser, TicketAttachmentMetadata, TicketDetail, TicketListQuery, TicketListResponse, TicketStatus, TicketSummary, uploadTicketAttachment } from "./api.js";
 import "./App.css";
 
-const REQUESTER_STORAGE_KEY = "toktickit.requesterId";
-type RequesterLoadState = "loading" | "ready" | "empty" | "error";
+const LEGACY_REQUESTER_STORAGE_KEY = "toktickit.requesterId";
+const ALL_STATUSES: TicketStatus[] = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CLOSED", "REOPENED", "CANCELLED"];
 
 function createClientRequestId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -16,63 +16,7 @@ function createClientRequestId() {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-function RequesterSelector({
-  requesters,
-  state,
-  selectedId,
-  onSelect,
-  onContinue,
-  onRetry,
-  validating,
-  selectionError,
-}: {
-  requesters: DevelopmentRequester[];
-  state: RequesterLoadState;
-  selectedId: string;
-  onSelect: (value: string) => void;
-  onContinue: () => void;
-  onRetry: () => void;
-  validating: boolean;
-  selectionError: string | null;
-}) {
-  return (
-    <main className="selector-page" aria-busy={state === "loading" || validating}>
-      <section className="selector-card" aria-labelledby="requester-title">
-        <p className="eyebrow">TokTickIT · Lab 2</p>
-        <h1 id="requester-title">Select a Development Requester</h1>
-        <p className="intro">Choose a seeded requester for this Lab 2 test session. This is temporary testing context, not login or authentication.</p>
-        {state === "loading" && <p className="loading-message" role="status">Loading Requesters…</p>}
-        {state === "error" && (
-          <div className="alert alert-error" role="alert">
-            Unable to load Development Requesters. Please try again.
-            <button className="button button-secondary retry-button" onClick={onRetry}>Retry</button>
-          </div>
-        )}
-        {state === "empty" && (
-          <div className="alert alert-warning" role="status">
-            No active Development Requesters are available.
-            <button className="button button-secondary retry-button" onClick={onRetry}>Retry</button>
-          </div>
-        )}
-        {state === "ready" && (
-          <>
-            <label htmlFor="requester-select">Development Requester</label>
-            <select id="requester-select" value={selectedId} onChange={(event) => onSelect(event.target.value)} disabled={validating}>
-              <option value="">Select a requester…</option>
-              {requesters.map((requester) => <option key={requester.id} value={requester.id}>{requester.name}</option>)}
-            </select>
-            <button className="button button-primary continue-button" onClick={onContinue} disabled={!selectedId || validating}>
-              {validating ? "Validating…" : "Continue"}
-            </button>
-          </>
-        )}
-        {selectionError && <div className="alert alert-error" role="alert">{selectionError}</div>}
-      </section>
-    </main>
-  );
-}
-
-type CreateScreenProps = { requester: DevelopmentRequester; onBack: () => void };
+type CreateScreenProps = { requester: AuthUser; onBack: () => void };
 type AttachmentStatus = "pending" | "invalid" | "uploading" | "uploaded" | "failed";
 type SelectedFile = { id: string; file: File; status: AttachmentStatus; error?: string; message?: string };
 const EMPTY_TICKET_FORM = { categoryId: "", relatedSystemId: "", requestedPriority: "MEDIUM", summary: "", description: "" };
@@ -161,7 +105,7 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
     setSubmitState("submitting");
     setSubmitError(null);
     try {
-      const created = await createTicket(requester.id, {
+      const created = await createTicket({
         clientRequestId,
         categoryId: Number(form.categoryId),
         relatedSystemId: Number(form.relatedSystemId),
@@ -183,7 +127,7 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
   async function uploadAttachment(selected: SelectedFile, ticketId: number) {
     setFiles((current) => current.map((item) => item.id === selected.id ? { ...item, status: "uploading", message: undefined } : item));
     try {
-      await uploadTicketAttachment(requester.id, ticketId, selected.file);
+      await uploadTicketAttachment(ticketId, selected.file);
       setFiles((current) => current.map((item) => item.id === selected.id ? { ...item, status: "uploaded", message: undefined } : item));
     } catch (error) {
       setFiles((current) => current.map((item) => item.id === selected.id ? { ...item, status: "failed", message: error instanceof Error ? error.message : "Upload failed." } : item));
@@ -206,7 +150,7 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
 
   return (
     <main className="shell-content" id="create-ticket">
-      <button className="back-button" onClick={onBack}>← Back to workspace</button>
+      <button className="back-button" onClick={onBack}>← Back to My Tickets</button>
       <p className="eyebrow">Requester workspace</p>
       <h1>Create Ticket</h1>
       <p className="intro">Describe your IT request. Fields marked <span aria-hidden="true">*</span> are required.</p>
@@ -232,7 +176,7 @@ function CreateTicketScreen({ requester, onBack }: CreateScreenProps) {
 
 const DEFAULT_TICKET_QUERY: TicketListQuery = { search: "", categoryId: null, relatedSystemId: null, requestedPriority: null, currentStatus: null, sortBy: "updatedAt", sortDirection: "desc", page: 1, pageSize: 10 };
 
-function MyTicketsScreen({ requester, onCreate, onViewTicket, initialQuery, onQueryChange }: { requester: DevelopmentRequester; onCreate: () => void; onViewTicket: (ticketId: number) => void; initialQuery: TicketListQuery; onQueryChange: (query: TicketListQuery) => void }) {
+function MyTicketsScreen({ requester, onCreate, onViewTicket, initialQuery, onQueryChange }: { requester: AuthUser; onCreate: () => void; onViewTicket: (ticketId: number) => void; initialQuery: TicketListQuery; onQueryChange: (query: TicketListQuery) => void }) {
   const [query, setQueryState] = useState(initialQuery);
   const [categories, setCategories] = useState<ReferenceItem[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<ReferenceItem[]>([]);
@@ -246,7 +190,7 @@ function MyTicketsScreen({ requester, onCreate, onViewTicket, initialQuery, onQu
     setState("loading");
     setData(null);
     setError(null);
-    Promise.all([getCategories(), getRelatedSystems(), getTickets(requester.id, query)])
+    Promise.all([getCategories(), getRelatedSystems(), getTickets(query)])
       .then(([loadedCategories, loadedSystems, loadedTickets]) => {
         if (cancelled) return;
         setCategories(loadedCategories);
@@ -258,7 +202,7 @@ function MyTicketsScreen({ requester, onCreate, onViewTicket, initialQuery, onQu
         if (!cancelled) { setState("error"); setError(cause instanceof Error ? cause.message : "Unable to load Tickets. Please try again."); }
       });
     return () => { cancelled = true; };
-  }, [requester.id, query, retryToken]);
+  }, [query, retryToken]);
 
   const applyQuery = (next: TicketListQuery) => { setQueryState(next); onQueryChange(next); };
   const updateQuery = (change: Partial<TicketListQuery>) => applyQuery({ ...query, ...change, page: 1 });
@@ -278,7 +222,7 @@ function MyTicketsScreen({ requester, onCreate, onViewTicket, initialQuery, onQu
         <label htmlFor="ticket-category">Category<select id="ticket-category" value={query.categoryId ?? ""} onChange={(event) => updateQuery({ categoryId: event.target.value ? Number(event.target.value) : null })}><option value="">All Categories</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label htmlFor="ticket-system">Related System<select id="ticket-system" value={query.relatedSystemId ?? ""} onChange={(event) => updateQuery({ relatedSystemId: event.target.value ? Number(event.target.value) : null })}><option value="">All Systems</option>{relatedSystems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label htmlFor="ticket-priority">Requested Priority<select id="ticket-priority" value={query.requestedPriority ?? ""} onChange={(event) => updateQuery({ requestedPriority: (event.target.value || null) as TicketListQuery["requestedPriority"] })}><option value="">All Priorities</option>{["LOW", "MEDIUM", "HIGH", "URGENT"].map((priority) => <option key={priority}>{priority}</option>)}</select></label>
-        <label htmlFor="ticket-status">Current Status<select id="ticket-status" value={query.currentStatus ?? ""} onChange={(event) => updateQuery({ currentStatus: event.target.value || null })}><option value="">All Statuses</option><option>NEW</option></select></label>
+        <label htmlFor="ticket-status">Current Status<select id="ticket-status" value={query.currentStatus ?? ""} onChange={(event) => updateQuery({ currentStatus: (event.target.value || null) as TicketListQuery["currentStatus"] })}><option value="">All Statuses</option>{ALL_STATUSES.map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}</select></label>
         <label htmlFor="ticket-sort">Sort by<select id="ticket-sort" value={query.sortBy} onChange={(event) => updateQuery({ sortBy: event.target.value as TicketListQuery["sortBy"] })}><option value="updatedAt">Last updated</option><option value="createdAt">Created date</option><option value="ticketNumber">Ticket number</option></select></label>
         <label htmlFor="ticket-direction">Direction<select id="ticket-direction" value={query.sortDirection} onChange={(event) => updateQuery({ sortDirection: event.target.value as TicketListQuery["sortDirection"] })}><option value="desc">Newest first</option><option value="asc">Oldest first</option></select></label>
         <label htmlFor="ticket-page-size">Page size<select id="ticket-page-size" value={query.pageSize} onChange={(event) => updateQuery({ pageSize: Number(event.target.value) as TicketListQuery["pageSize"] })}><option value="10">10</option><option value="20">20</option><option value="50">50</option></select></label>
@@ -328,7 +272,7 @@ function formatAttachmentError(cause: unknown, fallback: string): string {
   return cause instanceof Error ? cause.message : fallback;
 }
 
-function AttachmentSection({ requesterId, ticketId, attachments, onRefresh }: { requesterId: number; ticketId: number; attachments: TicketAttachmentMetadata[]; onRefresh: () => void }) {
+function AttachmentSection({ ticketId, attachments, onRefresh }: { ticketId: number; attachments: TicketAttachmentMetadata[]; onRefresh: () => void }) {
   const [queue, setQueue] = useState<PendingAttachment[]>([]);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [removingId, setRemovingId] = useState<number | null>(null);
@@ -368,7 +312,7 @@ function AttachmentSection({ requesterId, ticketId, attachments, onRefresh }: { 
     setActionError(null);
     setQueue((current) => current.map((entry) => entry.id === item.id ? { ...entry, status: "uploading", error: null } : entry));
     try {
-      await uploadTicketAttachment(requesterId, ticketId, item.file);
+      await uploadTicketAttachment(ticketId, item.file);
       setQueue((current) => current.filter((entry) => entry.id !== item.id));
       onRefresh();
     } catch (cause) {
@@ -380,7 +324,7 @@ function AttachmentSection({ requesterId, ticketId, attachments, onRefresh }: { 
     setActionError(null);
     setDownloadingId(attachment.id);
     try {
-      const blob = await downloadTicketAttachment(requesterId, ticketId, attachment.id);
+      const blob = await downloadTicketAttachment(ticketId, attachment.id);
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
@@ -425,7 +369,7 @@ function AttachmentSection({ requesterId, ticketId, attachments, onRefresh }: { 
     setRemovingId(removeTarget.id);
     setRemoveError(null);
     try {
-      await removeTicketAttachment(requesterId, ticketId, removeTarget.id, trimmed);
+      await removeTicketAttachment(ticketId, removeTarget.id, trimmed);
       setRemoveTarget(null);
       setRemoveReason("");
       restoreRemoveFocus();
@@ -447,18 +391,22 @@ function AttachmentSection({ requesterId, ticketId, attachments, onRefresh }: { 
   </section>;
 }
 
-function TicketDetailScreen({ requester, ticketId, onBack }: { requester: DevelopmentRequester; ticketId: number; onBack: () => void }) {
+function TicketDetailScreen({ requester, ticketId, onBack }: { requester: AuthUser; ticketId: number; onBack: () => void }) {
   const [state, setState] = useState<"loading" | "ready" | "error" | "not-found">("loading");
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
+  const [showResolutionConfirm, setShowResolutionConfirm] = useState(false);
+  const [resolutionState, setResolutionState] = useState<"idle" | "saving" | "error">("idle");
+  const resolutionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const resolutionDialogRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setState("loading");
     setDetail(null);
     setError(null);
-    getTicketDetail(requester.id, ticketId)
+    getTicketDetail(ticketId)
       .then((loaded) => { if (!cancelled) { setDetail(loaded); setState("ready"); } })
       .catch((cause) => {
         if (cancelled) return;
@@ -472,10 +420,51 @@ function TicketDetailScreen({ requester, ticketId, onBack }: { requester: Develo
         }
       });
     return () => { cancelled = true; };
-  }, [requester.id, ticketId, retryToken]);
+  }, [ticketId, retryToken]);
 
   const formatDate = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-  const formatSize = (bytes: number) => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KiB` : `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
+  const resolutionEligible = detail && ["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(detail.currentStatus) && !detail.requesterResolvedAt;
+
+  useEffect(() => {
+    if (!showResolutionConfirm || !resolutionDialogRef.current) return;
+    const dialog = resolutionDialogRef.current;
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>("button:not([disabled]), [tabindex]:not([tabindex=\"-1\"])") );
+    focusable()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && resolutionState !== "saving") {
+        event.preventDefault();
+        setShowResolutionConfirm(false);
+        resolutionButtonRef.current?.focus();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      if (elements.length === 0) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    dialog.addEventListener("keydown", onKeyDown);
+    return () => dialog.removeEventListener("keydown", onKeyDown);
+  }, [showResolutionConfirm, resolutionState]);
+
+  async function confirmResolutionIndication() {
+    if (!detail || typeof detail.version !== "number") return;
+    setResolutionState("saving");
+    setError(null);
+    try {
+      setDetail(await indicateResolution(detail.id, detail.version));
+      setShowResolutionConfirm(false);
+      setResolutionState("idle");
+      resolutionButtonRef.current?.focus();
+    } catch (cause) {
+      const apiError = cause as ApiValidationError;
+      setResolutionState("error");
+      setShowResolutionConfirm(false);
+      setError(apiError.statusCode === 409 ? "The Ticket changed. Refresh and review it before trying again." : apiError.message || "Unable to save the resolution indication.");
+    }
+  }
 
   return (
     <main className="shell-content detail-page" id="ticket-detail" aria-busy={state === "loading"}>
@@ -485,110 +474,258 @@ function TicketDetailScreen({ requester, ticketId, onBack }: { requester: Develo
       {state === "not-found" && <div className="alert alert-warning" role="alert">{error ?? "Ticket not found or unavailable."}<button type="button" className="button button-secondary retry-button" onClick={() => setRetryToken((token) => token + 1)}>Retry</button></div>}
       {state === "ready" && detail && <>
         <div className="page-heading detail-heading"><div><p className="eyebrow">Requester workspace</p><h1>{detail.ticketNumber}</h1><p>Ticket Detail for {requester.name}</p></div><span className="status-badge">{detail.currentStatus}</span></div>
-        <section className="detail-card" aria-labelledby="ticket-information-heading"><h2 id="ticket-information-heading">Ticket Information</h2><dl className="detail-grid"><div><dt>Ticket Number</dt><dd>{detail.ticketNumber}</dd></div><div><dt>Ticket Date</dt><dd>{formatDate(detail.ticketDate)}</dd></div><div><dt>Requester</dt><dd>{detail.requester.name} ({detail.requester.email})</dd></div><div><dt>Category</dt><dd>{detail.category.name}</dd></div><div><dt>Related System</dt><dd>{detail.relatedSystem.name}</dd></div><div><dt>Requested Priority</dt><dd>{detail.requestedPriority}</dd></div><div><dt>Current Status</dt><dd>{detail.currentStatus}</dd></div><div><dt>Last Updated</dt><dd>{formatDate(detail.updatedAt)}</dd></div><div className="detail-wide"><dt>Summary</dt><dd>{detail.summary}</dd></div><div className="detail-wide"><dt>Description</dt><dd className="preserve-whitespace">{detail.description}</dd></div></dl></section>
-        <AttachmentSection requesterId={requester.id} ticketId={detail.id} attachments={detail.attachments} onRefresh={() => setRetryToken((token) => token + 1)} />
+        {resolutionState === "error" && error && <div className="alert alert-error" role="alert">{error}<button type="button" className="button button-secondary retry-button" onClick={() => setRetryToken((token) => token + 1)}>Refresh Ticket</button></div>}
+        <section className="detail-card" aria-labelledby="ticket-information-heading"><h2 id="ticket-information-heading">Ticket Information</h2><dl className="detail-grid"><div><dt>Ticket Number</dt><dd>{detail.ticketNumber}</dd></div><div><dt>Ticket Date</dt><dd>{formatDate(detail.ticketDate)}</dd></div><div><dt>Requester</dt><dd>{detail.requester.name} ({detail.requester.email})</dd></div><div><dt>Category</dt><dd>{detail.category.name}</dd></div><div><dt>Related System</dt><dd>{detail.relatedSystem.name}</dd></div><div><dt>Requested Priority</dt><dd>{detail.requestedPriority}</dd></div><div><dt>IT Priority</dt><dd className="readonly-value">{detail.itPriority ?? detail.requestedPriority}</dd></div><div><dt>Current Status</dt><dd>{detail.currentStatus}</dd></div><div><dt>Last Updated</dt><dd>{formatDate(detail.updatedAt)}</dd></div><div className="detail-wide"><dt>Summary</dt><dd>{detail.summary}</dd></div><div className="detail-wide"><dt>Description</dt><dd className="preserve-whitespace">{detail.description}</dd></div>{detail.resolutionSummary && <div className="detail-wide"><dt>Resolution Summary</dt><dd className="preserve-whitespace">{detail.resolutionSummary}</dd></div>}{detail.lastStatusReason && <div className="detail-wide"><dt>Latest Status Reason</dt><dd className="preserve-whitespace">{detail.lastStatusReason}</dd></div>}</dl></section>
+        <section className="detail-card" aria-labelledby="resolution-indication-heading"><h2 id="resolution-indication-heading">Resolution indication</h2>{detail.requesterResolvedAt ? <p role="status">You indicated that the problem appeared resolved on {formatDate(detail.requesterResolvedAt)}. IT Staff will decide when to formally resolve or close the Ticket.</p> : resolutionEligible ? <><p>If the problem appears fixed, you can notify IT Staff without changing the Ticket status.</p><button ref={resolutionButtonRef} type="button" className="button button-primary" onClick={() => setShowResolutionConfirm(true)}>Problem Appears Resolved</button></> : <p>This action is not available for the current Ticket status.</p>}</section>
+        <AttachmentSection ticketId={detail.id} attachments={detail.attachments} onRefresh={() => setRetryToken((token) => token + 1)} />
+        <section className="detail-card" aria-labelledby="public-comments-heading"><h2 id="public-comments-heading">Public Comments</h2><div className="alert alert-warning" role="status">Public Comments are pending Issue #58 and are not available in this build.</div></section>
+        {showResolutionConfirm && <div className="dialog-backdrop"><section ref={resolutionDialogRef} className="remove-dialog" role="dialog" aria-modal="true" aria-labelledby="resolution-confirm-heading"><h2 id="resolution-confirm-heading">Indicate that the problem appears resolved?</h2><p>This informs IT Staff. They will decide when to formally resolve or close the Ticket.</p><div className="form-actions"><button type="button" className="button button-secondary" disabled={resolutionState === "saving"} onClick={() => { setShowResolutionConfirm(false); resolutionButtonRef.current?.focus(); }}>Cancel</button><button type="button" className="button button-primary" disabled={resolutionState === "saving"} onClick={confirmResolutionIndication}>{resolutionState === "saving" ? "Saving…" : "Confirm indication"}</button></div></section></div>}
       </>}
     </main>
   );
 }
 
-function ApplicationShell({ requester, onChangeRequester }: { requester: DevelopmentRequester; onChangeRequester: () => void }) {
-  const [screen, setScreen] = useState<"home" | "create" | "tickets" | "detail">("home");
-  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+function roleLabel(role: AuthUser["role"]): string {
+  return role === "IT_STAFF" ? "IT Staff" : role === "ADMINISTRATOR" ? "Administrator" : "Requester";
+}
+
+function roleLanding(role: AuthUser["role"]): string {
+  return role === "REQUESTER" ? "/requester/tickets" : role === "IT_STAFF" ? "/staff/tickets" : "/admin/users";
+}
+
+function LoginScreen({ onAuthenticated, notice }: { onAuthenticated: (user: AuthUser) => void; notice: string | null }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const emailRef = useRef<HTMLInputElement | null>(null);
+  const passwordRef = useRef<HTMLInputElement | null>(null);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const errors: Record<string, string> = {};
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || normalizedEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) errors.email = "Enter a valid email address.";
+    if (!password) errors.password = "Password is required.";
+    else if (new TextEncoder().encode(password).length > 512) errors.password = "Password must not exceed 512 UTF-8 bytes.";
+    setFieldErrors(errors);
+    setError(null);
+    if (Object.keys(errors).length > 0) {
+      (errors.email ? emailRef.current : passwordRef.current)?.focus();
+      return;
+    }
+    setBusy(true);
+    try {
+      const authenticated = await login(normalizedEmail, password);
+      setPassword("");
+      onAuthenticated(authenticated.user);
+    } catch (cause) {
+      const apiError = cause as ApiValidationError;
+      setPassword("");
+      setError(apiError.statusCode === 429 && apiError.retryAfter ? `Too many sign-in attempts. Try again in ${apiError.retryAfter} seconds.` : apiError.message || "Unable to sign in. Please try again.");
+      passwordRef.current?.focus();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <main className="auth-page" aria-busy={busy}>
+    <section className="auth-card" aria-labelledby="login-heading">
+      <p className="eyebrow">TokTickIT · Secure access</p>
+      <h1 id="login-heading">Sign in</h1>
+      <p className="intro">Use the account provided by your administrator.</p>
+      {notice && <div className="alert alert-success" role="status">{notice}</div>}
+      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      <form onSubmit={submit} noValidate>
+        <label htmlFor="login-email">Email<input ref={emailRef} id="login-email" type="email" autoComplete="username" value={email} disabled={busy} aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? "login-email-error" : undefined} onChange={(event) => { setEmail(event.target.value); setFieldErrors((current) => ({ ...current, email: "" })); }} /></label>
+        {fieldErrors.email && <small id="login-email-error" className="field-error">{fieldErrors.email}</small>}
+        <label htmlFor="login-password">Password<input ref={passwordRef} id="login-password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} disabled={busy} aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? "login-password-error" : undefined} onChange={(event) => { setPassword(event.target.value); setFieldErrors((current) => ({ ...current, password: "" })); }} /></label>
+        {fieldErrors.password && <small id="login-password-error" className="field-error">{fieldErrors.password}</small>}
+        <button type="button" className="show-password" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((shown) => !shown)} disabled={busy}>{showPassword ? "Hide password" : "Show password"}</button>
+        <button type="submit" className="button button-primary auth-submit" disabled={busy}>{busy ? "Signing In…" : "Sign In"}</button>
+      </form>
+    </section>
+  </main>;
+}
+
+function ChangePasswordScreen({ user, onAuthenticated, onCancel, onLogout, logoutBusy, logoutError, onAmbiguousFailure }: { user: AuthUser; onAuthenticated: (user: AuthUser) => void; onCancel: () => void; onLogout: () => void; logoutBusy: boolean; logoutError: string | null; onAmbiguousFailure: () => void }) {
+  const mandatory = user.mustChangePassword;
+  const [form, setForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const refs = { currentPassword: useRef<HTMLInputElement | null>(null), newPassword: useRef<HTMLInputElement | null>(null), confirmPassword: useRef<HTMLInputElement | null>(null) };
+
+  function clearSecrets() { setForm({ currentPassword: "", newPassword: "", confirmPassword: "" }); }
+  function update(field: keyof typeof form, value: string) { setForm((current) => ({ ...current, [field]: value })); setFieldErrors((current) => ({ ...current, [field]: "" })); }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const errors: Record<string, string> = {};
+    const codePoints = Array.from(form.newPassword).length;
+    if (!form.currentPassword) errors.currentPassword = "Current Password is required.";
+    if (codePoints < 15 || codePoints > 128 || /^\s*$/.test(form.newPassword) || new TextEncoder().encode(form.newPassword).length > 512) errors.newPassword = "New Password must be 15-128 characters, not whitespace-only, and at most 512 UTF-8 bytes.";
+    else if (form.newPassword === form.currentPassword) errors.newPassword = "New Password must differ from the current password.";
+    if (form.confirmPassword !== form.newPassword) errors.confirmPassword = "Passwords must match exactly.";
+    setFieldErrors(errors);
+    setError(null);
+    if (Object.keys(errors).length > 0) {
+      const first = ["currentPassword", "newPassword", "confirmPassword"].find((field) => errors[field]) as keyof typeof refs;
+      refs[first]?.current?.focus();
+      return;
+    }
+    setBusy(true);
+    try {
+      const authenticated = await changePassword(form.currentPassword, form.newPassword, form.confirmPassword);
+      clearSecrets();
+      onAuthenticated(authenticated.user);
+    } catch (cause) {
+      const apiError = cause as ApiValidationError;
+      clearSecrets();
+      if (apiError.statusCode === undefined) { onAmbiguousFailure(); return; }
+      setError(apiError.message || "Unable to change the password. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <main className="auth-page" aria-busy={busy || logoutBusy}><section className="auth-card" aria-labelledby="change-password-heading">
+    <p className="eyebrow">{mandatory ? "First sign-in security" : "Account security"}</p>
+    <h1 id="change-password-heading">{mandatory ? "Change your initial password" : "Change Password"}</h1>
+    {mandatory && <p className="intro">You must choose a new password before using TokTickIT. This initial session expires 15 minutes after sign-in and activity does not extend it.</p>}
+    {!mandatory && <p className="intro">Update the password for {user.email}.</p>}
+    {error && <div className="alert alert-error" role="alert">{error}</div>}
+    {logoutError && <div className="alert alert-error" role="alert">{logoutError}</div>}
+    <form onSubmit={submit} noValidate>
+      <label htmlFor="current-password">Current Password<input ref={refs.currentPassword} id="current-password" type="password" autoComplete="current-password" value={form.currentPassword} disabled={busy} onChange={(event) => update("currentPassword", event.target.value)} aria-invalid={Boolean(fieldErrors.currentPassword)} /></label>{fieldErrors.currentPassword && <small className="field-error">{fieldErrors.currentPassword}</small>}
+      <label htmlFor="new-password">New Password<input ref={refs.newPassword} id="new-password" type="password" autoComplete="new-password" value={form.newPassword} disabled={busy} onChange={(event) => update("newPassword", event.target.value)} aria-invalid={Boolean(fieldErrors.newPassword)} aria-describedby="password-policy" /></label>{fieldErrors.newPassword && <small className="field-error">{fieldErrors.newPassword}</small>}
+      <small id="password-policy">15-128 characters; spaces and Unicode are allowed; not whitespace-only; maximum 512 UTF-8 bytes.</small>
+      <label htmlFor="confirm-password">Confirm New Password<input ref={refs.confirmPassword} id="confirm-password" type="password" autoComplete="new-password" value={form.confirmPassword} disabled={busy} onChange={(event) => update("confirmPassword", event.target.value)} aria-invalid={Boolean(fieldErrors.confirmPassword)} /></label>{fieldErrors.confirmPassword && <small className="field-error">{fieldErrors.confirmPassword}</small>}
+      <div className="form-actions">{!mandatory && <button type="button" className="button button-secondary" onClick={onCancel} disabled={busy}>Cancel</button>}<button type="submit" className="button button-primary" disabled={busy}>{busy ? "Saving…" : "Save Password"}</button></div>
+    </form>
+    {mandatory && <button type="button" className="button button-secondary logout-auth" onClick={onLogout} disabled={logoutBusy}>{logoutBusy ? "Logging Out…" : "Logout"}</button>}
+  </section></main>;
+}
+
+function ForbiddenScreen({ landing, navigate }: { landing: string; navigate: (path: string) => void }) {
+  return <main className="shell-content"><p className="eyebrow">Access denied</p><h1>Forbidden</h1><p>Your role is not permitted to open this page.</p><button type="button" className="button button-primary" onClick={() => navigate(landing)}>Go to your workspace</button></main>;
+}
+
+function RolePlaceholder({ title, message }: { title: string; message: string }) {
+  return <main className="shell-content"><p className="eyebrow">Authenticated workspace</p><h1>{title}</h1><div className="context-card" role="status">{message}</div></main>;
+}
+
+function ApplicationShell({ user, route, navigate, onChangePassword, onLogout, logoutBusy, logoutError }: { user: AuthUser; route: string; navigate: (path: string) => void; onChangePassword: () => void; onLogout: () => void; logoutBusy: boolean; logoutError: string | null }) {
   const [ticketQuery, setTicketQuery] = useState(DEFAULT_TICKET_QUERY);
+  const landing = roleLanding(user.role);
+  const requesterDetailMatch = route.match(/^\/requester\/tickets\/([1-9]\d*)$/);
+  const requesterRoute = user.role === "REQUESTER" && (route === "/requester/tickets" || route === "/requester/tickets/new" || requesterDetailMatch);
+  const staffRoute = (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") && route === "/staff/tickets";
+  const adminRoute = user.role === "ADMINISTRATOR" && route === "/admin/users";
   return (
     <div className="app-shell">
       <header className="app-header">
         <div className="header-inner">
-          <a className="brand" href="#home">TokTickIT</a>
+          <a className="brand" href={landing} onClick={(event) => { event.preventDefault(); navigate(landing); }}>TokTickIT</a>
           <nav aria-label="Primary navigation">
-            <a href="#home" aria-current={screen === "home" ? "page" : undefined} onClick={(event) => { event.preventDefault(); setScreen("home"); }}>Workspace</a>
-            <button className={screen === "tickets" || screen === "detail" ? "nav-create active" : "nav-create"} type="button" onClick={() => setScreen("tickets")} aria-current={screen === "tickets" || screen === "detail" ? "page" : undefined}>My Tickets</button>
-            <button className={screen === "create" ? "nav-create active" : "nav-create"} type="button" onClick={() => setScreen("create")} aria-current={screen === "create" ? "page" : undefined}>Create Ticket</button>
+            {user.role === "REQUESTER" && <><a href="/requester/tickets" aria-current={route === "/requester/tickets" || Boolean(requesterDetailMatch) ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/requester/tickets"); }}>My Tickets</a><a href="/requester/tickets/new" aria-current={route === "/requester/tickets/new" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/requester/tickets/new"); }}>Create Ticket</a></>}
+            {user.role === "IT_STAFF" && <a href="/staff/tickets" aria-current={route === "/staff/tickets" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/tickets"); }}>Ticket Queue</a>}
+            {user.role === "ADMINISTRATOR" && <><a href="/admin/users" aria-current={route === "/admin/users" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/admin/users"); }}>User Management</a><a href="/staff/tickets" aria-current={route === "/staff/tickets" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/tickets"); }}>Ticket Queue</a></>}
           </nav>
-          <div className="requester-context">
-            <span>Requester: {requester.name}</span>
-            <button className="change-requester" onClick={onChangeRequester}>Change Requester</button>
+          <div className="account-context">
+            <span>{user.name} · {roleLabel(user.role)}</span>
+            <button className="account-action" onClick={onChangePassword}>Change Password</button>
+            <button className="account-action" onClick={onLogout} disabled={logoutBusy}>{logoutBusy ? "Logging Out…" : "Logout"}</button>
           </div>
         </div>
       </header>
-      {screen === "create" ? <CreateTicketScreen requester={requester} onBack={() => setScreen("home")} /> : screen === "tickets" ? <MyTicketsScreen requester={requester} onCreate={() => setScreen("create")} onViewTicket={(ticketId) => { setSelectedTicketId(ticketId); setScreen("detail"); }} initialQuery={ticketQuery} onQueryChange={setTicketQuery} /> : screen === "detail" && selectedTicketId !== null ? <TicketDetailScreen requester={requester} ticketId={selectedTicketId} onBack={() => setScreen("tickets")} /> : <main className="shell-content" id="home">
-        <p className="eyebrow">Requester workspace</p>
-        <h1>Welcome to TokTickIT</h1>
-        <p>Your requester context is ready. Choose an action from the navigation when the corresponding Lab 2 screen is available.</p>
-        <div className="context-card" role="status">Testing as <strong>{requester.name}</strong></div>
-      </main>}
+      {logoutError && <div className="shell-content shell-alert"><div className="alert alert-error" role="alert">{logoutError}<button className="button button-secondary retry-button" type="button" onClick={onLogout}>Retry logout</button></div></div>}
+      {requesterRoute && route === "/requester/tickets/new" ? <CreateTicketScreen requester={user} onBack={() => navigate("/requester/tickets")} /> : requesterRoute && route === "/requester/tickets" ? <MyTicketsScreen requester={user} onCreate={() => navigate("/requester/tickets/new")} onViewTicket={(ticketId) => navigate(`/requester/tickets/${ticketId}`)} initialQuery={ticketQuery} onQueryChange={setTicketQuery} /> : requesterRoute && requesterDetailMatch ? <TicketDetailScreen requester={user} ticketId={Number(requesterDetailMatch[1])} onBack={() => navigate("/requester/tickets")} /> : staffRoute ? <RolePlaceholder title="Ticket Queue" message="The authenticated IT Staff queue is reserved for its Lab 3 implementation issue. No Requester data is loaded by this placeholder." /> : adminRoute ? <RolePlaceholder title="User Management" message="Authenticated Administrator access is ready. User management is reserved for its dedicated Lab 3 implementation issue." /> : <ForbiddenScreen landing={landing} navigate={navigate} />}
     </div>
   );
 }
 
 export default function App() {
-  const [requesters, setRequesters] = useState<DevelopmentRequester[]>([]);
-  const [loadState, setLoadState] = useState<RequesterLoadState>("loading");
-  const [selectedId, setSelectedId] = useState("");
-  const [currentRequester, setCurrentRequester] = useState<DevelopmentRequester | null>(null);
-  const [validating, setValidating] = useState(false);
-  const [selectionError, setSelectionError] = useState<string | null>(null);
-  const [retryToken, setRetryToken] = useState(0);
+  const [bootstrapState, setBootstrapState] = useState<"loading" | "ready">("loading");
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [route, setRoute] = useState(window.location.pathname);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+
+  function navigate(path: string, replace = false) {
+    if (window.location.pathname !== path) window.history[replace ? "replaceState" : "pushState"]({}, "", path);
+    setRoute(path);
+  }
 
   useEffect(() => {
+    sessionStorage.removeItem(LEGACY_REQUESTER_STORAGE_KEY);
     let cancelled = false;
-    setLoadState("loading");
-    getDevelopmentRequesters()
-      .then((loaded) => {
-        if (cancelled) return;
-        setRequesters(loaded);
-        const storedId = sessionStorage.getItem(REQUESTER_STORAGE_KEY) ?? "";
-        const restored = loaded.find((requester) => String(requester.id) === storedId);
-        if (restored) {
-          setSelectedId(String(restored.id));
-          setCurrentRequester(restored);
-        } else {
-          sessionStorage.removeItem(REQUESTER_STORAGE_KEY);
-          setSelectedId("");
-          setCurrentRequester(null);
-        }
-        setLoadState(loaded.length > 0 ? "ready" : "empty");
+    getCurrentUser()
+      .then((authenticated) => {
+        if (!cancelled) setUser(authenticated.user);
       })
-      .catch(() => {
-        if (!cancelled) {
-          setRequesters([]);
-          setCurrentRequester(null);
-          setLoadState("error");
-        }
-      });
+      .catch((cause) => { if (!cancelled && (cause as ApiValidationError).statusCode !== 401) setNotice("Unable to restore the previous session. Sign in to continue."); })
+      .finally(() => { if (!cancelled) setBootstrapState("ready"); });
     return () => { cancelled = true; };
-  }, [retryToken]);
+  }, []);
 
-  function handleContinue() {
-    if (!requesters.some((item) => String(item.id) === selectedId)) return;
-    setValidating(true);
-    setSelectionError(null);
-    getDevelopmentRequesters()
-      .then((freshRequesters) => {
-        setRequesters(freshRequesters);
-        const requester = freshRequesters.find((item) => String(item.id) === selectedId);
-        if (!requester) {
-          sessionStorage.removeItem(REQUESTER_STORAGE_KEY);
-          setSelectedId("");
-          setCurrentRequester(null);
-          setLoadState(freshRequesters.length > 0 ? "ready" : "empty");
-          setSelectionError("That Development Requester is no longer active. Please select another.");
-          return;
-        }
-        sessionStorage.setItem(REQUESTER_STORAGE_KEY, String(requester.id));
-        setCurrentRequester(requester);
-      })
-      .catch(() => setSelectionError("Unable to validate the selected Requester. Please try again."))
-      .finally(() => setValidating(false));
+  useEffect(() => {
+    const onPopState = () => setRoute(window.location.pathname);
+    const onSessionInvalid = (event: Event) => {
+      const code = (event as CustomEvent<{ code?: string }>).detail?.code;
+      if (code === "PASSWORD_CHANGE_REQUIRED" && user) {
+        setUser({ ...user, mustChangePassword: true });
+        navigate("/change-password", true);
+      } else {
+        clearInMemoryAuth();
+        setUser(null);
+        setNotice("Your session ended. Please sign in again.");
+        navigate("/login", true);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    window.addEventListener("toktickit:session-invalid", onSessionInvalid);
+    return () => { window.removeEventListener("popstate", onPopState); window.removeEventListener("toktickit:session-invalid", onSessionInvalid); };
+  }, [user]);
+
+  useEffect(() => {
+    if (bootstrapState !== "ready") return;
+    if (!user) {
+      if (route !== "/login") navigate("/login", true);
+    } else if (user.mustChangePassword) {
+      if (route !== "/change-password") navigate("/change-password", true);
+    } else if (route === "/" || route === "/login") {
+      navigate(roleLanding(user.role), true);
+    }
+  }, [bootstrapState, user, route]);
+
+  function handleAuthenticated(nextUser: AuthUser) {
+    setUser(nextUser);
+    setNotice(null);
+    setLogoutError(null);
+    navigate(nextUser.mustChangePassword ? "/change-password" : roleLanding(nextUser.role), true);
   }
 
-  function handleChangeRequester() {
-    sessionStorage.removeItem(REQUESTER_STORAGE_KEY);
-    setCurrentRequester(null);
-    setSelectedId("");
+  async function handleLogout() {
+    setLogoutBusy(true);
+    setLogoutError(null);
+    try {
+      await logout();
+      setUser(null);
+      setNotice("You have been logged out.");
+      navigate("/login", true);
+    } catch (cause) {
+      setLogoutError((cause as Error).message || "Unable to log out. Please try again.");
+    } finally {
+      setLogoutBusy(false);
+    }
   }
 
-  if (currentRequester) return <ApplicationShell requester={currentRequester} onChangeRequester={handleChangeRequester} />;
-  return <RequesterSelector requesters={requesters} state={loadState} selectedId={selectedId} onSelect={(value) => { setSelectionError(null); setSelectedId(value); }} onContinue={handleContinue} onRetry={() => setRetryToken((token) => token + 1)} validating={validating} selectionError={selectionError} />;
+  if (bootstrapState === "loading") return <main className="auth-page" aria-busy="true"><section className="auth-card"><p className="eyebrow">TokTickIT</p><h1>Restoring your session</h1><p className="loading-message" role="status">Loading secure workspace…</p></section></main>;
+  if (!user) return <LoginScreen onAuthenticated={handleAuthenticated} notice={notice} />;
+  if (user.mustChangePassword || route === "/change-password") return <ChangePasswordScreen user={user} onAuthenticated={handleAuthenticated} onCancel={() => navigate(roleLanding(user.role))} onLogout={handleLogout} logoutBusy={logoutBusy} logoutError={logoutError} onAmbiguousFailure={() => { clearInMemoryAuth(); setUser(null); setNotice("The password-change result could not be confirmed. Sign in with the new password to continue."); navigate("/login", true); }} />;
+  return <ApplicationShell key={user.id} user={user} route={route} navigate={navigate} onChangePassword={() => navigate("/change-password")} onLogout={handleLogout} logoutBusy={logoutBusy} logoutError={logoutError} />;
 }

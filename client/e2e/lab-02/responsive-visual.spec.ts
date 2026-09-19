@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { enterAuthenticatedRequester } from "../lab-03/requester-auth.js";
 
 const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3000";
 
@@ -47,12 +48,7 @@ async function seedScenario(request: APIRequestContext): Promise<Scenario> {
 }
 
 async function enterRequesterWorkspace(page: Page, requesterId: number) {
-  await page.goto("/");
-  const requesterSelect = page.locator("#requester-select");
-  await expect(requesterSelect).toBeVisible();
-  await requesterSelect.selectOption(String(requesterId));
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Welcome to TokTickIT" })).toBeVisible();
+  await enterAuthenticatedRequester(page, requesterId);
 }
 
 async function assertNoPageOverflow(page: Page) {
@@ -110,7 +106,7 @@ async function assertWithinViewport(page: Page, locator: Locator) {
 }
 
 async function openMyTickets(page: Page, scenario: Scenario) {
-  await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+  await page.getByRole("link", { name: "My Tickets", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My Tickets" })).toBeVisible();
   await page.locator("#ticket-search").fill(scenario.summary);
   await expect(page.locator(".result-count")).toHaveText("Showing 1 of 1 Tickets");
@@ -129,12 +125,12 @@ test.describe("Lab 2 responsive and visual viewport contract", () => {
     const scenario = await seedScenario(request);
     await enterRequesterWorkspace(page, scenario.requesterId);
 
-    await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
+    await page.getByRole("link", { name: "Create Ticket", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
     await assertWithinViewport(page, page.locator(".ticket-form"));
     await assertNoClippingOrOverlap(page);
     await assertNoPageOverflow(page);
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.locator(".tickets-table")).toBeVisible();
     await expect(page.locator(".tickets-cards")).toBeHidden();
     await openMyTickets(page, scenario);
@@ -151,7 +147,7 @@ test.describe("Lab 2 responsive and visual viewport contract", () => {
     const scenario = await seedScenario(request);
     await enterRequesterWorkspace(page, scenario.requesterId);
 
-    await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
+    await page.getByRole("link", { name: "Create Ticket", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
     await assertWithinViewport(page, page.locator(".ticket-form"));
     await assertNoClippingOrOverlap(page);
@@ -172,7 +168,7 @@ test.describe("Lab 2 responsive and visual viewport contract", () => {
     const scenario = await seedScenario(request);
     await enterRequesterWorkspace(page, scenario.requesterId);
 
-    await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
+    await page.getByRole("link", { name: "Create Ticket", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
     await assertWithinViewport(page, page.locator(".ticket-form"));
     await assertNoClippingOrOverlap(page);
