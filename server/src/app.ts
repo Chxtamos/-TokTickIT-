@@ -18,6 +18,7 @@ import {
   type AuthPrisma,
   type AuthenticatedRequest,
 } from "./auth.js";
+import { escapeLikeSearch, parseStaffQueueQuery, staffQueueOrderBy } from "./queue-query.js";
 
 export type ReferenceDataPrisma = Pick<
   PrismaClient,
@@ -358,6 +359,12 @@ function ticketSummaryResponse(ticket: {
   };
 }
 
+function staffTicketSummaryResponse(ticket: Parameters<typeof ticketSummaryResponse>[0] & {
+  requester: { id: number; name: string; email: string; role: UserRole };
+}) {
+  return { ...ticketSummaryResponse(ticket), requester: ticket.requester };
+}
+
 function ticketDetailResponse(ticket: {
   id: number;
   ticketNumber: string;
@@ -508,6 +515,10 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     res.setHeader("Cache-Control", "no-store");
     next();
   });
+  app.use("/api/staff", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
+  });
 
   app.get("/api/health", (_req: Request, res: Response) => {
     res.status(200).json({
@@ -566,6 +577,107 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       res.status(200).json(requesters);
     } catch {
       res.status(500).json({ error: "REFERENCE_DATA_UNAVAILABLE" });
+    }
+  });
+
+  app.get("/api/staff/ticket-owners", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    const unsupported = Object.keys(req.query);
+    if (unsupported.length > 0) {
+      return errorResponse(
+        res,
+        400,
+        "VALIDATION_FAILED",
+        "This endpoint does not accept query parameters.",
+        Object.fromEntries(unsupported.map((field) => [field, ["This query parameter is not supported."]])),
+      );
+    }
+    try {
+      const owners = await prisma.requesterUser.findMany({
+        where: { isActive: true, role: { in: operationalRoles } },
+        select: { id: true, name: true, email: true, role: true },
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+      });
+      return res.status(200).json(owners);
+    } catch {
+      return errorResponse(res, 500, "TICKET_OWNERS_UNAVAILABLE", "Unable to load eligible Ticket owners.");
+    }
+  });
+
+  app.get("/api/staff/tickets", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+
+    const { input, fieldErrors } = parseStaffQueueQuery(req.query as Record<string, unknown>);
+    if (!input) return errorResponse(res, 400, "INVALID_QUERY", "Please correct the query parameters.", fieldErrors);
+
+    const currentUserId = authenticatedUser(req).id;
+    const where: Prisma.TicketWhereInput = {};
+    if (input.search) {
+      const literalSearch = escapeLikeSearch(input.search);
+      where.OR = [
+        { ticketNumber: { contains: literalSearch, mode: "insensitive" } },
+        { summary: { contains: literalSearch, mode: "insensitive" } },
+      ];
+    }
+    if (input.categoryId !== null) where.categoryId = input.categoryId;
+    if (input.relatedSystemId !== null) where.relatedSystemId = input.relatedSystemId;
+    if (input.requestedPriority !== null) where.requestedPriority = input.requestedPriority;
+    if (input.itPriority !== null) where.itPriority = input.itPriority;
+    if (input.currentStatus !== null) where.currentStatus = input.currentStatus;
+    if (input.owner === "unassigned") where.ticketOwnerId = null;
+    else if (input.owner === "mine") where.ticketOwnerId = currentUserId;
+    else if (typeof input.owner === "number") where.ticketOwnerId = input.owner;
+
+    try {
+      const [tickets, totalItems] = await Promise.all([
+        prisma.ticket.findMany({
+          where,
+          orderBy: staffQueueOrderBy(input),
+          skip: (input.page - 1) * input.pageSize,
+          take: input.pageSize,
+          select: {
+            id: true,
+            ticketNumber: true,
+            summary: true,
+            requestedPriority: true,
+            itPriority: true,
+            currentStatus: true,
+            version: true,
+            createdAt: true,
+            updatedAt: true,
+            category: { select: { id: true, name: true } },
+            relatedSystem: { select: { id: true, name: true } },
+            owner: { select: { id: true, name: true, email: true, role: true } },
+            requester: { select: { id: true, name: true, email: true, role: true } },
+          },
+        }),
+        prisma.ticket.count({ where }),
+      ]);
+      const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / input.pageSize);
+      return res.status(200).json({
+        items: tickets.map(staffTicketSummaryResponse),
+        pagination: {
+          page: input.page,
+          pageSize: input.pageSize,
+          totalItems,
+          totalPages,
+          hasPreviousPage: input.page > 1 && totalPages > 0,
+          hasNextPage: input.page < totalPages,
+        },
+        applied: {
+          search: input.search,
+          categoryId: input.categoryId,
+          relatedSystemId: input.relatedSystemId,
+          requestedPriority: input.requestedPriority,
+          itPriority: input.itPriority,
+          currentStatus: input.currentStatus,
+          owner: input.owner,
+          sortBy: input.sortBy,
+          sortDirection: input.sortDirection,
+        },
+      });
+    } catch {
+      return errorResponse(res, 500, "STAFF_QUEUE_FAILED", "Unable to load the Ticket Queue.");
     }
   });
 

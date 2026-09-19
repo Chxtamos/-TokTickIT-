@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { changePassword, clearInMemoryAuth, createTicket, CreatedTicket, downloadTicketAttachment, getCategories, getCurrentUser, getRelatedSystems, getTicketDetail, getTickets, indicateResolution, login, logout, ReferenceItem, removeTicketAttachment, type ApiValidationError, type AuthUser, TicketAttachmentMetadata, TicketDetail, TicketListQuery, TicketListResponse, TicketStatus, TicketSummary, uploadTicketAttachment } from "./api.js";
+import { changePassword, clearInMemoryAuth, createTicket, CreatedTicket, downloadTicketAttachment, getCategories, getCurrentUser, getEligibleTicketOwners, getRelatedSystems, getStaffTickets, getTicketDetail, getTickets, indicateResolution, login, logout, ReferenceItem, removeTicketAttachment, type ApiValidationError, type AuthUser, type EligibleOwner, type Priority, type StaffQueueQuery, type StaffTicketListResponse, type StaffTicketSummary, TicketAttachmentMetadata, TicketDetail, TicketListQuery, TicketListResponse, TicketStatus, TicketSummary, uploadTicketAttachment } from "./api.js";
 import "./App.css";
 
 const LEGACY_REQUESTER_STORAGE_KEY = "toktickit.requesterId";
@@ -240,6 +240,134 @@ function MyTicketsScreen({ requester, onCreate, onViewTicket, initialQuery, onQu
       </>}
     </main>
   );
+}
+
+const DEFAULT_STAFF_QUEUE_QUERY: StaffQueueQuery = {
+  search: "",
+  categoryId: null,
+  relatedSystemId: null,
+  requestedPriority: null,
+  itPriority: null,
+  currentStatus: null,
+  owner: "all",
+  sortBy: "updatedAt",
+  sortDirection: "desc",
+  page: 1,
+  pageSize: 10,
+};
+
+function StaffTicketQueueScreen({ initialQuery, onQueryChange, onOpen }: { initialQuery: StaffQueueQuery; onQueryChange: (query: StaffQueueQuery) => void; onOpen: (ticketId: number) => void }) {
+  const [query, setQueryState] = useState(initialQuery);
+  const [categories, setCategories] = useState<ReferenceItem[]>([]);
+  const [systems, setSystems] = useState<ReferenceItem[]>([]);
+  const [owners, setOwners] = useState<EligibleOwner[]>([]);
+  const [data, setData] = useState<StaffTicketListResponse | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "forbidden" | "invalid-query" | "error">("loading");
+  const [message, setMessage] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
+  const [optionsState, setOptionsState] = useState<"loading" | "ready" | "error">("loading");
+  const [optionsError, setOptionsError] = useState<string | null>(null);
+  const [optionsRetryToken, setOptionsRetryToken] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setOptionsState("loading");
+    setOptionsError(null);
+    Promise.all([getCategories(), getRelatedSystems(), getEligibleTicketOwners()])
+      .then(([loadedCategories, loadedSystems, loadedOwners]) => {
+        if (cancelled) return;
+        setCategories(loadedCategories);
+        setSystems(loadedSystems);
+        setOwners(loadedOwners);
+        setOptionsState("ready");
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        setOptionsError(cause instanceof Error ? cause.message : "Unable to load Queue filters.");
+        setOptionsState("error");
+      });
+    return () => { cancelled = true; };
+  }, [optionsRetryToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState("loading");
+    setData(null);
+    setMessage(null);
+    getStaffTickets(query)
+      .then((loadedQueue) => {
+        if (cancelled) return;
+        setData(loadedQueue);
+        setState("ready");
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        const apiError = cause as ApiValidationError;
+        setMessage(apiError.message || "Unable to load the Ticket Queue.");
+        if (apiError.statusCode === 403) setState("forbidden");
+        else if (apiError.statusCode === 400 && apiError.code === "INVALID_QUERY") setState("invalid-query");
+        else setState("error");
+      });
+    return () => { cancelled = true; };
+  }, [query, retryToken]);
+
+  const applyQuery = (next: StaffQueueQuery) => { setQueryState(next); onQueryChange(next); };
+  const updateQuery = (change: Partial<StaffQueueQuery>) => applyQuery({ ...query, ...change, page: 1 });
+  const clearFilters = () => applyQuery({ ...DEFAULT_STAFF_QUEUE_QUERY });
+  const hasCriteria = query.search.trim() !== "" || query.categoryId !== null || query.relatedSystemId !== null || query.requestedPriority !== null || query.itPriority !== null || query.currentStatus !== null || query.owner !== "all";
+  const differsFromDefaults = hasCriteria || query.sortBy !== "updatedAt" || query.sortDirection !== "desc" || query.pageSize !== 10 || query.page !== 1;
+  const isBeyondEnd = Boolean(data && data.items.length === 0 && data.pagination.page > 1 && data.pagination.page > data.pagination.totalPages);
+  const badgeText = (value: string) => value.replaceAll("_", " ");
+  const renderBadge = (value: string, kind: "priority" | "status") => <span className={`queue-badge queue-badge-${kind} queue-badge-${value.toLowerCase().replaceAll("_", "-")}`}>{badgeText(value)}</span>;
+  const ownerName = (ticket: StaffTicketSummary) => ticket.ticketOwner?.name ?? "Unassigned";
+  const openButton = (ticket: StaffTicketSummary) => <button type="button" className="button button-secondary" aria-label={`Open ${ticket.ticketNumber}`} onClick={() => onOpen(ticket.id)}>Open</button>;
+
+  return <main className="shell-content staff-queue-page" aria-busy={state === "loading" || optionsState === "loading"}>
+    <p className="eyebrow">Shared IT workspace</p>
+    <div className="page-heading"><div><h1>Ticket Queue</h1><p>Shared work for IT Staff and Administrators. Filters apply across every Ticket.</p></div></div>
+    <form className="staff-queue-controls" onSubmit={(event) => event.preventDefault()} aria-label="Ticket Queue controls">
+      <fieldset><legend>Search and filters</legend><div className="queue-control-grid">
+        <label htmlFor="staff-ticket-search">Ticket Number/Summary search<input id="staff-ticket-search" value={query.search} maxLength={120} placeholder="Ticket number or summary" onChange={(event) => updateQuery({ search: event.target.value })} /></label>
+        <label htmlFor="staff-ticket-category">Category<select id="staff-ticket-category" value={query.categoryId ?? ""} onChange={(event) => updateQuery({ categoryId: event.target.value ? Number(event.target.value) : null })}><option value="">All Categories</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label htmlFor="staff-ticket-system">Related System<select id="staff-ticket-system" value={query.relatedSystemId ?? ""} onChange={(event) => updateQuery({ relatedSystemId: event.target.value ? Number(event.target.value) : null })}><option value="">All Systems</option>{systems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label htmlFor="staff-requested-priority">Requested Priority<select id="staff-requested-priority" value={query.requestedPriority ?? ""} onChange={(event) => updateQuery({ requestedPriority: (event.target.value || null) as Priority | null })}><option value="">All Requested Priorities</option>{["LOW", "MEDIUM", "HIGH", "URGENT"].map((priority) => <option key={priority} value={priority}>{priority}</option>)}</select></label>
+        <label htmlFor="staff-it-priority">IT Priority<select id="staff-it-priority" value={query.itPriority ?? ""} onChange={(event) => updateQuery({ itPriority: (event.target.value || null) as Priority | null })}><option value="">All IT Priorities</option>{["LOW", "MEDIUM", "HIGH", "URGENT"].map((priority) => <option key={priority} value={priority}>{priority}</option>)}</select></label>
+        <label htmlFor="staff-ticket-status">Status<select id="staff-ticket-status" value={query.currentStatus ?? ""} onChange={(event) => updateQuery({ currentStatus: (event.target.value || null) as TicketStatus | null })}><option value="">All Statuses</option>{ALL_STATUSES.map((status) => <option key={status} value={status}>{badgeText(status)}</option>)}</select></label>
+        <label htmlFor="staff-ticket-owner">Owner<select id="staff-ticket-owner" value={String(query.owner)} onChange={(event) => updateQuery({ owner: /^\d+$/.test(event.target.value) ? Number(event.target.value) : event.target.value as StaffQueueQuery["owner"] })}><option value="all">All</option><option value="unassigned">Unassigned</option><option value="mine">Mine</option>{owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}</select></label>
+      </div></fieldset>
+      <fieldset><legend>Sort and page size</legend><div className="queue-sort-grid">
+        <label htmlFor="staff-ticket-sort">Sort by<select id="staff-ticket-sort" value={query.sortBy} onChange={(event) => updateQuery({ sortBy: event.target.value as StaffQueueQuery["sortBy"] })}><option value="updatedAt">Last updated</option><option value="createdAt">Created date</option><option value="ticketNumber">Ticket number</option><option value="itPriority">IT Priority</option></select></label>
+        <label htmlFor="staff-ticket-direction">Direction<select id="staff-ticket-direction" value={query.sortDirection} onChange={(event) => updateQuery({ sortDirection: event.target.value as StaffQueueQuery["sortDirection"] })}><option value="desc">Descending</option><option value="asc">Ascending</option></select></label>
+        <label htmlFor="staff-ticket-page-size">Page size<select id="staff-ticket-page-size" value={query.pageSize} onChange={(event) => updateQuery({ pageSize: Number(event.target.value) as StaffQueueQuery["pageSize"] })}><option value="10">10</option><option value="20">20</option><option value="50">50</option></select></label>
+        <button type="button" className="button button-secondary clear-filters" disabled={!differsFromDefaults} onClick={clearFilters}>Clear Filters</button>
+      </div></fieldset>
+    </form>
+
+    <div aria-live="polite">
+      {state === "loading" && <p className="loading-message" role="status">Loading Ticket Queue…</p>}
+      {optionsState === "loading" && <p className="loading-message" role="status">Loading Queue filters…</p>}
+      {optionsState === "error" && <div className="alert alert-error" role="alert">{optionsError ?? "Unable to load Queue filters."}<button type="button" className="button button-secondary retry-button" onClick={() => setOptionsRetryToken((value) => value + 1)}>Retry filters</button></div>}
+      {state === "forbidden" && <div className="alert alert-error" role="alert"><strong>Forbidden.</strong> This account cannot access the shared Ticket Queue.</div>}
+      {state === "invalid-query" && <div className="alert alert-error" role="alert">The Queue query is invalid. Reset it to the documented defaults.<button type="button" className="button button-secondary retry-button" onClick={clearFilters}>Reset Queue</button></div>}
+      {state === "error" && <div className="alert alert-error" role="alert">{message ?? "Unable to load the Ticket Queue."}<button type="button" className="button button-secondary retry-button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button></div>}
+      {state === "ready" && data && <p className="result-count" role="status">{data.pagination.totalItems} matching {data.pagination.totalItems === 1 ? "Ticket" : "Tickets"}</p>}
+    </div>
+
+    {state === "ready" && data && data.items.length === 0 && data.pagination.totalItems === 0 && !hasCriteria && !isBeyondEnd && <div className="alert alert-warning" role="status">The shared Ticket Queue is empty. New Requester Tickets will appear here.</div>}
+    {state === "ready" && data && data.items.length === 0 && data.pagination.totalItems === 0 && hasCriteria && !isBeyondEnd && <div className="alert alert-warning" role="status">No Tickets match the current search or filters.<button type="button" className="button button-secondary retry-button" onClick={clearFilters}>Clear Filters</button></div>}
+    {state === "ready" && data && isBeyondEnd && <div className="alert alert-warning" role="status">This page is beyond the available Queue results.<button type="button" className="button button-secondary retry-button" onClick={() => applyQuery({ ...query, page: 1 })}>First Page</button><button type="button" className="button button-secondary retry-button" onClick={() => applyQuery({ ...query, page: query.page - 1 })}>Previous Page</button></div>}
+
+    {state === "ready" && data && data.items.length > 0 && <>
+      <div className="staff-queue-table-wrap"><table className="staff-queue-table"><caption className="visually-hidden">Shared Ticket Queue sorted by {query.sortBy}, {query.sortDirection}</caption><thead><tr><th scope="col">Ticket Number</th><th scope="col">Summary</th><th scope="col">Category</th><th scope="col">Requested Priority</th><th scope="col">IT Priority</th><th scope="col">Status</th><th scope="col">Owner</th><th scope="col">Open</th></tr></thead><tbody>{data.items.map((ticket) => <tr key={ticket.id}><td><strong>{ticket.ticketNumber}</strong></td><td>{ticket.summary}<small className="queue-requester">Requester: {ticket.requester.name}</small></td><td>{ticket.category.name}</td><td>{renderBadge(ticket.requestedPriority, "priority")}</td><td>{renderBadge(ticket.itPriority, "priority")}</td><td>{renderBadge(ticket.currentStatus, "status")}</td><td>{ownerName(ticket)}</td><td>{openButton(ticket)}</td></tr>)}</tbody></table></div>
+      <div className="staff-queue-cards" aria-label="Shared Ticket Queue cards">{data.items.map((ticket) => <article className="ticket-card" key={ticket.id}><h2>{ticket.ticketNumber}</h2><p className="queue-card-summary">{ticket.summary}</p><p className="queue-requester">Requester: {ticket.requester.name}</p><dl><div><dt>Category</dt><dd>{ticket.category.name}</dd></div><div><dt>Requested Priority</dt><dd>{renderBadge(ticket.requestedPriority, "priority")}</dd></div><div><dt>IT Priority</dt><dd>{renderBadge(ticket.itPriority, "priority")}</dd></div><div><dt>Status</dt><dd>{renderBadge(ticket.currentStatus, "status")}</dd></div><div><dt>Owner</dt><dd>{ownerName(ticket)}</dd></div></dl>{openButton(ticket)}</article>)}</div>
+    </>}
+
+    {state === "ready" && data && <nav className="pagination" aria-label="Ticket Queue pagination"><button type="button" className="button button-secondary" disabled={!data.pagination.hasPreviousPage} onClick={() => applyQuery({ ...query, page: query.page - 1 })}>Previous</button><span>Page {data.pagination.page} of {Math.max(data.pagination.totalPages, 1)}</span><button type="button" className="button button-secondary" disabled={!data.pagination.hasNextPage} onClick={() => applyQuery({ ...query, page: query.page + 1 })}>Next</button></nav>}
+  </main>;
+}
+
+function StaffTicketPlaceholder({ ticketId, onBack }: { ticketId: number; onBack: () => void }) {
+  return <main className="shell-content detail-page"><button type="button" className="back-button" onClick={onBack}>← Back to Queue</button><p className="eyebrow">Shared IT workspace</p><h1>Ticket Detail</h1><div className="context-card" role="status"><p>Ticket ID {ticketId}</p><p>The operational Ticket Detail is intentionally reserved for Issues #62 and #75. No detail data or workflow controls are loaded on this route yet.</p></div></main>;
 }
 
 type PendingAttachment = { id: string; file: File; status: "queued" | "uploading" | "error"; error: string | null; canUpload: boolean };
@@ -619,10 +747,12 @@ function RolePlaceholder({ title, message }: { title: string; message: string })
 
 function ApplicationShell({ user, route, navigate, onChangePassword, onLogout, logoutBusy, logoutError }: { user: AuthUser; route: string; navigate: (path: string) => void; onChangePassword: () => void; onLogout: () => void; logoutBusy: boolean; logoutError: string | null }) {
   const [ticketQuery, setTicketQuery] = useState(DEFAULT_TICKET_QUERY);
+  const [staffQueueQuery, setStaffQueueQuery] = useState(DEFAULT_STAFF_QUEUE_QUERY);
   const landing = roleLanding(user.role);
   const requesterDetailMatch = route.match(/^\/requester\/tickets\/([1-9]\d*)$/);
   const requesterRoute = user.role === "REQUESTER" && (route === "/requester/tickets" || route === "/requester/tickets/new" || requesterDetailMatch);
-  const staffRoute = (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") && route === "/staff/tickets";
+  const staffDetailMatch = route.match(/^\/staff\/tickets\/([1-9]\d*)$/);
+  const staffRoute = (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") && (route === "/staff/tickets" || Boolean(staffDetailMatch));
   const adminRoute = user.role === "ADMINISTRATOR" && route === "/admin/users";
   return (
     <div className="app-shell">
@@ -631,8 +761,8 @@ function ApplicationShell({ user, route, navigate, onChangePassword, onLogout, l
           <a className="brand" href={landing} onClick={(event) => { event.preventDefault(); navigate(landing); }}>TokTickIT</a>
           <nav aria-label="Primary navigation">
             {user.role === "REQUESTER" && <><a href="/requester/tickets" aria-current={route === "/requester/tickets" || Boolean(requesterDetailMatch) ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/requester/tickets"); }}>My Tickets</a><a href="/requester/tickets/new" aria-current={route === "/requester/tickets/new" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/requester/tickets/new"); }}>Create Ticket</a></>}
-            {user.role === "IT_STAFF" && <a href="/staff/tickets" aria-current={route === "/staff/tickets" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/tickets"); }}>Ticket Queue</a>}
-            {user.role === "ADMINISTRATOR" && <><a href="/admin/users" aria-current={route === "/admin/users" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/admin/users"); }}>User Management</a><a href="/staff/tickets" aria-current={route === "/staff/tickets" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/tickets"); }}>Ticket Queue</a></>}
+            {user.role === "IT_STAFF" && <a href="/staff/tickets" aria-current={staffRoute ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/tickets"); }}>Ticket Queue</a>}
+            {user.role === "ADMINISTRATOR" && <><a href="/admin/users" aria-current={route === "/admin/users" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/admin/users"); }}>User Management</a><a href="/staff/tickets" aria-current={staffRoute ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/tickets"); }}>Ticket Queue</a></>}
           </nav>
           <div className="account-context">
             <span>{user.name} · {roleLabel(user.role)}</span>
@@ -642,7 +772,7 @@ function ApplicationShell({ user, route, navigate, onChangePassword, onLogout, l
         </div>
       </header>
       {logoutError && <div className="shell-content shell-alert"><div className="alert alert-error" role="alert">{logoutError}<button className="button button-secondary retry-button" type="button" onClick={onLogout}>Retry logout</button></div></div>}
-      {requesterRoute && route === "/requester/tickets/new" ? <CreateTicketScreen requester={user} onBack={() => navigate("/requester/tickets")} /> : requesterRoute && route === "/requester/tickets" ? <MyTicketsScreen requester={user} onCreate={() => navigate("/requester/tickets/new")} onViewTicket={(ticketId) => navigate(`/requester/tickets/${ticketId}`)} initialQuery={ticketQuery} onQueryChange={setTicketQuery} /> : requesterRoute && requesterDetailMatch ? <TicketDetailScreen requester={user} ticketId={Number(requesterDetailMatch[1])} onBack={() => navigate("/requester/tickets")} /> : staffRoute ? <RolePlaceholder title="Ticket Queue" message="The authenticated IT Staff queue is reserved for its Lab 3 implementation issue. No Requester data is loaded by this placeholder." /> : adminRoute ? <RolePlaceholder title="User Management" message="Authenticated Administrator access is ready. User management is reserved for its dedicated Lab 3 implementation issue." /> : <ForbiddenScreen landing={landing} navigate={navigate} />}
+      {requesterRoute && route === "/requester/tickets/new" ? <CreateTicketScreen requester={user} onBack={() => navigate("/requester/tickets")} /> : requesterRoute && route === "/requester/tickets" ? <MyTicketsScreen requester={user} onCreate={() => navigate("/requester/tickets/new")} onViewTicket={(ticketId) => navigate(`/requester/tickets/${ticketId}`)} initialQuery={ticketQuery} onQueryChange={setTicketQuery} /> : requesterRoute && requesterDetailMatch ? <TicketDetailScreen requester={user} ticketId={Number(requesterDetailMatch[1])} onBack={() => navigate("/requester/tickets")} /> : staffRoute && route === "/staff/tickets" ? <StaffTicketQueueScreen initialQuery={staffQueueQuery} onQueryChange={setStaffQueueQuery} onOpen={(ticketId) => navigate(`/staff/tickets/${ticketId}`)} /> : staffRoute && staffDetailMatch ? <StaffTicketPlaceholder ticketId={Number(staffDetailMatch[1])} onBack={() => navigate("/staff/tickets")} /> : adminRoute ? <RolePlaceholder title="User Management" message="Authenticated Administrator access is ready. User management is reserved for its dedicated Lab 3 implementation issue." /> : <ForbiddenScreen landing={landing} navigate={navigate} />}
     </div>
   );
 }
