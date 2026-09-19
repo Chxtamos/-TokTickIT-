@@ -19,23 +19,26 @@ import {
   type AuthenticatedRequest,
 } from "./auth.js";
 import { escapeLikeSearch, parseStaffQueueQuery, staffQueueOrderBy } from "./queue-query.js";
+import { lockAccountSafety } from "./account-safety-lock.js";
+import {
+  canTransitionStatus,
+  claimDecision,
+  isTerminalTicketStatus,
+  ownerMutationDecision,
+  statusMutationData,
+  ticketStatuses,
+  validateExpectedVersionBody,
+  validateOwnerBody,
+  validatePriorityBody,
+  validateStatusBody,
+} from "./ticket-workflow.js";
 
 export type ReferenceDataPrisma = Pick<
   PrismaClient,
-  "category" | "relatedSystem" | "requesterUser" | "ticket" | "attachment" | "$transaction" | "$queryRaw"
+  "category" | "relatedSystem" | "requesterUser" | "ticket" | "attachment" | "ticketOwnerChange" | "$transaction" | "$queryRaw"
 >;
 
 const requestedPriorities = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
-const ticketStatuses: TicketStatus[] = [
-  "NEW",
-  "OPEN",
-  "IN_PROGRESS",
-  "WAITING_FOR_REQUESTER",
-  "RESOLVED",
-  "CLOSED",
-  "REOPENED",
-  "CANCELLED",
-];
 const operationalRoles: UserRole[] = ["IT_STAFF", "ADMINISTRATOR"];
 const ticketBodyFields = new Set([
   "clientRequestId",
@@ -493,6 +496,67 @@ function isIdempotencyUniqueViolation(error: unknown): error is Prisma.PrismaCli
   return fields.includes("requesterId") && fields.includes("clientRequestId");
 }
 
+class TicketMutationError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
+function rejectMutationQuery(req: Request, res: Response): boolean {
+  const unsupported = Object.keys(req.query);
+  if (unsupported.length === 0) return false;
+  errorResponse(
+    res,
+    400,
+    "VALIDATION_FAILED",
+    "This endpoint does not accept query parameters.",
+    Object.fromEntries(unsupported.map((field) => [field, ["This query parameter is not supported."]])),
+  );
+  return true;
+}
+
+function ticketMutationErrorResponse(
+  res: Response,
+  error: unknown,
+  fallbackCode: string,
+  fallbackMessage: string,
+) {
+  if (error instanceof TicketMutationError) {
+    if (error.code === "RESOURCE_NOT_FOUND") {
+      return errorResponse(res, 404, error.code, "Ticket not found.");
+    }
+    if (error.code === "ASSIGNEE_INVALID") {
+      return errorResponse(res, 400, error.code, "The selected Ticket owner is not an active IT Staff or Administrator account.");
+    }
+    if (error.code === "ROLE_FORBIDDEN") {
+      return errorResponse(res, 403, error.code, "This account is not permitted to perform that operation.");
+    }
+    if (error.code === "VERSION_CONFLICT") {
+      return errorResponse(res, 409, error.code, "The Ticket changed. Refresh and try again.");
+    }
+    if (error.code === "TICKET_TERMINAL") {
+      return errorResponse(res, 409, error.code, "Closed or cancelled Tickets cannot be assigned or reprioritized.");
+    }
+    if (error.code === "OWNER_CONFLICT") {
+      return errorResponse(res, 409, error.code, "This Ticket is already owned by another account.");
+    }
+    if (error.code === "STATUS_TRANSITION_INVALID") {
+      return errorResponse(res, 409, error.code, "The requested Ticket status transition is not permitted.");
+    }
+  }
+  return errorResponse(res, 500, fallbackCode, fallbackMessage);
+}
+
+function mutationValidationResponse(res: Response, fieldErrors: Record<string, string[]>) {
+  return errorResponse(
+    res,
+    400,
+    "VALIDATION_FAILED",
+    "Please correct the highlighted fields.",
+    fieldErrors,
+  );
+}
+
 export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Express {
   const app = express();
 
@@ -707,6 +771,217 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       return res.status(200).json(ticketDetailResponse(ticket));
     } catch {
       return errorResponse(res, 500, "TICKET_DETAIL_FAILED", "Unable to load Ticket details.");
+    }
+  });
+
+  app.post("/api/staff/tickets/:ticketId/claim", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    if (!requireRequestCsrf(req, res)) return;
+    if (rejectMutationQuery(req, res)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive PostgreSQL integer.");
+    const parsed = validateExpectedVersionBody(req.body);
+    if (!parsed.input) return mutationValidationResponse(res, parsed.fieldErrors);
+    const { expectedVersion } = parsed.input;
+    const actorId = authenticatedUser(req).id;
+
+    try {
+      const detail = await prisma.$transaction(async (tx) => {
+        await lockAccountSafety(tx, actorId);
+        const actor = await tx.requesterUser.findFirst({
+          where: { id: actorId, isActive: true, role: { in: operationalRoles } },
+          select: { id: true },
+        });
+        if (!actor) throw new TicketMutationError("ROLE_FORBIDDEN");
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
+        const current = await tx.ticket.findFirst({
+          where: { id: ticketId },
+          select: { id: true, version: true, currentStatus: true, ticketOwnerId: true },
+        });
+        if (!current) throw new TicketMutationError("RESOURCE_NOT_FOUND");
+        if (current.version !== expectedVersion) throw new TicketMutationError("VERSION_CONFLICT");
+        if (isTerminalTicketStatus(current.currentStatus)) throw new TicketMutationError("TICKET_TERMINAL");
+        const decision = claimDecision(current.ticketOwnerId, actorId);
+        if (decision === "OWNER_CONFLICT") throw new TicketMutationError("OWNER_CONFLICT");
+        if (decision === "ASSIGNED") {
+          const now = new Date();
+          const updated = await tx.ticket.updateMany({
+            where: { id: ticketId, version: expectedVersion },
+            data: { ticketOwnerId: actorId, version: { increment: 1 }, updatedAt: now },
+          });
+          if (updated.count !== 1) throw new TicketMutationError("VERSION_CONFLICT");
+          await tx.ticketOwnerChange.create({
+            data: {
+              ticketId,
+              previousOwnerId: null,
+              nextOwnerId: actorId,
+              actorId,
+              changedAt: now,
+              reason: "ASSIGNED",
+            },
+          });
+        }
+        const saved = await tx.ticket.findFirst({ where: { id: ticketId }, select: ticketDetailSelect });
+        if (!saved) throw new TicketMutationError("RESOURCE_NOT_FOUND");
+        return saved;
+      });
+      return res.status(200).json(ticketDetailResponse(detail));
+    } catch (error) {
+      return ticketMutationErrorResponse(res, error, "TICKET_CLAIM_FAILED", "Unable to claim the Ticket.");
+    }
+  });
+
+  app.patch("/api/staff/tickets/:ticketId/owner", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    if (!requireRequestCsrf(req, res)) return;
+    if (rejectMutationQuery(req, res)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive PostgreSQL integer.");
+    const parsed = validateOwnerBody(req.body);
+    if (!parsed.input) return mutationValidationResponse(res, parsed.fieldErrors);
+    const actorId = authenticatedUser(req).id;
+    const { ticketOwnerId, expectedVersion } = parsed.input;
+
+    try {
+      const detail = await prisma.$transaction(async (tx) => {
+        for (const accountId of [...new Set([actorId, ticketOwnerId])].sort((a, b) => a - b)) {
+          await lockAccountSafety(tx, accountId);
+        }
+        const actor = await tx.requesterUser.findFirst({
+          where: { id: actorId, isActive: true, role: { in: operationalRoles } },
+          select: { id: true },
+        });
+        if (!actor) throw new TicketMutationError("ROLE_FORBIDDEN");
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
+        const current = await tx.ticket.findFirst({
+          where: { id: ticketId },
+          select: { id: true, version: true, currentStatus: true, ticketOwnerId: true },
+        });
+        if (!current) throw new TicketMutationError("RESOURCE_NOT_FOUND");
+        if (current.version !== expectedVersion) throw new TicketMutationError("VERSION_CONFLICT");
+        if (isTerminalTicketStatus(current.currentStatus)) throw new TicketMutationError("TICKET_TERMINAL");
+        const target = await tx.requesterUser.findFirst({
+          where: { id: ticketOwnerId, isActive: true, role: { in: operationalRoles } },
+          select: { id: true },
+        });
+        if (!target) throw new TicketMutationError("ASSIGNEE_INVALID");
+        const decision = ownerMutationDecision(current.ticketOwnerId, ticketOwnerId);
+        if (decision !== "NO_OP") {
+          const now = new Date();
+          const updated = await tx.ticket.updateMany({
+            where: { id: ticketId, version: expectedVersion },
+            data: { ticketOwnerId, version: { increment: 1 }, updatedAt: now },
+          });
+          if (updated.count !== 1) throw new TicketMutationError("VERSION_CONFLICT");
+          await tx.ticketOwnerChange.create({
+            data: {
+              ticketId,
+              previousOwnerId: current.ticketOwnerId,
+              nextOwnerId: ticketOwnerId,
+              actorId,
+              changedAt: now,
+              reason: decision,
+            },
+          });
+        }
+        const saved = await tx.ticket.findFirst({ where: { id: ticketId }, select: ticketDetailSelect });
+        if (!saved) throw new TicketMutationError("RESOURCE_NOT_FOUND");
+        return saved;
+      });
+      return res.status(200).json(ticketDetailResponse(detail));
+    } catch (error) {
+      return ticketMutationErrorResponse(res, error, "TICKET_OWNER_UPDATE_FAILED", "Unable to update the Ticket owner.");
+    }
+  });
+
+  app.patch("/api/staff/tickets/:ticketId/it-priority", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    if (!requireRequestCsrf(req, res)) return;
+    if (rejectMutationQuery(req, res)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive PostgreSQL integer.");
+    const parsed = validatePriorityBody(req.body);
+    if (!parsed.input) return mutationValidationResponse(res, parsed.fieldErrors);
+    const { itPriority, expectedVersion } = parsed.input;
+    const actorId = authenticatedUser(req).id;
+
+    try {
+      const detail = await prisma.$transaction(async (tx) => {
+        await lockAccountSafety(tx, actorId);
+        const actor = await tx.requesterUser.findFirst({
+          where: { id: actorId, isActive: true, role: { in: operationalRoles } },
+          select: { id: true },
+        });
+        if (!actor) throw new TicketMutationError("ROLE_FORBIDDEN");
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
+        const current = await tx.ticket.findFirst({
+          where: { id: ticketId },
+          select: { id: true, version: true, currentStatus: true, itPriority: true },
+        });
+        if (!current) throw new TicketMutationError("RESOURCE_NOT_FOUND");
+        if (current.version !== expectedVersion) throw new TicketMutationError("VERSION_CONFLICT");
+        if (isTerminalTicketStatus(current.currentStatus)) throw new TicketMutationError("TICKET_TERMINAL");
+        if (current.itPriority !== itPriority) {
+          const updated = await tx.ticket.updateMany({
+            where: { id: ticketId, version: expectedVersion },
+            data: { itPriority, version: { increment: 1 }, updatedAt: new Date() },
+          });
+          if (updated.count !== 1) throw new TicketMutationError("VERSION_CONFLICT");
+        }
+        const saved = await tx.ticket.findFirst({ where: { id: ticketId }, select: ticketDetailSelect });
+        if (!saved) throw new TicketMutationError("RESOURCE_NOT_FOUND");
+        return saved;
+      });
+      return res.status(200).json(ticketDetailResponse(detail));
+    } catch (error) {
+      return ticketMutationErrorResponse(res, error, "TICKET_PRIORITY_UPDATE_FAILED", "Unable to update the Ticket IT Priority.");
+    }
+  });
+
+  app.patch("/api/staff/tickets/:ticketId/status", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    if (!requireRequestCsrf(req, res)) return;
+    if (rejectMutationQuery(req, res)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive PostgreSQL integer.");
+    const parsed = validateStatusBody(req.body);
+    if (!parsed.input) return mutationValidationResponse(res, parsed.fieldErrors);
+    const input = parsed.input;
+    const actorId = authenticatedUser(req).id;
+
+    try {
+      const detail = await prisma.$transaction(async (tx) => {
+        await lockAccountSafety(tx, actorId);
+        const actor = await tx.requesterUser.findFirst({
+          where: { id: actorId, isActive: true, role: { in: operationalRoles } },
+          select: { id: true },
+        });
+        if (!actor) throw new TicketMutationError("ROLE_FORBIDDEN");
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
+        const current = await tx.ticket.findFirst({
+          where: { id: ticketId },
+          select: { id: true, version: true, currentStatus: true, resolutionSummary: true },
+        });
+        if (!current) throw new TicketMutationError("RESOURCE_NOT_FOUND");
+        if (current.version !== input.expectedVersion) throw new TicketMutationError("VERSION_CONFLICT");
+        if (!canTransitionStatus(current.currentStatus, input.currentStatus)) {
+          throw new TicketMutationError("STATUS_TRANSITION_INVALID");
+        }
+        if (input.currentStatus === "CLOSED" && !current.resolutionSummary) {
+          throw new TicketMutationError("STATUS_TRANSITION_INVALID");
+        }
+        const updated = await tx.ticket.updateMany({
+          where: { id: ticketId, version: input.expectedVersion },
+          data: statusMutationData(input.currentStatus, input, new Date()),
+        });
+        if (updated.count !== 1) throw new TicketMutationError("VERSION_CONFLICT");
+        const saved = await tx.ticket.findFirst({ where: { id: ticketId }, select: ticketDetailSelect });
+        if (!saved) throw new TicketMutationError("RESOURCE_NOT_FOUND");
+        return saved;
+      });
+      return res.status(200).json(ticketDetailResponse(detail));
+    } catch (error) {
+      return ticketMutationErrorResponse(res, error, "TICKET_STATUS_UPDATE_FAILED", "Unable to update the Ticket status.");
     }
   });
 

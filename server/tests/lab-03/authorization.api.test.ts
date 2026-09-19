@@ -64,7 +64,9 @@ function makePrisma(role: UserRole = "REQUESTER", options: { nonOwned?: boolean;
 
   const transaction: any = {
     requesterUser: {
-      findFirst: vi.fn().mockResolvedValue(ticket.requester),
+      findFirst: vi.fn(async (args: any) => args.where?.id
+        ? { id: args.where.id, name: user.name, email: user.email, role: user.role, isActive: true }
+        : ticket.requester),
       findMany: vi.fn().mockResolvedValue([{ id: 10, name: "IT Staff", email: "staff@example.test", role: "IT_STAFF" }]),
     },
     category: {
@@ -80,24 +82,24 @@ function makePrisma(role: UserRole = "REQUESTER", options: { nonOwned?: boolean;
       findFirst: vi.fn(async (args: any) => {
         if (options.nonOwned && args.where?.requesterId !== undefined) return null;
         if (args.select?.version && !args.select?.ticketNumber) {
-          return {
-            id: ticket.id,
-            version: ticket.version,
-            currentStatus: ticket.currentStatus,
-            requesterResolvedAt: ticket.requesterResolvedAt,
-          };
+          return { ...ticket };
         }
         if (args.select?.ticketNumber) return ticket;
         return { id: ticket.id };
       }),
       create: vi.fn(async () => ticket),
-      updateMany: vi.fn(async () => {
-        ticket.requesterResolvedAt = new Date("2026-09-18T01:00:00.000Z");
-        ticket.requesterResolved = ticket.requester;
-        ticket.version += 1;
+      updateMany: vi.fn(async ({ data }: any) => {
+        for (const [key, value] of Object.entries(data)) {
+          if (key === "version") ticket.version += (value as { increment: number }).increment;
+          else if (key === "requesterResolvedAt" && value instanceof Date) ticket.requesterResolvedAt = new Date("2026-09-18T01:00:00.000Z");
+          else ticket[key] = value;
+        }
+        if (data.ticketOwnerId) ticket.owner = { id: data.ticketOwnerId, name: user.name, email: user.email, role: user.role };
+        if (data.requesterResolvedById) ticket.requesterResolved = ticket.requester;
         return { count: 1 };
       }),
     },
+    ticketOwnerChange: { create: vi.fn().mockResolvedValue({ id: 1 }) },
     attachment: {
       findMany: vi.fn().mockResolvedValue([]),
       findFirst: vi.fn().mockResolvedValue(null),
@@ -141,6 +143,7 @@ function authenticated(application: ReturnType<typeof createApp>) {
   return {
     get: (path: string) => request(application).get(path).set("Cookie", cookie),
     post: (path: string) => request(application).post(path).set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken),
+    patch: (path: string) => request(application).patch(path).set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken),
     delete: (path: string) => request(application).delete(path).set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken),
   };
 }
@@ -239,6 +242,22 @@ describe("Lab 3 authorization and Requester regression", () => {
       { name: "staff queue GET", allowed: ["IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/staff/tickets") : request(app).get("/api/staff/tickets")) },
       { name: "eligible owners GET", allowed: ["IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/staff/ticket-owners") : request(app).get("/api/staff/ticket-owners")) },
       { name: "staff ticket detail GET", allowed: ["IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/staff/tickets/42") : request(app).get("/api/staff/tickets/42")) },
+      { name: "staff ticket claim POST", allowed: ["IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => {
+        const call = auth ? authenticated(app).post("/api/staff/tickets/42/claim") : request(app).post("/api/staff/tickets/42/claim");
+        return call.send({ expectedVersion: 1 });
+      } },
+      { name: "staff ticket owner PATCH", allowed: ["IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => {
+        const call = auth ? authenticated(app).patch("/api/staff/tickets/42/owner") : request(app).patch("/api/staff/tickets/42/owner");
+        return call.send({ ticketOwnerId: 10, expectedVersion: 1 });
+      } },
+      { name: "staff ticket IT Priority PATCH", allowed: ["IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => {
+        const call = auth ? authenticated(app).patch("/api/staff/tickets/42/it-priority") : request(app).patch("/api/staff/tickets/42/it-priority");
+        return call.send({ itPriority: "HIGH", expectedVersion: 1 });
+      } },
+      { name: "staff ticket status PATCH", allowed: ["IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => {
+        const call = auth ? authenticated(app).patch("/api/staff/tickets/42/status") : request(app).patch("/api/staff/tickets/42/status");
+        return call.send({ currentStatus: "IN_PROGRESS", expectedVersion: 1 });
+      } },
       { name: "ticket detail GET", allowed: ["REQUESTER"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42") : request(app).get("/api/tickets/42")) },
       { name: "attachment list GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/attachments") : request(app).get("/api/tickets/42/attachments")) },
       { name: "attachment download GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 404, errorCode: "RESOURCE_NOT_FOUND" }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/attachments/1/download") : request(app).get("/api/tickets/42/attachments/1/download")) },
