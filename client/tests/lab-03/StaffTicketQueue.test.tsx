@@ -160,7 +160,8 @@ describe("UI-05 Staff Ticket Queue", () => {
     await waitFor(() => expect(queue).toHaveBeenLastCalledWith(expect.objectContaining({ search: "mailbox", owner: 11, page: 1 })));
     fireEvent.click(screen.getAllByRole("button", { name: "Open TKT-2026-000059" })[0]);
     expect(await screen.findByRole("heading", { name: "Ticket Detail" })).toBeInTheDocument();
-    expect(screen.getByText(/reserved for Issues #62 and #75/)).toBeInTheDocument();
+    expect(screen.getByText(/operational read model is available from Issue #62/)).toBeInTheDocument();
+    expect(screen.getByText(/integrated Staff Detail UI and workflow controls remain reserved for Issue #75/)).toBeInTheDocument();
     expect(api.getStaffTickets).toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "← Back to Queue" }));
     expect(await screen.findByRole("heading", { name: "Ticket Queue" })).toBeInTheDocument();

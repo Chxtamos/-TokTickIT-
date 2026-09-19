@@ -42,7 +42,7 @@ Server contract paths: server/tests/lab-03/*.test.ts. UI paths follow this repo'
 | API-17 | API | AC-11 | Development Requester endpoint404; headers supply no identity; runtime client helper/key removed | server/tests/lab-03/authorization.api.test.ts | Passed endpoint retirement/default runtime denial in Server CI run [35324254818](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35324254818); legacy E2E adapter is CI-only until UI issues remove the old client helper |
 | API-18 | API/PostgreSQL | AC-12 | Shared queue search/each combined filter, mine/unassigned/specific owner, sort priority/ties and accurate pagination | server/tests/lab-03/staff-queue.api.test.ts | Mock/API coverage passed locally 2026-09-19; 2 real PostgreSQL tests were skipped locally because the required isolated `TEST_DATABASE_URL`/`RUN_DB_INTEGRATION=1` were not configured, then passed in exact implementation HEAD `1a1c72a` Server CI run `35437113287` within the full 22-file / 127-test pass. |
 | API-19 | API | AC-12 | Unknown/repeated/invalid query400, empty/beyond-end page200 accurate metadata, no Requester access | server/tests/lab-03/staff-queue.api.test.ts | Passed locally 2026-09-19 within 12 runnable mock/API tests; includes role-first denial and eligible-owner authorization/projection coverage. |
-| API-20 | API | AC-14 | Detail exact DTO/read-only submitted values/owner/indication/resolution/file continuity; missing404; wrong role403 | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned / Not run |
+| API-20 | API | AC-14 | Detail exact DTO/read-only submitted values/owner/indication/resolution/file continuity; missing404; wrong role403 | server/tests/lab-03/staff-ticket-detail.api.test.ts | Passed locally 2026-09-19: 7 focused tests for IT Staff/Admin exact DTO projection, Attachment continuity, missing404, Requester role-first403, invalid IDs, unsupported-query400 and safe500; authorization matrix also covers the Staff detail route. Hosted CI pending until push. |
 | API-21 | API/PostgreSQL | AC-15 | Claim self, already-self no-op, other owner409, eligible assign/reassign with ASSIGNED/REASSIGNED provenance; null/manual-unassign400, invalid/inactive target400 and terminal staff mutation409 | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned / Not run |
 | API-22 | API/PostgreSQL | AC-15, AC-16, AC-17, AC-18 | Competing owner/priority/status/indication writes: one version wins; losers409/no partial mutation; no-op rules | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned / Not run |
 | API-23 | API | AC-16 | IT Priority changes independently; invalid enum400; unchanged no-op; Requester403; terminal/stale409 | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned / Not run |
@@ -116,6 +116,18 @@ Issue #59 implements only the shared Staff Queue API/UI and eligible-owner read 
 
 The Queue tests exercise labelled controls, text-bearing badges, live/busy semantics, desktop/mobile-equivalent content, safe failures and keyboard/touch-native controls. This is #59-scoped automated evidence only: full STYLE-01, A11Y-01, responsive/manual visual verification and E2E-03 remain incomplete and are not claimed.
 
+### Issue #62 local execution record - 2026-09-19
+
+Issue #62 implements only the operational Ticket Detail read model from umbrella #58. `GET /api/staff/tickets/:ticketId` is role-limited to IT Staff/Administrator, reads any Ticket without owner scoping, reuses the exact safe TicketDetail projection and Attachment continuity, and does not embed conversations/Internal Notes or add workflow mutations. The existing Staff Detail route remains a safe placeholder; integrated controls/UI stay owned by #75.
+
+| Command | Observed result |
+| --- | --- |
+| `npm --prefix server test` | Passed runnable suites: 15 files / 118 tests. Skipped: 8 PostgreSQL integration files / 16 tests because this local run did not set the required isolated `TEST_DATABASE_URL` and `RUN_DB_INTEGRATION=1`; no skip is claimed as a pass. |
+| `npm --prefix server run build` | Passed: TypeScript build. |
+| `npm --prefix client test` | Passed: 12 files / 75 tests; 0 failed/skipped, including the updated Queue placeholder regression. |
+| `npm --prefix client run build` | Passed: TypeScript and Vite production build. |
+| `cd client && npx playwright test --list` | Passed discovery: 16 tests in 6 files. No new browser scenario is claimed for #62 because integrated Staff Detail UI/E2E remain #75. |
+| Hosted CI | Pending until this branch is pushed. |
 ### Current Issue mapping — 2026-09-19
 
 The original Test IDs remain stable while implementation uses one Issue, one feature branch and one peer-reviewed PR per stage:
@@ -125,7 +137,7 @@ The original Test IDs remain stable while implementation uses one Issue, one fea
 | #56 | Authenticated shell and Requester experience | UI-01-04 and UI-07 Requester indication implemented; A11Y-01 partial; E2E-01 hosted pass on `7da6714`; E2E-02 Requester identity/resolution portion plus adapted Lab 2 regression hosted pass on `7da6714`, while Public Comments remain owned by #61 so the full E2E-02 row stays partial |
 | #58 umbrella | Staff operations tracker only | Child Issues #59/#62/#60/#61/#75 own implementation evidence |
 | #59 | Staff Queue API/UI | UNIT-04, API-19 and UI-05 passed locally; API-18 PostgreSQL cases passed in hosted Server CI `35437113287`; both focused Queue-only Playwright tests passed in hosted E2E CI `35437113307`, without claiming full E2E-03 |
-| #62 | Operational Ticket Detail | API-20 pending |
+| #62 | Operational Ticket Detail | API-20 passed locally; exact operational TicketDetail projection and Attachment continuity implemented, while mutations/conversations/integrated UI remain #60/#61/#75 |
 | #60 | Ownership, priority and Workflow API | UNIT-03, API-21-25/22, DB-04 pending |
 | #61 | Public Comments/Internal Notes APIs | UNIT-06, API-08/27/28/34 pending |
 | #75 | Staff Detail/UI integration | UI-06/07, STYLE-01, A11Y-01, E2E-03 pending |

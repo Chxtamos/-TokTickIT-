@@ -367,7 +367,7 @@ function StaffTicketQueueScreen({ initialQuery, onQueryChange, onOpen }: { initi
 }
 
 function StaffTicketPlaceholder({ ticketId, onBack }: { ticketId: number; onBack: () => void }) {
-  return <main className="shell-content detail-page"><button type="button" className="back-button" onClick={onBack}>← Back to Queue</button><p className="eyebrow">Shared IT workspace</p><h1>Ticket Detail</h1><div className="context-card" role="status"><p>Ticket ID {ticketId}</p><p>The operational Ticket Detail is intentionally reserved for Issues #62 and #75. No detail data or workflow controls are loaded on this route yet.</p></div></main>;
+  return <main className="shell-content detail-page"><button type="button" className="back-button" onClick={onBack}>← Back to Queue</button><p className="eyebrow">Shared IT workspace</p><h1>Ticket Detail</h1><div className="context-card" role="status"><p>Ticket ID {ticketId}</p><p>The operational read model is available from Issue #62; the integrated Staff Detail UI and workflow controls remain reserved for Issue #75.</p></div></main>;
 }
 
 type PendingAttachment = { id: string; file: File; status: "queued" | "uploading" | "error"; error: string | null; canUpload: boolean };
