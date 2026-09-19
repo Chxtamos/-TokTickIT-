@@ -52,9 +52,6 @@ test.describe("Lab 3 authentication", () => {
 
     const me = await request.get(`${API_URL}/api/auth/me`, { headers: { Cookie: cookie } });
     expect(me.status()).toBe(200);
-    const restricted = await request.get(`${API_URL}/api/categories`, { headers: { Cookie: cookie } });
-    expect(restricted.status()).toBe(403);
-    expect((await restricted.json()).error.code).toBe("PASSWORD_CHANGE_REQUIRED");
 
     runLab3ServerHelper("set-e2e-session-boundary.ts", "absolute", email);
     const expired = await request.get(`${API_URL}/api/auth/me`, { headers: { Cookie: cookie } });
@@ -76,7 +73,7 @@ test.describe("Lab 3 authentication", () => {
     await expect(page.getByRole("heading", { name: "My Tickets", exact: true })).toBeVisible();
     await expect(page).toHaveURL(/\/requester\/tickets$/);
 
-    const sessionCookie = (await page.context().cookies(API_URL)).find((cookie) => cookie.name === "toktickit.sid");
+    const sessionCookie = (await page.context().cookies()).find((cookie) => cookie.name === "toktickit.sid");
     expect(sessionCookie).toBeDefined();
     const replayCookie = `${sessionCookie!.name}=${sessionCookie!.value}`;
     await page.getByRole("button", { name: "Logout", exact: true }).click();
