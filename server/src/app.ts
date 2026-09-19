@@ -463,7 +463,7 @@ function attachmentResponse(attachment: AttachmentRecord, ticketId: number) {
 function parsePositiveId(value: string): number | null {
   if (!/^[1-9]\d*$/.test(value)) return null;
   const parsed = Number(value);
-  return Number.isSafeInteger(parsed) ? parsed : null;
+  return Number.isSafeInteger(parsed) && parsed <= 2_147_483_647 ? parsed : null;
 }
 
 function sanitizeAttachmentName(originalName: string): string {
@@ -678,6 +678,35 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       });
     } catch {
       return errorResponse(res, 500, "STAFF_QUEUE_FAILED", "Unable to load the Ticket Queue.");
+    }
+  });
+
+  app.get("/api/staff/tickets/:ticketId", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+
+    const unsupported = Object.keys(req.query);
+    if (unsupported.length > 0) {
+      return errorResponse(
+        res,
+        400,
+        "VALIDATION_FAILED",
+        "This endpoint does not accept query parameters.",
+        Object.fromEntries(unsupported.map((field) => [field, ["This query parameter is not supported."]])),
+      );
+    }
+
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) return errorResponse(res, 400, "INVALID_TICKET_ID", "Ticket ID must be a positive integer.");
+
+    try {
+      const ticket = await prisma.ticket.findFirst({
+        where: { id: ticketId },
+        select: ticketDetailSelect,
+      });
+      if (!ticket) return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Ticket not found.");
+      return res.status(200).json(ticketDetailResponse(ticket));
+    } catch {
+      return errorResponse(res, 500, "TICKET_DETAIL_FAILED", "Unable to load Ticket details.");
     }
   });
 
