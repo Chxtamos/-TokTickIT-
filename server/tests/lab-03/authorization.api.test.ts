@@ -107,6 +107,29 @@ function makePrisma(role: UserRole = "REQUESTER", options: { nonOwned?: boolean;
       create: vi.fn(),
       update: vi.fn(),
     },
+    publicComment: {
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn(async ({ data }: any) => ({
+        id: 1,
+        ...data,
+        author: { id: user.id, name: user.name, role: user.role },
+      })),
+    },
+    internalNote: {
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn(async ({ data }: any) => ({
+        id: 1,
+        ...data,
+        author: { id: user.id, name: user.name, role: user.role },
+      })),
+    },
+    $executeRaw: vi.fn(async (_query: TemplateStringsArray, ...values: unknown[]) => {
+      const [candidate, ticketId, requesterId] = values as [Date, number, number?];
+      if (ticketId !== ticket.id) return 0;
+      if (options.nonOwned && requesterId !== undefined) return 0;
+      ticket.updatedAt = new Date(Math.max(ticket.updatedAt.getTime(), candidate.getTime()));
+      return 1;
+    }),
     $queryRaw: vi.fn().mockResolvedValue([{ nextval: 42n }]),
   };
   const prisma = {
@@ -281,6 +304,16 @@ describe("Lab 3 authorization and Requester regression", () => {
         if (auth) call.set("Cookie", cookie).set("Origin", origin).set("X-CSRF-Token", csrfToken);
         return call.send({ expectedVersion: 1 });
       } },
+      { name: "public comments GET", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/comments") : request(app).get("/api/tickets/42/comments")) },
+      { name: "public comments POST", allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 201 }, run: (app, auth) => {
+        const call = auth ? authenticated(app).post("/api/tickets/42/comments") : request(app).post("/api/tickets/42/comments");
+        return call.send({ content: "Public matrix comment" });
+      } },
+      { name: "internal notes GET", allowed: ["IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 200 }, run: (app, auth) => (auth ? authenticated(app).get("/api/tickets/42/internal-notes") : request(app).get("/api/tickets/42/internal-notes")) },
+      { name: "internal notes POST", allowed: ["IT_STAFF", "ADMINISTRATOR"], expectedAllowed: { status: 201 }, run: (app, auth) => {
+        const call = auth ? authenticated(app).post("/api/tickets/42/internal-notes") : request(app).post("/api/tickets/42/internal-notes");
+        return call.send({ content: "Private matrix note" });
+      } },
     ];
 
     for (const entry of cases) {
@@ -310,10 +343,10 @@ describe("Lab 3 authorization and Requester regression", () => {
     }
   });
 
-  it("tests the current Internal Note authorization stub without claiming unimplemented Staff/Admin success", async () => {
+  it("enforces real Internal Note authorization and permits Staff/Admin endpoints", async () => {
     for (const method of ["get", "post"] as const) {
       const anonymousFixture = makePrisma("REQUESTER");
-      const anonymousCall = request(createApp(anonymousFixture.prisma))[method]("/api/tickets/42/notes");
+      const anonymousCall = request(createApp(anonymousFixture.prisma))[method]("/api/tickets/42/internal-notes");
       const anonymous = method === "post" ? await anonymousCall.send({ content: "private" }) : await anonymousCall;
       expect(anonymous.status, `internal notes ${method} anonymous`).toBe(401);
       expect(anonymous.body.error.code).toBe("SESSION_REQUIRED");
@@ -322,8 +355,8 @@ describe("Lab 3 authorization and Requester regression", () => {
         const restrictedFixture = makePrisma(role, { restricted: true });
         const restrictedApp = createApp(restrictedFixture.prisma);
         const restricted = method === "get"
-          ? await authenticated(restrictedApp).get("/api/tickets/42/notes")
-          : await authenticated(restrictedApp).post("/api/tickets/42/notes").send({ content: "private" });
+          ? await authenticated(restrictedApp).get("/api/tickets/42/internal-notes")
+          : await authenticated(restrictedApp).post("/api/tickets/42/internal-notes").send({ content: "private" });
         expect(restricted.status, `internal notes ${method} ${role} restricted`).toBe(403);
         expect(restricted.body.error.code).toBe("PASSWORD_CHANGE_REQUIRED");
       }
@@ -331,10 +364,19 @@ describe("Lab 3 authorization and Requester regression", () => {
       const requesterFixture = makePrisma("REQUESTER");
       const requesterApp = createApp(requesterFixture.prisma);
       const requesterResponse = method === "get"
-        ? await authenticated(requesterApp).get("/api/tickets/42/notes")
-        : await authenticated(requesterApp).post("/api/tickets/42/notes").send({ content: "private" });
+        ? await authenticated(requesterApp).get("/api/tickets/42/internal-notes")
+        : await authenticated(requesterApp).post("/api/tickets/42/internal-notes").send({ content: "private" });
       expect(requesterResponse.status).toBe(403);
       expect(requesterResponse.body.error.code).toBe("ROLE_FORBIDDEN");
+
+      for (const role of ["IT_STAFF", "ADMINISTRATOR"] as const) {
+        const fixture = makePrisma(role);
+        const application = createApp(fixture.prisma);
+        const response = method === "get"
+          ? await authenticated(application).get("/api/tickets/42/internal-notes")
+          : await authenticated(application).post("/api/tickets/42/internal-notes").send({ content: "private" });
+        expect(response.status, `${method} ${role}`).toBe(method === "get" ? 200 : 201);
+      }
     }
   });
 
@@ -371,8 +413,8 @@ describe("Lab 3 authorization and Requester regression", () => {
     expect(retired.status).toBe(404);
     expect(retired.body.error.code).toBe("RESOURCE_NOT_FOUND");
 
-    const getNotes = await authenticated(application).get("/api/tickets/999999/notes");
-    const postNotes = await authenticated(application).post("/api/tickets/999999/notes").send({ content: "private" });
+    const getNotes = await authenticated(application).get("/api/tickets/999999/internal-notes");
+    const postNotes = await authenticated(application).post("/api/tickets/999999/internal-notes").send({ content: "private" });
     expect(getNotes.status).toBe(403);
     expect(postNotes.status).toBe(403);
     expect(getNotes.body.error.code).toBe("ROLE_FORBIDDEN");

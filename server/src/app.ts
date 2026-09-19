@@ -32,14 +32,25 @@ import {
   validatePriorityBody,
   validateStatusBody,
 } from "./ticket-workflow.js";
+import {
+  ConversationResourceNotFoundError,
+  createInternalNote,
+  createPublicComment,
+  listInternalNotes,
+  listPublicComments,
+  validateConversationBody,
+  type ConversationPrisma,
+} from "./conversation.js";
 
 export type ReferenceDataPrisma = Pick<
   PrismaClient,
-  "category" | "relatedSystem" | "requesterUser" | "ticket" | "attachment" | "ticketOwnerChange" | "$transaction" | "$queryRaw"
+  "category" | "relatedSystem" | "requesterUser" | "ticket" | "attachment" | "ticketOwnerChange" | "publicComment" | "internalNote" | "$transaction" | "$queryRaw"
 >;
 
 const requestedPriorities = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 const operationalRoles: UserRole[] = ["IT_STAFF", "ADMINISTRATOR"];
+const parsedJsonBody = Symbol("parsedJsonBody");
+type ParsedJsonRequest = Request & { [parsedJsonBody]?: true };
 const ticketBodyFields = new Set([
   "clientRequestId",
   "categoryId",
@@ -557,6 +568,53 @@ function mutationValidationResponse(res: Response, fieldErrors: Record<string, s
   );
 }
 
+function conversationValidationResponse(res: Response, fieldErrors: Record<string, string[]>) {
+  return errorResponse(
+    res,
+    400,
+    "VALIDATION_FAILED",
+    "Please correct the highlighted fields.",
+    fieldErrors,
+  );
+}
+
+function rejectConversationParameters(req: Request, res: Response, allowContentBody: boolean): boolean {
+  const fieldErrors: Record<string, string[]> = {};
+  for (const field of Object.keys(req.query)) {
+    fieldErrors[field] = ["This query parameter is not supported."];
+  }
+
+  if (!allowContentBody && (req as ParsedJsonRequest)[parsedJsonBody]) {
+    fieldErrors.body = ["This endpoint does not accept a request body."];
+  }
+
+  if (Object.keys(fieldErrors).length === 0) return false;
+  conversationValidationResponse(res, fieldErrors);
+  return true;
+}
+
+function conversationFailureResponse(res: Response, error: unknown) {
+  if (error instanceof ConversationResourceNotFoundError) {
+    return errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Resource not found.");
+  }
+  return errorResponse(
+    res,
+    500,
+    "INTERNAL_ERROR",
+    "Unable to complete this request. Please try again.",
+  );
+}
+
+function methodNotAllowed(res: Response) {
+  res.setHeader("Allow", "GET, POST");
+  return errorResponse(
+    res,
+    405,
+    "METHOD_NOT_ALLOWED",
+    "This method is not allowed for this resource.",
+  );
+}
+
 export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Express {
   const app = express();
 
@@ -572,7 +630,12 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       : ["Content-Type", "X-CSRF-Token"],
     exposedHeaders: ["Retry-After", "Content-Disposition"],
   }));
-  app.use(express.json({ limit: "64kb" }));
+  app.use(express.json({
+    limit: "64kb",
+    verify: (req, _res, buffer) => {
+      if (buffer.length > 0) (req as ParsedJsonRequest)[parsedJsonBody] = true;
+    },
+  }));
 
   registerAuthRoutes(app, prisma as unknown as AuthPrisma);
   app.use("/api/tickets", (_req, res, next) => {
@@ -1466,23 +1529,112 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     },
   );
 
-  const protectInternalNotes = (
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    if (req.auth?.user.role === "REQUESTER") {
-      return errorResponse(
-        res,
-        403,
-        "ROLE_FORBIDDEN",
-        "This account is not permitted to access Internal Notes.",
-      );
+  app.get("/api/tickets/:ticketId/comments", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, ["REQUESTER", ...operationalRoles])) return;
+    if (rejectConversationParameters(req, res, false)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        ticketId: ["Ticket ID must be a positive PostgreSQL integer."],
+      });
     }
-    return next();
-  };
-  app.get("/api/tickets/:ticketId/notes", protectInternalNotes);
-  app.post("/api/tickets/:ticketId/notes", protectInternalNotes);
+
+    const user = authenticatedUser(req);
+    try {
+      const items = await listPublicComments(
+        prisma as unknown as ConversationPrisma,
+        ticketId,
+        user.role === "REQUESTER" ? user.id : null,
+      );
+      return res.status(200).json({ items });
+    } catch (error) {
+      return conversationFailureResponse(res, error);
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/comments", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, ["REQUESTER", ...operationalRoles])) return;
+    if (!requireRequestCsrf(req, res)) return;
+    if (rejectConversationParameters(req, res, true)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        ticketId: ["Ticket ID must be a positive PostgreSQL integer."],
+      });
+    }
+    const validation = validateConversationBody(req.body);
+    if (!validation.input) return conversationValidationResponse(res, validation.fieldErrors);
+
+    const user = authenticatedUser(req);
+    try {
+      const entry = await createPublicComment(
+        prisma as unknown as ConversationPrisma,
+        ticketId,
+        user.role === "REQUESTER" ? user.id : null,
+        user.id,
+        validation.input.content,
+      );
+      return res.status(201).json({ entry });
+    } catch (error) {
+      return conversationFailureResponse(res, error);
+    }
+  });
+
+  app.get("/api/tickets/:ticketId/internal-notes", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    if (rejectConversationParameters(req, res, false)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        ticketId: ["Ticket ID must be a positive PostgreSQL integer."],
+      });
+    }
+
+    try {
+      const items = await listInternalNotes(prisma as unknown as ConversationPrisma, ticketId);
+      return res.status(200).json({ items });
+    } catch (error) {
+      return conversationFailureResponse(res, error);
+    }
+  });
+
+  app.post("/api/tickets/:ticketId/internal-notes", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    if (!requireRequestCsrf(req, res)) return;
+    if (rejectConversationParameters(req, res, true)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        ticketId: ["Ticket ID must be a positive PostgreSQL integer."],
+      });
+    }
+    const validation = validateConversationBody(req.body);
+    if (!validation.input) return conversationValidationResponse(res, validation.fieldErrors);
+
+    try {
+      const entry = await createInternalNote(
+        prisma as unknown as ConversationPrisma,
+        ticketId,
+        authenticatedUser(req).id,
+        validation.input.content,
+      );
+      return res.status(201).json({ entry });
+    } catch (error) {
+      return conversationFailureResponse(res, error);
+    }
+  });
+
+  app.all("/api/tickets/:ticketId/comments", (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, ["REQUESTER", ...operationalRoles])) return;
+    if (!requireRequestCsrf(req, res)) return;
+    return methodNotAllowed(res);
+  });
+
+  app.all("/api/tickets/:ticketId/internal-notes", (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    if (!requireRequestCsrf(req, res)) return;
+    return methodNotAllowed(res);
+  });
 
   app.use("/api", (_req: Request, res: Response) =>
     errorResponse(res, 404, "RESOURCE_NOT_FOUND", "Resource not found."),
