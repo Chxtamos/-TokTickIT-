@@ -22,7 +22,8 @@ test.describe("Issue #59 focused Staff Queue browser flow", () => {
     await expect(row).toHaveCount(1);
     await row.getByRole("button", { name: /Open TKT-2026-900011/ }).click();
     await expect(page.getByRole("heading", { name: "Ticket Detail", exact: true })).toBeVisible();
-    await expect(page.getByText(/reserved for Issues #62 and #75/)).toBeVisible();
+    await expect(page.getByText(/operational read model is available from Issue #62/)).toBeVisible();
+    await expect(page.getByText(/integrated Staff Detail UI and workflow controls remain reserved for Issue #75/)).toBeVisible();
     await page.getByRole("button", { name: "← Back to Queue" }).click();
     await expect(page.getByLabel("Ticket Number/Summary search")).toHaveValue("TKT-2026-900011");
   });
