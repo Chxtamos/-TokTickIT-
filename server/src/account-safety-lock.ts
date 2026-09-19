@@ -15,6 +15,6 @@ export async function lockAccountSafety(
   userId: number,
 ): Promise<void> {
   await transaction.$queryRaw(
-    Prisma.sql`SELECT pg_advisory_xact_lock(CAST(${ACCOUNT_SAFETY_LOCK_NAMESPACE} AS INTEGER), CAST(${userId} AS INTEGER))`,
+    Prisma.sql`SELECT 1 AS "locked" FROM (SELECT pg_advisory_xact_lock(CAST(${ACCOUNT_SAFETY_LOCK_NAMESPACE} AS INTEGER), CAST(${userId} AS INTEGER))) AS "account_lock"`,
   );
 }
