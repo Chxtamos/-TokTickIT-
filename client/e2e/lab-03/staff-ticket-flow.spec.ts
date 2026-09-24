@@ -15,13 +15,9 @@ async function loginStaff(page: Page) {
 
 async function openFixtureTicket(page: Page) {
   await page.getByLabel("Ticket Number/Summary search").fill(TICKET_NUMBER);
-  const row = page.locator(".staff-queue-table tbody tr").filter({ hasText: TICKET_NUMBER });
-  if (await row.isVisible().catch(() => false)) {
-    await row.getByRole("button", { name: `Open ${TICKET_NUMBER}` }).click();
-  } else {
-    const card = page.locator(".staff-queue-cards .ticket-card").filter({ hasText: TICKET_NUMBER });
-    await card.getByRole("button", { name: `Open ${TICKET_NUMBER}` }).click();
-  }
+  const openButton = page.getByRole("button", { name: `Open ${TICKET_NUMBER}`, exact: true });
+  await expect(openButton).toBeVisible();
+  await openButton.click();
   await expect(page.getByRole("heading", { name: TICKET_NUMBER, exact: true })).toBeVisible();
 }
 
@@ -59,15 +55,12 @@ test.describe("E2E-03 integrated Staff workflow", () => {
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe("staff-e2e.pdf");
 
-    await page.getByLabel("Public Comment").fill("E2E public update from Staff");
+    await page.getByRole("textbox", { name: "Public Comment", exact: true }).fill("E2E public update from Staff");
     await page.getByRole("button", { name: "Post Public Comment", exact: true }).click();
     await expect(page.getByText("Public Comment posted.", { exact: true })).toBeVisible();
     await expect(page.getByText("E2E public update from Staff", { exact: true })).toBeVisible();
-    await page.getByLabel("Public Comment").fill("E2E requester reply");
-    await page.getByRole("button", { name: "Post Public Comment", exact: true }).click();
-    await expect(page.getByText("E2E requester reply", { exact: true })).toBeVisible();
 
-    await page.getByLabel("Internal Note").fill("E2E private diagnostic note");
+    await page.getByRole("textbox", { name: "Internal Note", exact: true }).fill("E2E private diagnostic note");
     await page.getByRole("button", { name: "Save Internal Note", exact: true }).click();
     await expect(page.getByText("Internal Note saved.", { exact: true })).toBeVisible();
     await expect(page.getByText("E2E private diagnostic note", { exact: true })).toBeVisible();
@@ -88,7 +81,7 @@ test.describe("E2E-03 integrated Staff workflow", () => {
     await expect(page.getByText(/Closed Tickets cannot be assigned or reprioritized/)).toBeVisible();
     await expect(page.getByLabel("IT Priority")).toBeDisabled();
 
-    await page.getByLabel("Internal Note").fill("E2E terminal private note");
+    await page.getByRole("textbox", { name: "Internal Note", exact: true }).fill("E2E terminal private note");
     await page.getByRole("button", { name: "Save Internal Note", exact: true }).click();
     await expect(page.getByText("E2E terminal private note", { exact: true })).toBeVisible();
 
@@ -100,7 +93,7 @@ test.describe("E2E-03 integrated Staff workflow", () => {
     await requesterRow.getByRole("button", { name: "View Ticket", exact: true }).click();
     await expect(page.getByRole("heading", { name: TICKET_NUMBER, exact: true })).toBeVisible();
     await expect(page.getByText("E2E public update from Staff", { exact: true })).toBeVisible();
-    await page.getByLabel("Public Comment").fill("E2E requester reply");
+    await page.getByRole("textbox", { name: "Public Comment", exact: true }).fill("E2E requester reply");
     await page.getByRole("button", { name: "Post Public Comment", exact: true }).click();
     await expect(page.getByText("E2E requester reply", { exact: true })).toBeVisible();
     await expect(page.getByText("E2E private diagnostic note", { exact: true })).toHaveCount(0);
@@ -114,8 +107,8 @@ test.describe("E2E-03 integrated Staff workflow", () => {
     await openFixtureTicket(page);
     await expect(page.getByRole("heading", { name: "Operational Controls", exact: true })).toBeVisible();
     await expect(page.getByLabel("IT Priority")).toBeVisible();
-    await expect(page.getByLabel("Public Comment")).toBeVisible();
-    await expect(page.getByLabel("Internal Note")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Public Comment", exact: true })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Internal Note", exact: true })).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   });
