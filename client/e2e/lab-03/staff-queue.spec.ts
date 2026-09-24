@@ -14,17 +14,17 @@ async function loginStaff(page: Page) {
 test.describe("Issue #59 focused Staff Queue browser flow", () => {
   test.beforeEach(() => resetIsolatedE2EFixtures());
 
-  test("filters, opens the safe placeholder, and preserves the same-account query", async ({ page }) => {
+  test("filters, opens integrated detail, and preserves the same-account query", async ({ page }) => {
     await loginStaff(page);
     await expect(page.getByText(/matching Tickets?/)).toBeVisible();
     await page.getByLabel("Ticket Number/Summary search").fill("TKT-2026-900011");
     const row = page.locator(".staff-queue-table tbody tr").filter({ hasText: "TKT-2026-900011" });
     await expect(row).toHaveCount(1);
     await row.getByRole("button", { name: /Open TKT-2026-900011/ }).click();
-    await expect(page.getByRole("heading", { name: "Ticket Detail", exact: true })).toBeVisible();
-    await expect(page.getByText(/operational read model is available from Issue #62/)).toBeVisible();
-    await expect(page.getByText(/integrated Staff Detail UI and workflow controls remain reserved for Issue #75/)).toBeVisible();
-    await page.getByRole("button", { name: "← Back to Queue" }).click();
+    await expect(page.getByRole("heading", { name: "TKT-2026-900011", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Operational Controls", exact: true })).toBeVisible();
+    await expect(page.getByText("Visible to the Requester", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /Back to Queue/ }).click();
     await expect(page.getByLabel("Ticket Number/Summary search")).toHaveValue("TKT-2026-900011");
   });
 

@@ -310,3 +310,87 @@ export async function indicateResolution(ticketId: number, expectedVersion: numb
   if (!response.ok) return throwApiError(response, "Unable to save the resolution indication.");
   return await response.json() as TicketDetail;
 }
+
+export interface ConversationEntry {
+  id: number;
+  ticketId: number;
+  content: string;
+  author: { id: number; name: string; role: Role };
+  createdAt: string;
+}
+
+export interface StaffStatusUpdateInput {
+  currentStatus: TicketStatus;
+  expectedVersion: number;
+  resolutionSummary?: string;
+  reason?: string;
+}
+
+function assertTicketDetail(value: TicketDetail, fallback: string): TicketDetail {
+  if (!value || typeof value.id !== "number" || typeof value.ticketNumber !== "string" || !value.requester || !value.category || !value.relatedSystem || typeof value.summary !== "string" || typeof value.description !== "string" || !Array.isArray(value.attachments) || typeof value.version !== "number") {
+    throw new Error(fallback);
+  }
+  return value;
+}
+
+export async function getStaffTicketDetail(ticketId: number): Promise<TicketDetail> {
+  const response = await apiFetch(`/staff/tickets/${ticketId}`, {}, { authenticated: true });
+  if (!response.ok) return throwApiError(response, "Unable to load Staff Ticket Detail.");
+  return assertTicketDetail(await response.json() as TicketDetail, "TokTickIT API returned invalid Staff Ticket Detail data");
+}
+
+export async function claimStaffTicket(ticketId: number, expectedVersion: number): Promise<TicketDetail> {
+  const response = await apiFetch(`/staff/tickets/${ticketId}/claim`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedVersion }) }, { authenticated: true, csrf: true });
+  if (!response.ok) return throwApiError(response, "Unable to claim this Ticket.");
+  return assertTicketDetail(await response.json() as TicketDetail, "TokTickIT API returned invalid claimed Ticket data");
+}
+
+export async function assignStaffTicketOwner(ticketId: number, ticketOwnerId: number, expectedVersion: number): Promise<TicketDetail> {
+  const response = await apiFetch(`/staff/tickets/${ticketId}/owner`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticketOwnerId, expectedVersion }) }, { authenticated: true, csrf: true });
+  if (!response.ok) return throwApiError(response, "Unable to update the Ticket owner.");
+  return assertTicketDetail(await response.json() as TicketDetail, "TokTickIT API returned invalid owner update data");
+}
+
+export async function updateStaffTicketPriority(ticketId: number, itPriority: Priority, expectedVersion: number): Promise<TicketDetail> {
+  const response = await apiFetch(`/staff/tickets/${ticketId}/it-priority`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itPriority, expectedVersion }) }, { authenticated: true, csrf: true });
+  if (!response.ok) return throwApiError(response, "Unable to update IT Priority.");
+  return assertTicketDetail(await response.json() as TicketDetail, "TokTickIT API returned invalid priority update data");
+}
+
+export async function updateStaffTicketStatus(ticketId: number, input: StaffStatusUpdateInput): Promise<TicketDetail> {
+  const response = await apiFetch(`/staff/tickets/${ticketId}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }, { authenticated: true, csrf: true });
+  if (!response.ok) return throwApiError(response, "Unable to update Ticket status.");
+  return assertTicketDetail(await response.json() as TicketDetail, "TokTickIT API returned invalid status update data");
+}
+
+async function getConversationEntries(path: string, fallback: string): Promise<ConversationEntry[]> {
+  const response = await apiFetch(path, {}, { authenticated: true });
+  if (!response.ok) return throwApiError(response, fallback);
+  const body = await response.json() as { items?: ConversationEntry[] };
+  if (!body || !Array.isArray(body.items)) throw new Error("TokTickIT API returned invalid conversation data");
+  return body.items;
+}
+
+async function postConversationEntry(path: string, content: string, fallback: string): Promise<ConversationEntry> {
+  const response = await apiFetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) }, { authenticated: true, csrf: true });
+  if (!response.ok) return throwApiError(response, fallback);
+  const body = await response.json() as { entry?: ConversationEntry };
+  if (!body?.entry || typeof body.entry.id !== "number" || typeof body.entry.content !== "string") throw new Error("TokTickIT API returned invalid conversation entry data");
+  return body.entry;
+}
+
+export function getPublicComments(ticketId: number): Promise<ConversationEntry[]> {
+  return getConversationEntries(`/tickets/${ticketId}/comments`, "Unable to load Public Comments.");
+}
+
+export function postPublicComment(ticketId: number, content: string): Promise<ConversationEntry> {
+  return postConversationEntry(`/tickets/${ticketId}/comments`, content, "Unable to post Public Comment.");
+}
+
+export function getInternalNotes(ticketId: number): Promise<ConversationEntry[]> {
+  return getConversationEntries(`/tickets/${ticketId}/internal-notes`, "Unable to load Internal Notes.");
+}
+
+export function postInternalNote(ticketId: number, content: string): Promise<ConversationEntry> {
+  return postConversationEntry(`/tickets/${ticketId}/internal-notes`, content, "Unable to save Internal Note.");
+}
