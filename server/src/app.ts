@@ -20,6 +20,7 @@ import {
 } from "./auth.js";
 import { escapeLikeSearch, parseStaffQueueQuery, staffQueueOrderBy } from "./queue-query.js";
 import { lockAccountSafety } from "./account-safety-lock.js";
+import { registerAdminUserRoutes, type AdminPrisma } from "./admin-users.js";
 import {
   canTransitionStatus,
   claimDecision,
@@ -638,6 +639,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
   }));
 
   registerAuthRoutes(app, prisma as unknown as AuthPrisma);
+  registerAdminUserRoutes(app, prisma as unknown as AdminPrisma);
   app.use("/api/tickets", (_req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
     next();

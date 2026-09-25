@@ -213,7 +213,7 @@ function setCookie(
   );
 }
 
-function clearCookie(res: Response, req: Request) {
+export function clearSessionCookie(res: Response, req: Request) {
   const attributes = [
     `${COOKIE_NAME}=`,
     `Max-Age=0`,
@@ -584,7 +584,7 @@ export function registerAuthRoutes(app: Express, prisma: AuthPrisma): void {
     try {
       const context = await load(prisma, req, true);
       if (!context) {
-        clearCookie(res, req);
+        clearSessionCookie(res, req);
         return errorResponse(
           res,
           401,
@@ -620,7 +620,7 @@ export function registerAuthRoutes(app: Express, prisma: AuthPrisma): void {
     }
 
     if (!context) {
-      clearCookie(res, req);
+      clearSessionCookie(res, req);
       return errorResponse(
         res,
         401,
@@ -788,7 +788,7 @@ export function registerAuthRoutes(app: Express, prisma: AuthPrisma): void {
 
     const token = parseCookie(req.header("Cookie"), COOKIE_NAME);
     if (!token) {
-      clearCookie(res, req);
+      clearSessionCookie(res, req);
       return res.status(204).send();
     }
 
@@ -805,7 +805,7 @@ export function registerAuthRoutes(app: Express, prisma: AuthPrisma): void {
         }
       }
       await prisma.session.deleteMany({ where: { tokenHash } });
-      clearCookie(res, req);
+      clearSessionCookie(res, req);
       return res.status(204).send();
     } catch {
       return errorResponse(
@@ -868,7 +868,7 @@ export function registerAuthRoutes(app: Express, prisma: AuthPrisma): void {
     try {
       const context = await load(prisma, req, true);
       if (!context) {
-        clearCookie(res, req);
+        clearSessionCookie(res, req);
         return errorResponse(
           res,
           401,
