@@ -37,6 +37,8 @@ async function renderDetail(getDetail = vi.spyOn(api, "getTicketDetail").mockRes
   mockCurrentUser();
   vi.spyOn(api, "getCategories").mockResolvedValue([ticket.category]);
   vi.spyOn(api, "getRelatedSystems").mockResolvedValue([ticket.relatedSystem]);
+  vi.spyOn(api, "getPublicComments").mockResolvedValue([]);
+  vi.spyOn(api, "getInternalNotes");
   render(<App />);
   await screen.findByRole("table");
   fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "View Ticket" }));
@@ -63,7 +65,10 @@ describe("Requester Ticket Detail screen", () => {
     expect(screen.getByText("Removed · Duplicate file")).toBeInTheDocument();
     expect(screen.getByText(/Removed at/)).toBeInTheDocument();
     expect(screen.getByText("URGENT")).toHaveClass("readonly-value");
-    expect(screen.getByText("Public Comments are pending Issue #58 and are not available in this build.")).toBeInTheDocument();
+    expect(screen.getByText("Visible to the Requester")).toBeInTheDocument();
+    expect(await screen.findByText("No Public Comments yet.")).toBeInTheDocument();
+    expect(api.getInternalNotes).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: "Internal Notes" })).not.toBeInTheDocument();
     const removedRow = screen.getByText("old-photo.jpg").closest("li");
     expect(removedRow).not.toBeNull();
     expect(within(removedRow as HTMLElement).queryByRole("button", { name: "Download" })).not.toBeInTheDocument();

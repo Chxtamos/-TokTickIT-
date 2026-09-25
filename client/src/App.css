@@ -163,3 +163,35 @@ nav a:hover { text-decoration: underline; }
 @media (max-width: 600px) { .page-heading { flex-direction: column; } .page-heading .button-primary { width: 100%; } .ticket-filters, .queue-control-grid, .queue-sort-grid { grid-template-columns: 1fr; } .pagination { flex-wrap: wrap; } .detail-card { padding: 18px; } .detail-grid { grid-template-columns: 1fr; } .detail-wide { grid-column: auto; } }
 @media (max-width: 767px) { .tickets-table-wrap { display: none; } .tickets-cards { display: block; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }
+
+/* Lab 3 integrated Staff Detail */
+.staff-detail-page { max-width: 1040px; }
+.section-hint { margin: -8px 0 16px; color: var(--color-text-muted); font-size: 14px; }
+.operational-card { border-top: 4px solid var(--color-green-primary); }
+.operational-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.operational-grid fieldset { min-width: 0; margin: 0; padding: 18px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-page); }
+.operational-grid legend { padding: 0 6px; color: var(--color-green-primary); font-weight: 800; }
+.operational-grid label { margin-top: 12px; }
+.operational-grid select, .operational-grid textarea { display: block; width: 100%; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-text); }
+.operational-grid textarea { min-height: 110px; resize: vertical; }
+.operational-grid small { display: block; margin-top: 5px; color: var(--color-text-muted); font-size: 13px; font-weight: 400; }
+.operational-grid .button-primary { width: auto; margin-top: 14px; }
+.status-fieldset { grid-column: 1 / -1; }
+.inline-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.inline-actions .button-primary { margin-top: 0; }
+.conversation-card { position: relative; }
+.conversation-public { border-top: 4px solid var(--color-green-secondary); }
+.conversation-private { border: 2px solid #6b5c00; border-top-width: 4px; background: #fffdf2; }
+.conversation-heading { display: flex; justify-content: space-between; gap: 16px; }
+.conversation-heading h2 { margin-bottom: 4px; }
+.conversation-visibility { margin: 0 0 14px !important; color: var(--color-text-muted); font-weight: 700; }
+.conversation-private .conversation-visibility { color: #675500; }
+.conversation-list { display: grid; gap: 12px; margin: 0 0 20px; padding: 0; list-style: none; }
+.conversation-list li { padding: 14px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); }
+.conversation-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--color-text-muted); font-size: 13px; }
+.conversation-content { max-width: none !important; margin: 10px 0 0 !important; color: var(--color-text) !important; white-space: pre-wrap; overflow-wrap: anywhere; }
+.conversation-composer { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--color-border); }
+.conversation-composer textarea { display: block; width: 100%; min-height: 120px; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; resize: vertical; background: #fff; color: var(--color-text); }
+.conversation-composer small { display: block; margin-top: 5px; color: var(--color-text-muted); font-size: 13px; }
+.conversation-submit { width: auto; margin-top: 14px; }
+@media (max-width: 760px) { .operational-grid { grid-template-columns: 1fr; } .status-fieldset { grid-column: auto; } .inline-actions { flex-direction: column; } .inline-actions .button { width: 100%; } .conversation-submit { width: 100%; } }

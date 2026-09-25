@@ -24,6 +24,19 @@ const ticket: api.StaffTicketSummary = {
   updatedAt: "2026-09-18T09:00:00.000Z",
   requester: { id: 1, name: "Alice Requester", email: "alice@example.test", role: "REQUESTER" },
 };
+const detail: api.TicketDetail = {
+  ...ticket,
+  ticketDate: ticket.createdAt,
+  requester: ticket.requester,
+  description: "Operational detail fixture",
+  resolutionSummary: null,
+  resolvedAt: null,
+  closedAt: null,
+  lastStatusReason: null,
+  requesterResolvedAt: null,
+  requesterResolvedBy: null,
+  attachments: [],
+};
 const defaults: api.StaffQueueQuery = { search: "", categoryId: null, relatedSystemId: null, requestedPriority: null, itPriority: null, currentStatus: null, owner: "all", sortBy: "updatedAt", sortDirection: "desc", page: 1, pageSize: 10 };
 
 function response(overrides: Partial<api.StaffTicketListResponse> = {}): api.StaffTicketListResponse {
@@ -45,6 +58,9 @@ async function renderQueue(user: api.AuthUser = staff, queue = vi.spyOn(api, "ge
   setRoute("/staff/tickets");
   vi.spyOn(api, "getCurrentUser").mockResolvedValue({ user, csrfToken });
   mockReferences();
+  vi.spyOn(api, "getStaffTicketDetail").mockResolvedValue(detail);
+  vi.spyOn(api, "getPublicComments").mockResolvedValue([]);
+  vi.spyOn(api, "getInternalNotes").mockResolvedValue([]);
   render(<App />);
   await screen.findByRole("heading", { name: "Ticket Queue" });
   return queue;
@@ -152,18 +168,18 @@ describe("UI-05 Staff Ticket Queue", () => {
     await waitFor(() => expect(queue).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1 })));
   });
 
-  it("allows Administrator access and preserves same-account query through the safe detail placeholder", async () => {
+  it("allows Administrator access and preserves same-account query through integrated detail", async () => {
     const queue = await renderQueue(admin);
     expect(screen.getByRole("link", { name: "User Management" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Ticket Number/Summary search"), { target: { value: "mailbox" } });
     fireEvent.change(screen.getByLabelText("Owner"), { target: { value: "11" } });
     await waitFor(() => expect(queue).toHaveBeenLastCalledWith(expect.objectContaining({ search: "mailbox", owner: 11, page: 1 })));
     fireEvent.click(screen.getAllByRole("button", { name: "Open TKT-2026-000059" })[0]);
-    expect(await screen.findByRole("heading", { name: "Ticket Detail" })).toBeInTheDocument();
-    expect(screen.getByText(/operational read model is available from Issue #62/)).toBeInTheDocument();
-    expect(screen.getByText(/integrated Staff Detail UI and workflow controls remain reserved for Issue #75/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "TKT-2026-000059" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Operational Controls" })).toBeInTheDocument();
+    expect(screen.getByText("Visible to the Requester")).toBeInTheDocument();
     expect(api.getStaffTickets).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "← Back to Queue" }));
+    fireEvent.click(screen.getByRole("button", { name: /Back to Queue/ }));
     expect(await screen.findByRole("heading", { name: "Ticket Queue" })).toBeInTheDocument();
     expect(screen.getByLabelText("Ticket Number/Summary search")).toHaveValue("mailbox");
     expect(screen.getByLabelText("Owner")).toHaveValue("11");

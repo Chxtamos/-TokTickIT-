@@ -1,3 +1,5 @@
+﻿import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { assertIntegrationDatabase, createIntegrationPrisma } from "../../src/prisma.js";
 import { hashPassword, validatePasswordInput } from "../../src/password.js";
 
@@ -7,6 +9,10 @@ const REQUESTER_EMAILS = [
   "chaiwat.somchai@example.test",
   "daranee.ploy@example.test",
 ];
+const STAFF_FLOW_TICKET = "TKT-2026-900011";
+const STAFF_ATTACHMENT_KEY = "11111111-1111-4111-8111-111111111111";
+const STAFF_ATTACHMENT_NAME = "staff-e2e.pdf";
+const STAFF_ATTACHMENT_BYTES = Buffer.from("%PDF-1.4\n% TokTickIT E2E fixture\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n", "utf8");
 
 async function main() {
   if (process.env.NODE_ENV !== "test") {
@@ -53,19 +59,47 @@ async function main() {
     }
     const fixtureEmails = [...REQUESTER_EMAILS, ...dedicatedAccounts.map((account) => account.email)];
     await prisma.session.deleteMany({ where: { user: { email: { in: fixtureEmails } } } });
-    const ticket = await prisma.ticket.updateMany({
-      where: {
-        ticketNumber: "TKT-2026-900011",
-        requester: { email: REQUESTER_EMAILS[0] },
-      },
-      data: {
-        currentStatus: "IN_PROGRESS",
-        requesterResolvedAt: null,
-        requesterResolvedById: null,
-        version: { increment: 1 },
-      },
+
+    const ticket = await prisma.ticket.findFirst({
+      where: { ticketNumber: STAFF_FLOW_TICKET, requester: { email: REQUESTER_EMAILS[0] } },
+      select: { id: true },
     });
-    if (ticket.count !== 1) throw new Error("Expected owned isolated E2E Ticket fixture was not found.");
+    if (!ticket) throw new Error("Expected owned isolated E2E Ticket fixture was not found.");
+
+    await prisma.$transaction(async (tx) => {
+      await tx.ticketOwnerChange.deleteMany({ where: { ticketId: ticket.id } });
+      await tx.publicComment.deleteMany({ where: { ticketId: ticket.id, content: { startsWith: "E2E " } } });
+      await tx.internalNote.deleteMany({ where: { ticketId: ticket.id, content: { startsWith: "E2E " } } });
+      await tx.attachment.deleteMany({ where: { OR: [{ storageKey: STAFF_ATTACHMENT_KEY }, { ticketId: ticket.id, originalName: STAFF_ATTACHMENT_NAME }] } });
+      await tx.ticket.update({
+        where: { id: ticket.id },
+        data: {
+          ticketOwnerId: null,
+          itPriority: "MEDIUM",
+          currentStatus: "IN_PROGRESS",
+          resolutionSummary: null,
+          resolvedAt: null,
+          closedAt: null,
+          requesterResolvedAt: null,
+          requesterResolvedById: null,
+          lastStatusReason: null,
+          version: 1,
+        },
+      });
+      await tx.attachment.create({
+        data: {
+          ticketId: ticket.id,
+          originalName: STAFF_ATTACHMENT_NAME,
+          storageKey: STAFF_ATTACHMENT_KEY,
+          mimeType: "application/pdf",
+          sizeBytes: STAFF_ATTACHMENT_BYTES.byteLength,
+        },
+      });
+    });
+
+    const storageDirectory = path.resolve(process.env.TEST_ATTACHMENT_STORAGE_DIR ?? path.join(process.cwd(), "..", "e2e", ".tmp", "attachments"));
+    await mkdir(storageDirectory, { recursive: true });
+    await writeFile(path.join(storageDirectory, `${STAFF_ATTACHMENT_KEY}.pdf`), STAFF_ATTACHMENT_BYTES);
   } finally {
     await prisma.$disconnect();
   }
