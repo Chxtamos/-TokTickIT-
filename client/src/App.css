@@ -195,3 +195,14 @@ nav a:hover { text-decoration: underline; }
 .conversation-composer small { display: block; margin-top: 5px; color: var(--color-text-muted); font-size: 13px; }
 .conversation-submit { width: auto; margin-top: 14px; }
 @media (max-width: 760px) { .operational-grid { grid-template-columns: 1fr; } .status-fieldset { grid-column: auto; } .inline-actions { flex-direction: column; } .inline-actions .button { width: 100%; } .conversation-submit { width: 100%; } }
+
+.admin-filter-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(180px,1fr); gap:1rem; }
+.admin-user-table-wrap { overflow-x:auto; }
+.admin-user-table { width:100%; }
+.admin-user-cards { display:none; }
+.admin-editor { margin-top:1.25rem; display:grid; gap:.9rem; }
+.admin-editor label { display:grid; gap:.35rem; }
+.checkbox-row { display:flex !important; align-items:center; gap:.55rem !important; }
+.button-row { display:flex; flex-wrap:wrap; gap:.75rem; }
+@media (max-width: 767px) { .admin-filter-grid { grid-template-columns:1fr; } .admin-user-table-wrap { display:none; } .admin-user-cards { display:grid; gap:1rem; } .admin-users-page .page-heading { align-items:flex-start; gap:1rem; } .admin-users-page .page-heading > .button { width:100%; } }
+@media (max-width: 390px) { .admin-editor .button-row .button { width:100%; } }

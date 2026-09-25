@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { changePassword, clearInMemoryAuth, createTicket, CreatedTicket, downloadTicketAttachment, getCategories, getCurrentUser, getEligibleTicketOwners, getRelatedSystems, getStaffTickets, getTicketDetail, getTickets, indicateResolution, login, logout, ReferenceItem, removeTicketAttachment, type ApiValidationError, type AuthUser, type EligibleOwner, type Priority, type StaffQueueQuery, type StaffTicketListResponse, type StaffTicketSummary, TicketAttachmentMetadata, TicketDetail, TicketListQuery, TicketListResponse, TicketStatus, TicketSummary, uploadTicketAttachment } from "./api.js";
 import { StaffTicketDetailScreen } from "./StaffTicketDetail.js";
+import { UserManagementScreen } from "./UserManagement.js";
 import { TicketConversation } from "./TicketConversation.js";
 import "./App.css";
 
@@ -743,7 +744,7 @@ function RolePlaceholder({ title, message }: { title: string; message: string })
   return <main className="shell-content"><p className="eyebrow">Authenticated workspace</p><h1>{title}</h1><div className="context-card" role="status">{message}</div></main>;
 }
 
-function ApplicationShell({ user, route, navigate, onChangePassword, onLogout, logoutBusy, logoutError }: { user: AuthUser; route: string; navigate: (path: string) => void; onChangePassword: () => void; onLogout: () => void; logoutBusy: boolean; logoutError: string | null }) {
+function ApplicationShell({ user, route, navigate, onChangePassword, onLogout, onReauthentication, logoutBusy, logoutError }: { user: AuthUser; route: string; navigate: (path: string) => void; onChangePassword: () => void; onLogout: () => void; onReauthentication: (message: string) => void; logoutBusy: boolean; logoutError: string | null }) {
   const [ticketQuery, setTicketQuery] = useState(DEFAULT_TICKET_QUERY);
   const [staffQueueQuery, setStaffQueueQuery] = useState(DEFAULT_STAFF_QUEUE_QUERY);
   const landing = roleLanding(user.role);
@@ -770,7 +771,7 @@ function ApplicationShell({ user, route, navigate, onChangePassword, onLogout, l
         </div>
       </header>
       {logoutError && <div className="shell-content shell-alert"><div className="alert alert-error" role="alert">{logoutError}<button className="button button-secondary retry-button" type="button" onClick={onLogout}>Retry logout</button></div></div>}
-      {requesterRoute && route === "/requester/tickets/new" ? <CreateTicketScreen requester={user} onBack={() => navigate("/requester/tickets")} /> : requesterRoute && route === "/requester/tickets" ? <MyTicketsScreen requester={user} onCreate={() => navigate("/requester/tickets/new")} onViewTicket={(ticketId) => navigate(`/requester/tickets/${ticketId}`)} initialQuery={ticketQuery} onQueryChange={setTicketQuery} /> : requesterRoute && requesterDetailMatch ? <TicketDetailScreen requester={user} ticketId={Number(requesterDetailMatch[1])} onBack={() => navigate("/requester/tickets")} /> : staffRoute && route === "/staff/tickets" ? <StaffTicketQueueScreen initialQuery={staffQueueQuery} onQueryChange={setStaffQueueQuery} onOpen={(ticketId) => navigate(`/staff/tickets/${ticketId}`)} /> : staffRoute && staffDetailMatch ? <StaffTicketDetailScreen user={user} ticketId={Number(staffDetailMatch[1])} onBack={() => navigate("/staff/tickets")} /> : adminRoute ? <RolePlaceholder title="User Management" message="Authenticated Administrator access is ready. User management is reserved for its dedicated Lab 3 implementation issue." /> : <ForbiddenScreen landing={landing} navigate={navigate} />}
+      {requesterRoute && route === "/requester/tickets/new" ? <CreateTicketScreen requester={user} onBack={() => navigate("/requester/tickets")} /> : requesterRoute && route === "/requester/tickets" ? <MyTicketsScreen requester={user} onCreate={() => navigate("/requester/tickets/new")} onViewTicket={(ticketId) => navigate(`/requester/tickets/${ticketId}`)} initialQuery={ticketQuery} onQueryChange={setTicketQuery} /> : requesterRoute && requesterDetailMatch ? <TicketDetailScreen requester={user} ticketId={Number(requesterDetailMatch[1])} onBack={() => navigate("/requester/tickets")} /> : staffRoute && route === "/staff/tickets" ? <StaffTicketQueueScreen initialQuery={staffQueueQuery} onQueryChange={setStaffQueueQuery} onOpen={(ticketId) => navigate(`/staff/tickets/${ticketId}`)} /> : staffRoute && staffDetailMatch ? <StaffTicketDetailScreen user={user} ticketId={Number(staffDetailMatch[1])} onBack={() => navigate("/staff/tickets")} /> : adminRoute ? <UserManagementScreen currentUser={user} onReauthentication={onReauthentication} /> : <ForbiddenScreen landing={landing} navigate={navigate} />}
     </div>
   );
 }
@@ -855,5 +856,5 @@ export default function App() {
   if (bootstrapState === "loading") return <main className="auth-page" aria-busy="true"><section className="auth-card"><p className="eyebrow">TokTickIT</p><h1>Restoring your session</h1><p className="loading-message" role="status">Loading secure workspace…</p></section></main>;
   if (!user) return <LoginScreen onAuthenticated={handleAuthenticated} notice={notice} />;
   if (user.mustChangePassword || route === "/change-password") return <ChangePasswordScreen user={user} onAuthenticated={handleAuthenticated} onCancel={() => navigate(roleLanding(user.role))} onLogout={handleLogout} logoutBusy={logoutBusy} logoutError={logoutError} onAmbiguousFailure={() => { clearInMemoryAuth(); setUser(null); setNotice("The password-change result could not be confirmed. Sign in with the new password to continue."); navigate("/login", true); }} />;
-  return <ApplicationShell key={user.id} user={user} route={route} navigate={navigate} onChangePassword={() => navigate("/change-password")} onLogout={handleLogout} logoutBusy={logoutBusy} logoutError={logoutError} />;
+  return <ApplicationShell key={user.id} user={user} route={route} navigate={navigate} onChangePassword={() => navigate("/change-password")} onLogout={handleLogout} onReauthentication={(message) => { clearInMemoryAuth(); setUser(null); setNotice(message); navigate("/login", true); }} logoutBusy={logoutBusy} logoutError={logoutError} />;
 }
