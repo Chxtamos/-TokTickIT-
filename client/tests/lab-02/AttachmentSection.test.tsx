@@ -53,7 +53,7 @@ describe("Attachment section", () => {
     fireEvent.change(screen.getByLabelText(/Add Attachment/), { target: { files: [file] } });
     fireEvent.click(screen.getByRole("button", { name: "Upload" }));
     expect(await screen.findByText("Upload failed")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    fireEvent.click(within(screen.getByRole("list", { name: "Pending Attachments" })).getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(upload).toHaveBeenCalledTimes(2));
   });
 
