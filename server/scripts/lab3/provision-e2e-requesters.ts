@@ -1,4 +1,4 @@
-﻿import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { assertIntegrationDatabase, createIntegrationPrisma } from "../../src/prisma.js";
 import { hashPassword, validatePasswordInput } from "../../src/password.js";
@@ -57,6 +57,7 @@ async function main() {
     if (result.count !== REQUESTER_EMAILS.length) {
       throw new Error("Expected isolated E2E Requester fixtures were not found.");
     }
+    await prisma.requesterUser.deleteMany({ where: { email: "e2e.managed.user@example.test" } });
     const fixtureEmails = [...REQUESTER_EMAILS, ...dedicatedAccounts.map((account) => account.email)];
     await prisma.session.deleteMany({ where: { user: { email: { in: fixtureEmails } } } });
 
