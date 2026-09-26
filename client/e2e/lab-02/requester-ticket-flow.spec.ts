@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { enterAuthenticatedRequester } from "../lab-03/requester-auth.js";
 
 const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3000";
 
@@ -15,16 +16,9 @@ type ReferenceItem = { id: number; name: string };
 type Requester = ReferenceItem;
 
 async function enterRequesterWorkspace(page: Page, requestedRequesterId?: number): Promise<number> {
-  await page.goto("/");
-  const requesterSelect = page.locator("#requester-select");
-  await expect(requesterSelect).toBeVisible();
-  const activeRequesterOption = requesterSelect.locator('option:not([value=""])').first();
-  await expect(activeRequesterOption).toHaveCount(1);
-  const requesterId = requestedRequesterId ?? Number(await activeRequesterOption.getAttribute("value"));
+  const requesterId = requestedRequesterId ?? 1;
   expect(Number.isSafeInteger(requesterId)).toBeTruthy();
-  await requesterSelect.selectOption(String(requesterId));
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Welcome to TokTickIT" })).toBeVisible();
+  await enterAuthenticatedRequester(page, requesterId);
   return requesterId;
 }
 
@@ -72,7 +66,7 @@ async function createTicketForRequester(
 }
 
 async function openCreateTicket(page: Page) {
-  await page.getByRole("button", { name: "Create Ticket", exact: true }).click();
+  await page.getByRole("link", { name: "Create Ticket", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
   await expect(page.locator("#category-id")).toBeEnabled();
   await expect(page.locator("#related-system-id")).toBeEnabled();
@@ -225,7 +219,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await createTicketForRequester(request, requesterB.id, bSummary, references, "HIGH");
 
     await enterRequesterWorkspace(page, requesterA.id);
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.getByRole("heading", { name: "My Tickets" })).toBeVisible();
     await expect(page.locator(".result-count")).toContainText("Tickets");
     await expect(page.getByText(bSummary, { exact: true })).toHaveCount(0);
@@ -276,13 +270,10 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await expect(page.locator("#ticket-page-size")).toHaveValue("20");
     await expect(page.locator(".tickets-table tbody").getByText(targetSummary, { exact: true })).toBeVisible();
 
-    // Switch the active context through the real selector and prove A's state is gone before B loads.
-    await page.getByRole("button", { name: "Change Requester", exact: true }).click();
-    await expect(page.locator("#requester-select")).toBeVisible();
-    await page.locator("#requester-select").selectOption(String(requesterB.id));
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Welcome to TokTickIT" })).toBeVisible();
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    // Switch through Logout and a fresh authenticated session; the old selector is retired.
+    await page.getByRole("button", { name: "Logout", exact: true }).click();
+    await enterAuthenticatedRequester(page, requesterB.id);
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.locator(".tickets-table tbody").getByText(bSummary, { exact: true })).toBeVisible();
     await expect(page.getByText(targetSummary, { exact: true })).toHaveCount(0);
   });
@@ -315,7 +306,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     expect(missingBody.error.code).toBe("RESOURCE_NOT_FOUND");
 
     await enterRequesterWorkspace(page, requesterB.id);
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.locator(".tickets-table tbody").getByText(bSummary, { exact: true })).toBeVisible();
     await page.route("**/api/tickets/*", async (route) => {
       if (route.request().method() === "GET" && route.request().url().endsWith(`/api/tickets/${bTicket.id}`)) {
@@ -344,7 +335,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     const fileBuffer = pdfFixture();
 
     await enterRequesterWorkspace(page, requesterA.id);
-    await page.getByRole("button", { name: "My Tickets", exact: true }).click();
+    await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await page.locator("#ticket-search").fill(summary);
     await expect(page.locator(".tickets-table tbody").getByText(summary, { exact: true })).toBeVisible();
     await page.locator(".tickets-table tbody tr").filter({ hasText: summary }).getByRole("button", { name: "View Ticket", exact: true }).click();

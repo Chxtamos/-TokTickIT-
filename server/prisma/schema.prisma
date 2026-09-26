@@ -1,5 +1,7 @@
-// Prisma schema — datasource and generator are pre-wired.
-// Your DATABASE_URL lives in server/.env (copy it from .env.example).
+// Lab 3 physical User table is exposed as RequesterUser in Prisma for one
+// compatibility increment. Existing Lab 2 services/tests keep their delegate
+// while the forward migration renames the physical table to User. Auth/Admin
+// work in later Issues can introduce the User delegate without data changes.
 
 generator client {
   provider = "prisma-client-js"
@@ -16,19 +18,47 @@ model Category {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  tickets Ticket[]
+  tickets   Ticket[]
 }
 
 model RequesterUser {
-  id                 Int          @id @default(autoincrement())
-  name               String       @db.VarChar(120)
-  email              String       @unique @db.VarChar(254)
-  isActive           Boolean      @default(true)
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  tickets            Ticket[]     @relation("TicketRequester")
-  removedAttachments Attachment[] @relation("AttachmentRemovedBy")
+  id                    Int                 @id @default(autoincrement())
+  name                  String              @db.VarChar(120)
+  email                 String              @unique @db.VarChar(254)
+  isActive              Boolean             @default(true)
+  role                  UserRole            @default(REQUESTER)
+  passwordHash          String?
+  mustChangePassword    Boolean             @default(true)
+  passwordChangedAt     DateTime?
+  version               Int                 @default(1)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  tickets               Ticket[]            @relation("TicketRequester")
+  ownedTickets          Ticket[]            @relation("TicketOwner")
+  requesterResolved     Ticket[]            @relation("RequesterResolvedBy")
+  removedAttachments    Attachment[]        @relation("AttachmentRemovedBy")
+  sessions              Session[]
+  publicComments        PublicComment[]
+  internalNotes         InternalNote[]
+  ownerChangesPrevious  TicketOwnerChange[] @relation("OwnerChangePrevious")
+  ownerChangesNext      TicketOwnerChange[] @relation("OwnerChangeNext")
+  ownerChangesActor     TicketOwnerChange[] @relation("OwnerChangeActor")
+
+  @@map("User")
+  @@index([role, isActive])
+}
+
+model Session {
+  id         String        @id @default(uuid()) @db.Uuid
+  tokenHash  String        @unique @db.Char(64)
+  userId     Int
+  csrfToken  String        @db.Char(64)
+  createdAt  DateTime      @default(now())
+  lastSeenAt DateTime      @default(now())
+  expiresAt  DateTime
+  user       RequesterUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
 }
 
 model RelatedSystem {
@@ -37,29 +67,42 @@ model RelatedSystem {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  tickets Ticket[]
+  tickets   Ticket[]
 }
 
 model Ticket {
-  id                 Int               @id @default(autoincrement())
-  ticketNumber       String            @unique @db.VarChar(32)
-  requesterId        Int
-  categoryId         Int
-  relatedSystemId    Int
-  summary            String            @db.VarChar(120)
-  description        String
-  requestedPriority  RequestedPriority @default(MEDIUM)
-  currentStatus      TicketStatus      @default(NEW)
-  clientRequestId    String            @db.Uuid
-  requestPayloadHash String            @db.Char(64)
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  id                    Int               @id @default(autoincrement())
+  ticketNumber          String            @unique @db.VarChar(32)
+  requesterId           Int
+  categoryId            Int
+  relatedSystemId       Int
+  ticketOwnerId         Int?
+  summary               String            @db.VarChar(120)
+  description           String
+  requestedPriority     RequestedPriority @default(MEDIUM)
+  itPriority            RequestedPriority @default(MEDIUM)
+  currentStatus         TicketStatus      @default(NEW)
+  version               Int               @default(1)
+  resolutionSummary    String?           @db.VarChar(2000)
+  resolvedAt            DateTime?
+  closedAt              DateTime?
+  requesterResolvedAt   DateTime?
+  requesterResolvedById Int?
+  lastStatusReason      String?           @db.VarChar(250)
+  clientRequestId       String            @db.Uuid
+  requestPayloadHash    String            @db.Char(64)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
-  requester     RequesterUser @relation("TicketRequester", fields: [requesterId], references: [id], onDelete: Restrict)
-  category      Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  relatedSystem RelatedSystem @relation(fields: [relatedSystemId], references: [id], onDelete: Restrict)
-  attachments   Attachment[]
+  requester          RequesterUser       @relation("TicketRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  owner              RequesterUser?      @relation("TicketOwner", fields: [ticketOwnerId], references: [id], onDelete: Restrict)
+  requesterResolved  RequesterUser?      @relation("RequesterResolvedBy", fields: [requesterResolvedById], references: [id], onDelete: Restrict)
+  category           Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  relatedSystem      RelatedSystem       @relation(fields: [relatedSystemId], references: [id], onDelete: Restrict)
+  attachments        Attachment[]
+  publicComments     PublicComment[]
+  internalNotes      InternalNote[]
+  ownerChanges       TicketOwnerChange[]
 
   @@unique([requesterId, clientRequestId])
   @@index([requesterId, updatedAt, id])
@@ -67,6 +110,9 @@ model Ticket {
   @@index([requesterId, relatedSystemId])
   @@index([requesterId, requestedPriority])
   @@index([requesterId, currentStatus])
+  @@index([ticketOwnerId, updatedAt, id])
+  @@index([currentStatus, itPriority, updatedAt, id])
+  @@index([requesterResolvedById])
 }
 
 model Attachment {
@@ -88,6 +134,59 @@ model Attachment {
   @@index([removedByRequesterId])
 }
 
+model TicketOwnerChange {
+  id             Int                  @id @default(autoincrement())
+  ticketId       Int
+  previousOwnerId Int?
+  nextOwnerId    Int?
+  actorId        Int
+  changedAt      DateTime             @default(now())
+  reason         TicketOwnerChangeReason
+
+  ticket         Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  previousOwner  RequesterUser? @relation("OwnerChangePrevious", fields: [previousOwnerId], references: [id], onDelete: Restrict)
+  nextOwner      RequesterUser? @relation("OwnerChangeNext", fields: [nextOwnerId], references: [id], onDelete: Restrict)
+  actor          RequesterUser  @relation("OwnerChangeActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, changedAt, id])
+  @@index([previousOwnerId])
+  @@index([nextOwnerId])
+}
+
+model PublicComment {
+  id        Int           @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  content   String        @db.VarChar(5000)
+  createdAt DateTime      @default(now())
+
+  ticket Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author RequesterUser  @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt, id])
+  @@index([authorId])
+}
+
+model InternalNote {
+  id        Int           @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  content   String        @db.VarChar(5000)
+  createdAt DateTime      @default(now())
+
+  ticket Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author RequesterUser  @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt, id])
+  @@index([authorId])
+}
+
+enum UserRole {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
+}
+
 enum RequestedPriority {
   LOW
   MEDIUM
@@ -97,4 +196,17 @@ enum RequestedPriority {
 
 enum TicketStatus {
   NEW
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_REQUESTER
+  RESOLVED
+  CLOSED
+  REOPENED
+  CANCELLED
+}
+
+enum TicketOwnerChangeReason {
+  ASSIGNED
+  REASSIGNED
+  ACCOUNT_INELIGIBLE
 }

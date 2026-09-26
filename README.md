@@ -22,15 +22,17 @@ toktickit/
 │   ├── .env.example
 │   └── package.json
 ├── server/
+│   ├── scripts/
+│   │   └── prisma-test.ts
 │   ├── prisma/
 │   │   ├── migrations/
 │   │   ├── schema.prisma
 │   │   └── seed.ts
 │   ├── src/
 │   ├── tests/
-│   │   └── lab-01/
-│   │       ├── health.test.ts
-│   │       └── categories.test.ts
+│   │   ├── lab-01/
+│   │   ├── lab-02/
+│   │   └── lab-03/
 │   ├── .env.example
 │   └── package.json
 ├── docs/
@@ -93,6 +95,7 @@ Configure `server/.env` with your local PostgreSQL connection:
 
 ```text
 DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/toktickit?schema=public"
+CLIENT_ORIGIN="http://127.0.0.1:5173"
 ```
 
 The frontend API URL can be configured in `client/.env`:
@@ -100,6 +103,8 @@ The frontend API URL can be configured in `client/.env`:
 ```text
 VITE_API_URL=http://localhost:3000
 ```
+
+`CLIENT_ORIGIN` must be one exact scheme/host/port used by the browser. Authenticated requests use credentialed CORS and the server rejects missing or untrusted browser Origins.
 
 Do not commit `.env` files, database passwords, or `node_modules`.
 
@@ -145,6 +150,27 @@ For development, create a new migration after changing `schema.prisma`:
 ```powershell
 npx prisma migrate dev --name migration-name
 ```
+
+## Isolated Integration and E2E Database
+
+Never run database-writing integration or E2E tests against the development database. Create a separate PostgreSQL database such as `toktickit_test`, then set both URLs in the test terminal. The test guard compares host, port and database, requires the test database name to contain `test`, and rejects a missing, non-PostgreSQL, same-database or malformed target before Prisma is created. A different schema inside the development database is not sufficient isolation.
+
+```powershell
+$env:DATABASE_URL = "postgresql://USER:PASSWORD@localhost:5432/toktickit?schema=public"
+$env:TEST_DATABASE_URL = "postgresql://USER:PASSWORD@localhost:5432/toktickit_test?schema=public"
+$env:RUN_DB_INTEGRATION = "1"
+$env:LAB_SEED_INITIAL_PASSWORD = "local-lab-only-change-me-2026"
+
+npm --prefix server run prisma:migrate:test
+npm --prefix server run prisma:seed:test
+npm --prefix server test
+```
+
+`prisma:migrate:test` and `prisma:seed:test` validate `TEST_DATABASE_URL`, temporarily direct only that command to the test URL, and refuse to use a development target. Pure unit/mock tests can run with `RUN_DB_INTEGRATION` unset or `0`; database suites are then skipped rather than silently writing to development data. A full verification run must set `RUN_DB_INTEGRATION=1`, in which case an unsafe or missing test target fails the run.
+
+The Lab 3 seed requires `LAB_SEED_INITIAL_PASSWORD` only when creating synthetic IT Staff/Administrator fixtures. It hashes the value and never prints or stores the plaintext. Existing users, credentials, activation state and Ticket work are not overwritten on repeated seeds. The migrated-user provisioning command is separate and interactive: `npm --prefix server run lab3:provision-migrated-users` generates one-time credentials for users with no hash and prints them only after its transaction commits.
+
+Playwright starts the API with `RUN_DB_INTEGRATION=1`, the validated test URL and an isolated `e2e/.tmp/attachments` directory. Do not reuse a server started with a different database target. The test Attachment directory and generated reports are ignored by Git.
 
 ## Running the Application
 
