@@ -1,6 +1,6 @@
 # Lab 3 AI Use and Student Reflection
 
-Prepared 2026-09-15 and updated 2026-09-18. Current stage: implementation through authorization plus documentation consolidation. Tool/product: Codex desktop coding agent. The exact model identifier was not exposed to this task; the student should record the actual app/model setting rather than infer a model name. No AI-generated peer approval is claimed.
+Prepared 2026-09-15 and updated 2026-09-28. Current stage: feature implementation through Requester, Staff, conversations, and Administrator User Management is merged into `lab3-staging`; Issue #65 is in final release/evidence review before `lab3-staging` -> `main`, followed by exact-final-main verification and the final PDF. Tool/product: Codex desktop coding agent. The exact model identifier was not exposed to this task; the student should record the actual app/model setting rather than infer a model name. No AI-generated peer approval is claimed.
 
 ## Actual selected prompts so far
 
@@ -21,7 +21,7 @@ The following are 10 excerpts of real user prompts from this task, not invented 
 
 The agent inspected actual Prisma/models/migrations, server/frontend APIs/screens, tests/Playwright/CI and Lab 2 documentation; consulted relevant prior task messages as supporting context; resolved exact data/API/authorization/workflow/provisioning decisions and mapped 32 ACs to planned tests. External security references are linked in specification.md. Other students' repositories/PRs were not used as this project's baseline or implementation; the L0u1sss repository was read only to recover the two developer-authored documentation edits that had been pushed there by mistake.
 
-Document validation/staging/commit are separate from product completion. PRs #68-#72 contain implementation and CI evidence for the completed foundation/auth/authorization slices; remaining UI/staff/admin/release evidence remains tracked in #56/#58/#63/#65. The original 17 Issue plan is historical; #73 synchronizes the repository documents without changing normative FR/BR/AC/API behavior. The student must keep the final My Reflection in their own voice and record any later prompts/settings accurately.
+Document validation/staging/commit are separate from product completion. PRs #68-#82 now cover the merged Lab 3 implementation line on `lab3-staging`, including authentication, Requester, Staff workflow/conversations, and Administrator User Management. Issue #65 is intentionally still open because release acceptance includes `lab3-staging` -> `main`, exact-final-main reruns, RELEASE-01 evidence, responsive/accessibility/visual records, and the single Part 1-9 PDF. The student must keep the final My Reflection in their own voice and record later prompts/settings accurately.
 
 ## My Reflection
 
