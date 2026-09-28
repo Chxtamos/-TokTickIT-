@@ -1,6 +1,6 @@
 # Lab 3 Peer Review and Release Record
 
-Prepared 2026-09-15 and updated 2026-09-28. The contract review history below is historical for PR #68. Implementation PRs #68-#72 have since been merged/recorded; remaining product work is tracked by umbrellas #56/#58/#63/#65 and Staff child Issues #59/#62/#60/#61/#75, with documentation synchronization tracked by #73. Do not claim peer approval unless GitHub records an actual APPROVED review.
+Prepared 2026-09-15 and updated 2026-09-28. The contract review history below is historical for PR #68. Implementation and documentation PRs #68-#82 are now merged into `lab3-staging`; Issue #65 is the only remaining release/final-submission issue. PR #84 is the release PR from `lab3-staging` to `main`. Do not claim peer approval unless GitHub records an actual APPROVED review.
 
 ## Current implementation/release record
 
@@ -11,9 +11,17 @@ Prepared 2026-09-15 and updated 2026-09-28. The contract review history below is
 | Migration/seed/provisioning | PR [#70](https://github.com/Chxtamos/-TokTickIT-/pull/70) | Merged; Issue #53 Done |
 | Authentication/session APIs | PR [#71](https://github.com/Chxtamos/-TokTickIT-/pull/71) | Merged; Issue #54 Done |
 | Authorization/Requester regression | PR [#72](https://github.com/Chxtamos/-TokTickIT-/pull/72) | Merged; Issue #55 Done |
-| Consolidated documentation | Issue [#73](https://github.com/Chxtamos/-TokTickIT-/issues/73) / PR [#74](https://github.com/Chxtamos/-TokTickIT-/pull/74) | Started; PR Review, CI green |
+| Consolidated documentation | Issue [#73](https://github.com/Chxtamos/-TokTickIT-/issues/73) / PR [#74](https://github.com/Chxtamos/-TokTickIT-/pull/74) | Merged 2026-09-18; approved on `d132841`; merge `e62e4c` |
+| Authenticated Requester UI | PR [#76](https://github.com/Chxtamos/-TokTickIT-/pull/76) | Merged; Issue #56 complete |
+| Staff Queue | PR [#77](https://github.com/Chxtamos/-TokTickIT-/pull/77) | Merged; Issue #59 complete |
+| Operational Ticket Detail | PR [#78](https://github.com/Chxtamos/-TokTickIT-/pull/78) | Merged; Issue #62 complete |
+| Staff Workflow API | PR [#79](https://github.com/Chxtamos/-TokTickIT-/pull/79) | Merged; Issue #60 complete |
+| Comments / Internal Notes API | PR [#80](https://github.com/Chxtamos/-TokTickIT-/pull/80) | Merged; Issue #61 complete |
+| Staff Detail/UI integration | PR [#81](https://github.com/Chxtamos/-TokTickIT-/pull/81) | Merged; Issue #75 complete |
+| Administrator User Management | PR [#82](https://github.com/Chxtamos/-TokTickIT-/pull/82) | Merged; Issue #63 complete |
+| Final Lab 3 release | PR [#84](https://github.com/Chxtamos/-TokTickIT-/pull/84) | Changes Requested on reviewed head `da67aeb`; merge pending |
 
-The original Issue plan #51-#67 remains traceable. Umbrella #58 is a tracker only; its stages use child Issues #59, #62, #60, #61 and #75, each with one feature branch and one peer-reviewed PR. Issues #59-#62 were reopened and retargeted; #75 is the new Staff Detail/UI child.
+The original Issue plan #51-#67 remains traceable. Umbrella #58 is a tracker only; its stages were completed through child Issues #59, #62, #60, #61 and #75, each with its own feature branch and PR. #56, #58 and #63 are complete; #65 remains open for release, final-main verification and final submission evidence.
 
 ## Author and reviewer
 
@@ -57,10 +65,10 @@ Create one row per real PR as work proceeds. Required fields: Issue/PR URL, feat
 | [#70](https://github.com/Chxtamos/-TokTickIT-/pull/70) | `feature/26-lab3-user-migration-seed` -> `lab3-staging`, `db69ab3` | Peepipat-Suesoongnuen requested fixture/evidence fixes on `719de19`; corrected in `af7654a`/`db69ab3` | Peepipat-Suesoongnuen approved in [review 5236215911](https://github.com/Chxtamos/-TokTickIT-/pull/70#pullrequestreview-5236215911) on `db69ab3` | Client/Server/E2E CI passed; Server run [35221030054](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35221030054) | Merge `5819368`, 2026-09-17 |
 | [#71](https://github.com/Chxtamos/-TokTickIT-/pull/71) | `feature/27-lab3-auth-sessions` -> `lab3-staging`, `cc0c743` | chaproi requested changes on `7a040b7`; corrected through auth/CI fixes | Tanaboonnnnn approved in [review 5239139332](https://github.com/Chxtamos/-TokTickIT-/pull/71#pullrequestreview-5239139332) on `cc0c743` | Client/Server/E2E CI passed; Server run [35250890637](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35250890637) | Merge `74586fc`, 2026-09-17 |
 | [#72](https://github.com/Chxtamos/-TokTickIT-/pull/72) | `feature/28-lab3-requester-authorization` -> `lab3-staging`, `3a28e39` | Peepipat-Suesoongnuen/L0u1sss requested changes on earlier heads; corrected fail-closed adapter and authenticated mock tests | L0u1sss approved in [review 5249118396](https://github.com/Chxtamos/-TokTickIT-/pull/72#pullrequestreview-5249118396) on `3a28e39` | Client/Server/E2E CI passed; Server run [35357859386](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35357859386) | Merge `07c7a75`, 2026-09-18 |
-| [#74](https://github.com/Chxtamos/-TokTickIT-/pull/74) | `docs/29-lab3-issue-consolidation` -> `lab3-staging`; reviewed Changes Requested on `5f54d91` | Correction commits through `379558f` (`854d82d`, `7d0429a`, `760d8bd`, `52dac8c`, `379558f`); re-review/approval pending | Pending | Correction head `379558f` CI green: Server [run 35373254299](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35373254299), Client [run 35373254258](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35373254258), E2E [run 35373254256](https://github.com/Chxtamos/-TokTickIT-/actions/runs/35373254256) | Open |
+| [#74](https://github.com/Chxtamos/-TokTickIT-/pull/74) | `docs/29-lab3-issue-consolidation` -> `lab3-staging`, final reviewed head `d132841` | cottonlnwza requested changes on `5f54d91` and `52dac8c`; child-Issue mapping and evidence were corrected through `d132841` | cottonlnwza approved on `d132841` in review `PRR_kwDOTuo9Bs8AAAABOPmb-A` | Final-head CI green: Server `35373542119`, Client `35373542112`, E2E `35373542145` | Merge `e62e4c`, 2026-09-18 |
 | [#81](https://github.com/Chxtamos/-TokTickIT-/pull/81) | `feature/34-lab3-staff-detail-ui` -> `lab3-staging`, final head `1a09fb1` | Staff Detail/UI feedback and CI failures corrected before merge | Merged after review | Client/Server/E2E checks green on merged implementation line | Merge `9cfa1cf`, 2026-09-24 |
 | [#82](https://github.com/Chxtamos/-TokTickIT-/pull/82) | `feature/35-lab3-admin-user-management` -> `lab3-staging`, `ff149aa` | Administrator API/UI/PostgreSQL/E2E implementation; review complete before merge | Merged after review | Client `36142262695` 93/93, Server `36142262536` 219/219, E2E `36142262756` 20/20 | Merge `3bcb4a9`, 2026-09-25 |
-| [#84](https://github.com/Chxtamos/-TokTickIT-/pull/84) | `lab3-staging` -> `main`, initial release head `f078764` | Supersedes closed PR #83. PR #83 review on `d0d10b2` requested: remove premature `Closes #65`, sync root README, and sync Lab 3 release docs. Corrections are now on `lab3-staging`; #65 remains open for post-merge final-main/PDF evidence. | Pending peer re-review | Pre-correction `d0d10b2` Client/Server/E2E were green; PR #84 exact-head CI must be green before merge. | Pending |
+| [#84](https://github.com/Chxtamos/-TokTickIT-/pull/84) | `lab3-staging` -> `main`, reviewed head `da67aeb` | Tanaboonnnnn requested changes on `da67aeb`: clarify RELEASE-01/Product-DoD lifecycle, sync stale #74/header history, and sync this release row to exact-head CI. This correction branch addresses those points without claiming approval. | Changes Requested; re-review pending | Exact reviewed head `da67aeb` green: Client run `36438376365` (#126), Server run `36438376111` (#139), E2E run `36438376574` (#108) | Pending |
 
 ## PR #68 requested changes and planned response record
 
