@@ -1,6 +1,10 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { enterAuthenticatedRequester } from "../lab-03/requester-auth.js";
+import {
+  authenticatedRequesterApi,
+  enterAuthenticatedRequester,
+  type AuthenticatedRequesterApi,
+} from "../lab-03/requester-auth.js";
 
 const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3000";
 
@@ -13,7 +17,6 @@ type TicketListItem = {
 };
 
 type ReferenceItem = { id: number; name: string };
-type Requester = ReferenceItem;
 
 async function enterRequesterWorkspace(page: Page, requestedRequesterId?: number): Promise<number> {
   const requesterId = requestedRequesterId ?? 1;
@@ -22,16 +25,13 @@ async function enterRequesterWorkspace(page: Page, requestedRequesterId?: number
   return requesterId;
 }
 
-async function getActiveRequesters(request: APIRequestContext): Promise<Requester[]> {
-  const response = await request.get(`${API_URL}/api/development-requesters`);
-  expect(response.ok()).toBeTruthy();
-  return await response.json() as Requester[];
-}
-
-async function getReferenceData(request: APIRequestContext): Promise<{ category: ReferenceItem; relatedSystem: ReferenceItem }> {
+async function getReferenceData(
+  request: APIRequestContext,
+  auth: AuthenticatedRequesterApi,
+): Promise<{ category: ReferenceItem; relatedSystem: ReferenceItem }> {
   const [categoriesResponse, systemsResponse] = await Promise.all([
-    request.get(`${API_URL}/api/categories`),
-    request.get(`${API_URL}/api/related-systems`),
+    request.get(`${API_URL}/api/categories`, { headers: auth.readHeaders }),
+    request.get(`${API_URL}/api/related-systems`, { headers: auth.readHeaders }),
   ]);
   expect(categoriesResponse.ok()).toBeTruthy();
   expect(systemsResponse.ok()).toBeTruthy();
@@ -44,13 +44,13 @@ async function getReferenceData(request: APIRequestContext): Promise<{ category:
 
 async function createTicketForRequester(
   request: APIRequestContext,
-  requesterId: number,
+  auth: AuthenticatedRequesterApi,
   summary: string,
   references: { category: ReferenceItem; relatedSystem: ReferenceItem },
   requestedPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT" = "HIGH",
 ): Promise<TicketListItem> {
   const response = await request.post(`${API_URL}/api/tickets`, {
-    headers: { "X-Requester-Id": String(requesterId), "Content-Type": "application/json" },
+    headers: { ...auth.writeHeaders, "Content-Type": "application/json" },
     data: {
       clientRequestId: randomUUID(),
       categoryId: references.category.id,
@@ -80,9 +80,13 @@ async function fillValidTicket(page: Page, summary: string) {
   await page.locator("#description").fill("End-to-end verification of the complete requester ticket workflow.");
 }
 
-async function findTicket(request: APIRequestContext, requesterId: number, summary: string): Promise<TicketListItem> {
+async function findTicket(
+  request: APIRequestContext,
+  auth: AuthenticatedRequesterApi,
+  summary: string,
+): Promise<TicketListItem> {
   const response = await request.get(`${API_URL}/api/tickets?search=${encodeURIComponent(summary)}`, {
-    headers: { "X-Requester-Id": String(requesterId) },
+    headers: auth.readHeaders,
   });
   expect(response.ok()).toBeTruthy();
   const body = await response.json() as { items: TicketListItem[] };
@@ -120,13 +124,14 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await expect(page.getByText("e2e-mixed.pdf: Uploaded", { exact: true })).toBeVisible();
     await expect(page.getByText("e2e-mixed.png: Uploaded", { exact: true })).toBeVisible();
 
-    const ticket = await findTicket(request, requesterId, summary);
+    const apiAuth = await authenticatedRequesterApi(request, requesterId);
+    const ticket = await findTicket(request, apiAuth, summary);
     expect(ticket.ticketNumber).toBe(ticketNumber);
     expect(ticket.requestedPriority).toBe("URGENT");
     expect(ticket.currentStatus).toBe("NEW");
 
     const detailResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
-      headers: { "X-Requester-Id": String(requesterId) },
+      headers: apiAuth.readHeaders,
     });
     expect(detailResponse.ok()).toBeTruthy();
     const detail = await detailResponse.json() as { attachments: Array<{ originalName: string; state: string }> };
@@ -188,11 +193,12 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await page.getByRole("button", { name: "Retry", exact: true }).click();
     await expect(page.getByText("e2e-retry.pdf: Uploaded", { exact: false })).toBeVisible();
 
-    const ticket = await findTicket(request, requesterId, summary);
+    const apiAuth = await authenticatedRequesterApi(request, requesterId);
+    const ticket = await findTicket(request, apiAuth, summary);
     expect(createCalls).toBe(2);
     expect(attachmentCalls).toBe(3);
     const detailResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
-      headers: { "X-Requester-Id": String(requesterId) },
+      headers: apiAuth.readHeaders,
     });
     expect(detailResponse.ok()).toBeTruthy();
     const detail = await detailResponse.json() as { attachments: Array<{ originalName: string; state: string }> };
@@ -201,24 +207,23 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
   });
 
   test("isolates Requester A and B, exercises My Tickets controls, and preserves the query after owned Detail", async ({ page, request }) => {
-    const requesters = await getActiveRequesters(request);
-    expect(requesters.length).toBeGreaterThanOrEqual(2);
-    const [requesterA, requesterB] = requesters;
-    const references = await getReferenceData(request);
+    const requesterA = await authenticatedRequesterApi(request, 1);
+    const requesterB = await authenticatedRequesterApi(request, 2);
+    const references = await getReferenceData(request, requesterA);
     const runId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
     const targetSummary = `Feature 19 A target ${runId}`;
     const ticketSummaries = [targetSummary, ...Array.from({ length: 10 }, (_, index) => `Feature 19 A pagination ${runId}-${index}`)];
     const createdTickets = await Promise.all(ticketSummaries.map((summary, index) => createTicketForRequester(
       request,
-      requesterA.id,
+      requesterA,
       summary,
       references,
       index === 0 ? "HIGH" : "MEDIUM",
     )));
     const bSummary = `Feature 19 B private ${runId}`;
-    await createTicketForRequester(request, requesterB.id, bSummary, references, "HIGH");
+    await createTicketForRequester(request, requesterB, bSummary, references, "HIGH");
 
-    await enterRequesterWorkspace(page, requesterA.id);
+    await enterRequesterWorkspace(page, requesterA.requesterId);
     await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.getByRole("heading", { name: "My Tickets" })).toBeVisible();
     await expect(page.locator(".result-count")).toContainText("Tickets");
@@ -272,25 +277,24 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
 
     // Switch through Logout and a fresh authenticated session; the old selector is retired.
     await page.getByRole("button", { name: "Logout", exact: true }).click();
-    await enterAuthenticatedRequester(page, requesterB.id);
+    await enterAuthenticatedRequester(page, requesterB.requesterId);
     await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.locator(".tickets-table tbody").getByText(bSummary, { exact: true })).toBeVisible();
     await expect(page.getByText(targetSummary, { exact: true })).toHaveCount(0);
   });
 
   test("rejects cross-owner and missing Ticket Detail safely", async ({ page, request }) => {
-    const requesters = await getActiveRequesters(request);
-    expect(requesters.length).toBeGreaterThanOrEqual(2);
-    const [requesterA, requesterB] = requesters;
-    const references = await getReferenceData(request);
+    const requesterA = await authenticatedRequesterApi(request, 1);
+    const requesterB = await authenticatedRequesterApi(request, 2);
+    const references = await getReferenceData(request, requesterA);
     const runId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
     const aSummary = `Feature 19 A protected ${runId}`;
-    const aTicket = await createTicketForRequester(request, requesterA.id, aSummary, references, "HIGH");
+    const aTicket = await createTicketForRequester(request, requesterA, aSummary, references, "HIGH");
     const bSummary = `Feature 19 B detail ${runId}`;
-    const bTicket = await createTicketForRequester(request, requesterB.id, bSummary, references, "HIGH");
+    const bTicket = await createTicketForRequester(request, requesterB, bSummary, references, "HIGH");
 
     const crossOwnerResponse = await request.get(`${API_URL}/api/tickets/${aTicket.id}`, {
-      headers: { "X-Requester-Id": String(requesterB.id) },
+      headers: requesterB.readHeaders,
     });
     expect(crossOwnerResponse.status()).toBe(404);
     const crossOwnerBody = await crossOwnerResponse.json() as { error: { code: string; message: string } };
@@ -299,13 +303,13 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     expect(JSON.stringify(crossOwnerBody)).not.toContain(aTicket.ticketNumber);
 
     const missingResponse = await request.get(`${API_URL}/api/tickets/999999999`, {
-      headers: { "X-Requester-Id": String(requesterB.id) },
+      headers: requesterB.readHeaders,
     });
     expect(missingResponse.status()).toBe(404);
     const missingBody = await missingResponse.json() as { error: { code: string } };
     expect(missingBody.error.code).toBe("RESOURCE_NOT_FOUND");
 
-    await enterRequesterWorkspace(page, requesterB.id);
+    await enterRequesterWorkspace(page, requesterB.requesterId);
     await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await expect(page.locator(".tickets-table tbody").getByText(bSummary, { exact: true })).toBeVisible();
     await page.route("**/api/tickets/*", async (route) => {
@@ -324,17 +328,16 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
   });
 
   test("completes the Attachment lifecycle with real upload, retry, download, removal, and safe access checks", async ({ page, request }) => {
-    const requesters = await getActiveRequesters(request);
-    expect(requesters.length).toBeGreaterThanOrEqual(2);
-    const [requesterA, requesterB] = requesters;
-    const references = await getReferenceData(request);
+    const requesterA = await authenticatedRequesterApi(request, 1);
+    const requesterB = await authenticatedRequesterApi(request, 2);
+    const references = await getReferenceData(request, requesterA);
     const runId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
     const summary = `Feature 20 Attachment lifecycle ${runId}`;
-    const ticket = await createTicketForRequester(request, requesterA.id, summary, references, "HIGH");
+    const ticket = await createTicketForRequester(request, requesterA, summary, references, "HIGH");
     const fileName = `feature-20-${runId}.pdf`;
     const fileBuffer = pdfFixture();
 
-    await enterRequesterWorkspace(page, requesterA.id);
+    await enterRequesterWorkspace(page, requesterA.requesterId);
     await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await page.locator("#ticket-search").fill(summary);
     await expect(page.locator(".tickets-table tbody").getByText(summary, { exact: true })).toBeVisible();
@@ -364,7 +367,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     expect(uploadAttempts).toBe(2);
 
     const detailResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
-      headers: { "X-Requester-Id": String(requesterA.id) },
+      headers: requesterA.readHeaders,
     });
     expect(detailResponse.ok()).toBeTruthy();
     const detail = await detailResponse.json() as { attachments: Array<{ id: number; originalName: string; state: string; removedAt: string | null; removedReason: string | null }> };
@@ -375,7 +378,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     const attachmentId = uploaded!.id;
 
     const downloadResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`, {
-      headers: { "X-Requester-Id": String(requesterA.id) },
+      headers: requesterA.readHeaders,
     });
     expect(downloadResponse.status()).toBe(200);
     expect(downloadResponse.headers()["content-type"]).toContain("application/pdf");
@@ -387,18 +390,18 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
 
     // Non-owner access must be rejected while the Attachment is still ACTIVE.
     const unauthorizedDownload = await request.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`, {
-      headers: { "X-Requester-Id": String(requesterB.id) },
+      headers: requesterB.readHeaders,
     });
     expect(unauthorizedDownload.status()).toBe(404);
     expect(await unauthorizedDownload.text()).not.toContain(fileName);
     const removalReason = "Feature 20 lifecycle cleanup";
     const unauthorizedRemove = await request.delete(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}`, {
-      headers: { "X-Requester-Id": String(requesterB.id), "Content-Type": "application/json" },
+      headers: { ...requesterB.writeHeaders, "Content-Type": "application/json" },
       data: { reason: removalReason },
     });
     expect(unauthorizedRemove.status()).toBe(404);
     const afterUnauthorizedResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
-      headers: { "X-Requester-Id": String(requesterA.id) },
+      headers: requesterA.readHeaders,
     });
     const afterUnauthorized = await afterUnauthorizedResponse.json() as { attachments: Array<{ id: number; state: string; removedAt: string | null; removedReason: string | null }> };
     const stillActive = afterUnauthorized.attachments.find((attachment) => attachment.id === attachmentId);
@@ -416,7 +419,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await expect(page.getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
 
     const removedDetailResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
-      headers: { "X-Requester-Id": String(requesterA.id) },
+      headers: requesterA.readHeaders,
     });
     const removedDetail = await removedDetailResponse.json() as { attachments: Array<{ id: number; state: string; removedAt: string | null; removedReason: string | null }> };
     const removed = removedDetail.attachments.find((attachment) => attachment.id === attachmentId);
@@ -425,13 +428,13 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     expect(removed?.removedReason).toBe(removalReason);
 
     const removedDownload = await request.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`, {
-      headers: { "X-Requester-Id": String(requesterA.id) },
+      headers: requesterA.readHeaders,
     });
     expect(removedDownload.status()).toBe(404);
     const removedDownloadBody = await removedDownload.text();
     expect(removedDownloadBody).not.toContain(fileName);
     const removedAgain = await request.delete(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}`, {
-      headers: { "X-Requester-Id": String(requesterA.id), "Content-Type": "application/json" },
+      headers: { ...requesterA.writeHeaders, "Content-Type": "application/json" },
       data: { reason: removalReason },
     });
     expect(removedAgain.status()).toBe(404);

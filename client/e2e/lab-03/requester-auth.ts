@@ -1,6 +1,8 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 const INITIAL_PASSWORD = process.env.LAB_SEED_INITIAL_PASSWORD ?? "local-lab-only-seed-password-2026";
+const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3000";
+const CLIENT_ORIGIN = "http://127.0.0.1:5173";
 const REQUESTER_EMAILS = [
   "anan.srisuk@example.test",
   "benjamas.kittipong@example.test",
@@ -16,6 +18,73 @@ function emailForRequester(requesterId: number): string {
   const email = REQUESTER_EMAILS[requesterId - 1];
   if (!email) throw new Error(`No seeded requester email is mapped for requester id ${requesterId}`);
   return email;
+}
+
+export type AuthenticatedRequesterApi = {
+  requesterId: number;
+  email: string;
+  cookie: string;
+  csrfToken: string;
+  readHeaders: Record<string, string>;
+  writeHeaders: Record<string, string>;
+};
+
+function cookiePair(header: string | undefined): string {
+  const pair = header?.split(";")[0] ?? "";
+  if (!pair.includes("=")) throw new Error("Authentication response did not include a session cookie.");
+  return pair;
+}
+
+export async function authenticatedRequesterApi(
+  request: APIRequestContext,
+  requesterId = 1,
+): Promise<AuthenticatedRequesterApi> {
+  const email = emailForRequester(requesterId);
+  const changed = replacementPassword(requesterId);
+
+  for (const candidate of [INITIAL_PASSWORD, changed]) {
+    const login = await request.post(`${API_URL}/api/auth/login`, {
+      headers: { Origin: CLIENT_ORIGIN },
+      data: { email, password: candidate },
+    });
+    if (login.status() !== 200) continue;
+
+    let body = await login.json() as {
+      user: { id: number; mustChangePassword: boolean };
+      csrfToken: string;
+    };
+    let cookie = cookiePair(login.headers()["set-cookie"]);
+
+    if (body.user.mustChangePassword) {
+      const changedResponse = await request.post(`${API_URL}/api/auth/change-password`, {
+        headers: {
+          Origin: CLIENT_ORIGIN,
+          Cookie: cookie,
+          "X-CSRF-Token": body.csrfToken,
+        },
+        data: { currentPassword: candidate, newPassword: changed, confirmPassword: changed },
+      });
+      expect(changedResponse.status()).toBe(200);
+      body = await changedResponse.json() as typeof body;
+      cookie = cookiePair(changedResponse.headers()["set-cookie"]);
+    }
+
+    expect(body.user.id).toBe(requesterId);
+    return {
+      requesterId: body.user.id,
+      email,
+      cookie,
+      csrfToken: body.csrfToken,
+      readHeaders: { Cookie: cookie },
+      writeHeaders: {
+        Cookie: cookie,
+        Origin: CLIENT_ORIGIN,
+        "X-CSRF-Token": body.csrfToken,
+      },
+    };
+  }
+
+  throw new Error(`Unable to authenticate seeded requester ${email}`);
 }
 
 export async function enterAuthenticatedRequester(page: Page, requesterId = 1): Promise<void> {

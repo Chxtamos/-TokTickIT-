@@ -1,6 +1,10 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { enterAuthenticatedRequester } from "../lab-03/requester-auth.js";
+import {
+  authenticatedRequesterApi,
+  enterAuthenticatedRequester,
+  type AuthenticatedRequesterApi,
+} from "../lab-03/requester-auth.js";
 
 const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3000";
 
@@ -11,8 +15,12 @@ function pdfFixture() {
   return Buffer.from("%PDF-1.4\nResponsive E2E fixture\n", "utf8");
 }
 
-async function getFirstActive<T extends ReferenceItem>(request: APIRequestContext, path: string): Promise<T> {
-  const response = await request.get(`${API_URL}${path}`);
+async function getFirstActive<T extends ReferenceItem>(
+  request: APIRequestContext,
+  auth: AuthenticatedRequesterApi,
+  path: string,
+): Promise<T> {
+  const response = await request.get(`${API_URL}${path}`, { headers: auth.readHeaders });
   expect(response.ok()).toBeTruthy();
   const items = await response.json() as T[];
   expect(items.length).toBeGreaterThan(0);
@@ -20,13 +28,13 @@ async function getFirstActive<T extends ReferenceItem>(request: APIRequestContex
 }
 
 async function seedScenario(request: APIRequestContext): Promise<Scenario> {
-  const requester = await getFirstActive<ReferenceItem>(request, "/api/development-requesters");
-  const category = await getFirstActive<ReferenceItem>(request, "/api/categories");
-  const relatedSystem = await getFirstActive<ReferenceItem>(request, "/api/related-systems");
+  const requester = await authenticatedRequesterApi(request, 1);
+  const category = await getFirstActive<ReferenceItem>(request, requester, "/api/categories");
+  const relatedSystem = await getFirstActive<ReferenceItem>(request, requester, "/api/related-systems");
   const runId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
   const summary = `Feature 21 responsive ticket ${runId}`;
   const createResponse = await request.post(`${API_URL}/api/tickets`, {
-    headers: { "X-Requester-Id": String(requester.id), "Content-Type": "application/json" },
+    headers: { ...requester.writeHeaders, "Content-Type": "application/json" },
     data: {
       clientRequestId: randomUUID(),
       categoryId: category.id,
@@ -40,11 +48,11 @@ async function seedScenario(request: APIRequestContext): Promise<Scenario> {
   const created = await createResponse.json() as { ticket: { id: number; ticketNumber: string } };
   const attachmentName = `responsive-${"long-filename-".repeat(13)}${runId}.pdf`;
   const uploadResponse = await request.post(`${API_URL}/api/tickets/${created.ticket.id}/attachments`, {
-    headers: { "X-Requester-Id": String(requester.id) },
+    headers: requester.writeHeaders,
     multipart: { file: { name: attachmentName, mimeType: "application/pdf", buffer: pdfFixture() } },
   });
   expect(uploadResponse.status()).toBe(201);
-  return { requesterId: requester.id, summary, ticketNumber: created.ticket.ticketNumber, attachmentName };
+  return { requesterId: requester.requesterId, summary, ticketNumber: created.ticket.ticketNumber, attachmentName };
 }
 
 async function enterRequesterWorkspace(page: Page, requesterId: number) {

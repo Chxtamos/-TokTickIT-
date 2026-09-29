@@ -2,7 +2,12 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { enterAuthenticatedRequester, leaveAuthenticatedRequester } from "../lab-03/requester-auth.js";
+import {
+  authenticatedRequesterApi,
+  enterAuthenticatedRequester,
+  leaveAuthenticatedRequester,
+  type AuthenticatedRequesterApi,
+} from "../lab-03/requester-auth.js";
 
 const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3000";
 const SCREENSHOT_ROOT = path.resolve(process.cwd(), "..", "artifacts/lab-02/screenshots");
@@ -14,8 +19,12 @@ function pdfFixture() {
   return Buffer.from("%PDF-1.4\nVisual evidence fixture\n", "utf8");
 }
 
-async function firstItem(request: APIRequestContext, endpoint: string): Promise<Item> {
-  const response = await request.get(`${API_URL}${endpoint}`);
+async function firstItem(
+  request: APIRequestContext,
+  auth: AuthenticatedRequesterApi,
+  endpoint: string,
+): Promise<Item> {
+  const response = await request.get(`${API_URL}${endpoint}`, { headers: auth.readHeaders });
   expect(response.ok()).toBeTruthy();
   const items = await response.json() as Item[];
   expect(items.length).toBeGreaterThan(0);
@@ -23,16 +32,14 @@ async function firstItem(request: APIRequestContext, endpoint: string): Promise<
 }
 
 async function createScenario(request: APIRequestContext): Promise<Scenario> {
-  const requestersResponse = await request.get(`${API_URL}/api/development-requesters`);
-  expect(requestersResponse.ok()).toBeTruthy();
-  const requesters = await requestersResponse.json() as Item[];
-  expect(requesters.length).toBeGreaterThanOrEqual(2);
-  const category = await firstItem(request, "/api/categories");
-  const relatedSystem = await firstItem(request, "/api/related-systems");
+  const requesterA = await authenticatedRequesterApi(request, 1);
+  const requesterB = await authenticatedRequesterApi(request, 2);
+  const category = await firstItem(request, requesterA, "/api/categories");
+  const relatedSystem = await firstItem(request, requesterA, "/api/related-systems");
   const runId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
   const summary = `Feature 22 visual evidence ${runId}`;
   const createResponse = await request.post(`${API_URL}/api/tickets`, {
-    headers: { "X-Requester-Id": String(requesters[0].id), "Content-Type": "application/json" },
+    headers: { ...requesterA.writeHeaders, "Content-Type": "application/json" },
     data: {
       clientRequestId: randomUUID(),
       categoryId: category.id,
@@ -46,11 +53,18 @@ async function createScenario(request: APIRequestContext): Promise<Scenario> {
   const created = await createResponse.json() as { ticket: { id: number; ticketNumber: string } };
   const attachmentName = `visual-evidence-${runId}.pdf`;
   const uploadResponse = await request.post(`${API_URL}/api/tickets/${created.ticket.id}/attachments`, {
-    headers: { "X-Requester-Id": String(requesters[0].id) },
+    headers: requesterA.writeHeaders,
     multipart: { file: { name: attachmentName, mimeType: "application/pdf", buffer: pdfFixture() } },
   });
   expect(uploadResponse.status()).toBe(201);
-  return { requesterId: requesters[0].id, otherRequesterId: requesters[1].id, ticketId: created.ticket.id, ticketNumber: created.ticket.ticketNumber, summary, attachmentName };
+  return {
+    requesterId: requesterA.requesterId,
+    otherRequesterId: requesterB.requesterId,
+    ticketId: created.ticket.id,
+    ticketNumber: created.ticket.ticketNumber,
+    summary,
+    attachmentName,
+  };
 }
 
 async function capture(page: Page, folder: string, name: string) {
@@ -188,7 +202,7 @@ test.describe("Lab 2 screenshot evidence", () => {
     await page.getByRole("link", { name: "My Tickets", exact: true }).click();
     await page.route("**/api/tickets/*", async (route) => {
       if (route.request().method() !== "GET") return route.continue();
-      const response = await route.fetch({ url: `${API_URL}/api/tickets/${scenario.ticketId}`, headers: { ...route.request().headers(), "x-requester-id": String(scenario.otherRequesterId) } });
+      const response = await route.fetch({ url: `${API_URL}/api/tickets/${scenario.ticketId}` });
       expect(response.status()).toBe(404);
       return route.fulfill({ response });
     });
