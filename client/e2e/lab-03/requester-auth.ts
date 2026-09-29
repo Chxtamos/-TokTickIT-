@@ -9,6 +9,7 @@ const REQUESTER_EMAILS = [
   "chaiwat.somchai@example.test",
   "daranee.ploy@example.test",
 ];
+const changedRequesterIds = new Set<number>();
 
 function replacementPassword(requesterId: number): string {
   return `${INITIAL_PASSWORD}-requester-${requesterId}-changed`;
@@ -43,8 +44,11 @@ export async function authenticatedRequesterApi(
   const email = emailForRequester(requesterId);
   const changed = replacementPassword(requesterId);
   const api = await requestFactory.newContext();
+  const candidates = changedRequesterIds.has(requesterId)
+    ? [changed, INITIAL_PASSWORD]
+    : [INITIAL_PASSWORD, changed];
 
-  for (const candidate of [INITIAL_PASSWORD, changed]) {
+  for (const candidate of candidates) {
     const login = await api.post(`${API_URL}/api/auth/login`, {
       headers: { Origin: CLIENT_ORIGIN },
       data: { email, password: candidate },
@@ -69,6 +73,9 @@ export async function authenticatedRequesterApi(
       expect(changedResponse.status()).toBe(200);
       body = await changedResponse.json() as typeof body;
       cookie = cookiePair(changedResponse.headers()["set-cookie"]);
+      changedRequesterIds.add(requesterId);
+    } else if (candidate === changed) {
+      changedRequesterIds.add(requesterId);
     }
 
     expect(body.user.id).toBe(requesterId);
@@ -98,8 +105,11 @@ export async function enterAuthenticatedRequester(page: Page, requesterId = 1): 
 
   const email = emailForRequester(requesterId);
   const changed = replacementPassword(requesterId);
+  const candidates = changedRequesterIds.has(requesterId)
+    ? [changed, INITIAL_PASSWORD]
+    : [INITIAL_PASSWORD, changed];
   let signedIn = false;
-  for (const candidate of [INITIAL_PASSWORD, changed]) {
+  for (const candidate of candidates) {
     await expect(page.getByLabel("Email")).toBeEnabled();
     await page.getByLabel("Email").fill(email);
     await page.getByRole("textbox", { name: "Password", exact: true }).fill(candidate);
@@ -115,6 +125,7 @@ export async function enterAuthenticatedRequester(page: Page, requesterId = 1): 
     ]);
 
     if (outcome === "workspace") {
+      if (candidate === changed) changedRequesterIds.add(requesterId);
       signedIn = true;
       break;
     }
@@ -124,6 +135,7 @@ export async function enterAuthenticatedRequester(page: Page, requesterId = 1): 
       await page.getByRole("textbox", { name: "Confirm New Password", exact: true }).fill(changed);
       await page.getByRole("button", { name: "Save Password", exact: true }).click();
       await expect(page.getByRole("heading", { name: "My Tickets", exact: true })).toBeVisible();
+      changedRequesterIds.add(requesterId);
       signedIn = true;
       break;
     }
