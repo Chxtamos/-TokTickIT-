@@ -20,7 +20,7 @@ async function getFirstActive<T extends ReferenceItem>(
   auth: AuthenticatedRequesterApi,
   path: string,
 ): Promise<T> {
-  const response = await request.get(`${API_URL}${path}`, { headers: auth.readHeaders });
+  const response = await auth.api.get(`${API_URL}${path}`);
   expect(response.ok()).toBeTruthy();
   const items = await response.json() as T[];
   expect(items.length).toBeGreaterThan(0);
@@ -33,7 +33,7 @@ async function seedScenario(request: APIRequestContext): Promise<Scenario> {
   const relatedSystem = await getFirstActive<ReferenceItem>(request, requester, "/api/related-systems");
   const runId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
   const summary = `Feature 21 responsive ticket ${runId}`;
-  const createResponse = await request.post(`${API_URL}/api/tickets`, {
+  const createResponse = await requester.api.post(`${API_URL}/api/tickets`, {
     headers: { ...requester.writeHeaders, "Content-Type": "application/json" },
     data: {
       clientRequestId: randomUUID(),
@@ -47,7 +47,7 @@ async function seedScenario(request: APIRequestContext): Promise<Scenario> {
   expect(createResponse.status()).toBe(201);
   const created = await createResponse.json() as { ticket: { id: number; ticketNumber: string } };
   const attachmentName = `responsive-${"long-filename-".repeat(13)}${runId}.pdf`;
-  const uploadResponse = await request.post(`${API_URL}/api/tickets/${created.ticket.id}/attachments`, {
+  const uploadResponse = await requester.api.post(`${API_URL}/api/tickets/${created.ticket.id}/attachments`, {
     headers: requester.writeHeaders,
     multipart: { file: { name: attachmentName, mimeType: "application/pdf", buffer: pdfFixture() } },
   });

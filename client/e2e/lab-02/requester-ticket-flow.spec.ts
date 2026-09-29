@@ -30,8 +30,8 @@ async function getReferenceData(
   auth: AuthenticatedRequesterApi,
 ): Promise<{ category: ReferenceItem; relatedSystem: ReferenceItem }> {
   const [categoriesResponse, systemsResponse] = await Promise.all([
-    request.get(`${API_URL}/api/categories`, { headers: auth.readHeaders }),
-    request.get(`${API_URL}/api/related-systems`, { headers: auth.readHeaders }),
+    auth.api.get(`${API_URL}/api/categories`),
+    auth.api.get(`${API_URL}/api/related-systems`),
   ]);
   expect(categoriesResponse.ok()).toBeTruthy();
   expect(systemsResponse.ok()).toBeTruthy();
@@ -49,7 +49,7 @@ async function createTicketForRequester(
   references: { category: ReferenceItem; relatedSystem: ReferenceItem },
   requestedPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT" = "HIGH",
 ): Promise<TicketListItem> {
-  const response = await request.post(`${API_URL}/api/tickets`, {
+  const response = await auth.api.post(`${API_URL}/api/tickets`, {
     headers: { ...auth.writeHeaders, "Content-Type": "application/json" },
     data: {
       clientRequestId: randomUUID(),
@@ -85,9 +85,7 @@ async function findTicket(
   auth: AuthenticatedRequesterApi,
   summary: string,
 ): Promise<TicketListItem> {
-  const response = await request.get(`${API_URL}/api/tickets?search=${encodeURIComponent(summary)}`, {
-    headers: auth.readHeaders,
-  });
+  const response = await auth.api.get(`${API_URL}/api/tickets?search=${encodeURIComponent(summary)}`);
   expect(response.ok()).toBeTruthy();
   const body = await response.json() as { items: TicketListItem[] };
   const matches = body.items.filter((item) => item.summary === summary);
@@ -130,9 +128,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     expect(ticket.requestedPriority).toBe("URGENT");
     expect(ticket.currentStatus).toBe("NEW");
 
-    const detailResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
-      headers: apiAuth.readHeaders,
-    });
+    const detailResponse = await apiAuth.api.get(`${API_URL}/api/tickets/${ticket.id}`);
     expect(detailResponse.ok()).toBeTruthy();
     const detail = await detailResponse.json() as { attachments: Array<{ originalName: string; state: string }> };
     expect(detail.attachments.map((attachment) => attachment.originalName).sort()).toEqual(["e2e-mixed.pdf", "e2e-mixed.png"]);
@@ -197,9 +193,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     const ticket = await findTicket(request, apiAuth, summary);
     expect(createCalls).toBe(2);
     expect(attachmentCalls).toBe(3);
-    const detailResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
-      headers: apiAuth.readHeaders,
-    });
+    const detailResponse = await apiAuth.api.get(`${API_URL}/api/tickets/${ticket.id}`);
     expect(detailResponse.ok()).toBeTruthy();
     const detail = await detailResponse.json() as { attachments: Array<{ originalName: string; state: string }> };
     expect(detail.attachments).toHaveLength(2);
@@ -293,18 +287,14 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     const bSummary = `Feature 19 B detail ${runId}`;
     const bTicket = await createTicketForRequester(request, requesterB, bSummary, references, "HIGH");
 
-    const crossOwnerResponse = await request.get(`${API_URL}/api/tickets/${aTicket.id}`, {
-      headers: requesterB.readHeaders,
-    });
+    const crossOwnerResponse = await requesterB.api.get(`${API_URL}/api/tickets/${aTicket.id}`);
     expect(crossOwnerResponse.status()).toBe(404);
     const crossOwnerBody = await crossOwnerResponse.json() as { error: { code: string; message: string } };
     expect(crossOwnerBody.error.code).toBe("RESOURCE_NOT_FOUND");
     expect(JSON.stringify(crossOwnerBody)).not.toContain(aSummary);
     expect(JSON.stringify(crossOwnerBody)).not.toContain(aTicket.ticketNumber);
 
-    const missingResponse = await request.get(`${API_URL}/api/tickets/999999999`, {
-      headers: requesterB.readHeaders,
-    });
+    const missingResponse = await requesterB.api.get(`${API_URL}/api/tickets/999999999`);
     expect(missingResponse.status()).toBe(404);
     const missingBody = await missingResponse.json() as { error: { code: string } };
     expect(missingBody.error.code).toBe("RESOURCE_NOT_FOUND");
@@ -366,9 +356,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await expect(page.getByText("Active", { exact: true })).toBeVisible();
     expect(uploadAttempts).toBe(2);
 
-    const detailResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
-      headers: requesterA.readHeaders,
-    });
+    const detailResponse = await requesterA.api.get(`${API_URL}/api/tickets/${ticket.id}`);
     expect(detailResponse.ok()).toBeTruthy();
     const detail = await detailResponse.json() as { attachments: Array<{ id: number; originalName: string; state: string; removedAt: string | null; removedReason: string | null }> };
     const uploaded = detail.attachments.find((attachment) => attachment.originalName === fileName);
@@ -377,9 +365,7 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     expect(uploaded?.removedAt).toBeNull();
     const attachmentId = uploaded!.id;
 
-    const downloadResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`, {
-      headers: requesterA.readHeaders,
-    });
+    const downloadResponse = await requesterA.api.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`);
     expect(downloadResponse.status()).toBe(200);
     expect(downloadResponse.headers()["content-type"]).toContain("application/pdf");
     expect(downloadResponse.headers()["x-content-type-options"]).toBe("nosniff");
@@ -389,20 +375,16 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     expect((await downloadPromise).suggestedFilename()).toBe(fileName);
 
     // Non-owner access must be rejected while the Attachment is still ACTIVE.
-    const unauthorizedDownload = await request.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`, {
-      headers: requesterB.readHeaders,
-    });
+    const unauthorizedDownload = await requesterB.api.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`);
     expect(unauthorizedDownload.status()).toBe(404);
     expect(await unauthorizedDownload.text()).not.toContain(fileName);
     const removalReason = "Feature 20 lifecycle cleanup";
-    const unauthorizedRemove = await request.delete(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}`, {
+    const unauthorizedRemove = await requesterB.api.delete(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}`, {
       headers: { ...requesterB.writeHeaders, "Content-Type": "application/json" },
       data: { reason: removalReason },
     });
     expect(unauthorizedRemove.status()).toBe(404);
-    const afterUnauthorizedResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
-      headers: requesterA.readHeaders,
-    });
+    const afterUnauthorizedResponse = await requesterA.api.get(`${API_URL}/api/tickets/${ticket.id}`);
     const afterUnauthorized = await afterUnauthorizedResponse.json() as { attachments: Array<{ id: number; state: string; removedAt: string | null; removedReason: string | null }> };
     const stillActive = afterUnauthorized.attachments.find((attachment) => attachment.id === attachmentId);
     expect(stillActive?.state).toBe("ACTIVE");
@@ -418,22 +400,18 @@ test.describe("Lab 2 requester-to-Ticket workflow", () => {
     await expect(page.getByRole("button", { name: "Download", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
 
-    const removedDetailResponse = await request.get(`${API_URL}/api/tickets/${ticket.id}`, {
-      headers: requesterA.readHeaders,
-    });
+    const removedDetailResponse = await requesterA.api.get(`${API_URL}/api/tickets/${ticket.id}`);
     const removedDetail = await removedDetailResponse.json() as { attachments: Array<{ id: number; state: string; removedAt: string | null; removedReason: string | null }> };
     const removed = removedDetail.attachments.find((attachment) => attachment.id === attachmentId);
     expect(removed?.state).toBe("REMOVED");
     expect(removed?.removedAt).not.toBeNull();
     expect(removed?.removedReason).toBe(removalReason);
 
-    const removedDownload = await request.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`, {
-      headers: requesterA.readHeaders,
-    });
+    const removedDownload = await requesterA.api.get(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}/download`);
     expect(removedDownload.status()).toBe(404);
     const removedDownloadBody = await removedDownload.text();
     expect(removedDownloadBody).not.toContain(fileName);
-    const removedAgain = await request.delete(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}`, {
+    const removedAgain = await requesterA.api.delete(`${API_URL}/api/tickets/${ticket.id}/attachments/${attachmentId}`, {
       headers: { ...requesterA.writeHeaders, "Content-Type": "application/json" },
       data: { reason: removalReason },
     });

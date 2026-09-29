@@ -24,7 +24,7 @@ async function firstItem(
   auth: AuthenticatedRequesterApi,
   endpoint: string,
 ): Promise<Item> {
-  const response = await request.get(`${API_URL}${endpoint}`, { headers: auth.readHeaders });
+  const response = await auth.api.get(`${API_URL}${endpoint}`);
   expect(response.ok()).toBeTruthy();
   const items = await response.json() as Item[];
   expect(items.length).toBeGreaterThan(0);
@@ -38,7 +38,7 @@ async function createScenario(request: APIRequestContext): Promise<Scenario> {
   const relatedSystem = await firstItem(request, requesterA, "/api/related-systems");
   const runId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
   const summary = `Feature 22 visual evidence ${runId}`;
-  const createResponse = await request.post(`${API_URL}/api/tickets`, {
+  const createResponse = await requesterA.api.post(`${API_URL}/api/tickets`, {
     headers: { ...requesterA.writeHeaders, "Content-Type": "application/json" },
     data: {
       clientRequestId: randomUUID(),
@@ -52,7 +52,7 @@ async function createScenario(request: APIRequestContext): Promise<Scenario> {
   expect(createResponse.status()).toBe(201);
   const created = await createResponse.json() as { ticket: { id: number; ticketNumber: string } };
   const attachmentName = `visual-evidence-${runId}.pdf`;
-  const uploadResponse = await request.post(`${API_URL}/api/tickets/${created.ticket.id}/attachments`, {
+  const uploadResponse = await requesterA.api.post(`${API_URL}/api/tickets/${created.ticket.id}/attachments`, {
     headers: requesterA.writeHeaders,
     multipart: { file: { name: attachmentName, mimeType: "application/pdf", buffer: pdfFixture() } },
   });

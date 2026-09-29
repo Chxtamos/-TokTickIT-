@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, request as requestFactory, type APIRequestContext, type Page } from "@playwright/test";
 
 const INITIAL_PASSWORD = process.env.LAB_SEED_INITIAL_PASSWORD ?? "local-lab-only-seed-password-2026";
 const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3000";
@@ -23,6 +23,7 @@ function emailForRequester(requesterId: number): string {
 export type AuthenticatedRequesterApi = {
   requesterId: number;
   email: string;
+  api: APIRequestContext;
   cookie: string;
   csrfToken: string;
   readHeaders: Record<string, string>;
@@ -36,14 +37,15 @@ function cookiePair(header: string | undefined): string {
 }
 
 export async function authenticatedRequesterApi(
-  request: APIRequestContext,
+  _request: APIRequestContext,
   requesterId = 1,
 ): Promise<AuthenticatedRequesterApi> {
   const email = emailForRequester(requesterId);
   const changed = replacementPassword(requesterId);
+  const api = await requestFactory.newContext();
 
   for (const candidate of [INITIAL_PASSWORD, changed]) {
-    const login = await request.post(`${API_URL}/api/auth/login`, {
+    const login = await api.post(`${API_URL}/api/auth/login`, {
       headers: { Origin: CLIENT_ORIGIN },
       data: { email, password: candidate },
     });
@@ -56,7 +58,7 @@ export async function authenticatedRequesterApi(
     let cookie = cookiePair(login.headers()["set-cookie"]);
 
     if (body.user.mustChangePassword) {
-      const changedResponse = await request.post(`${API_URL}/api/auth/change-password`, {
+      const changedResponse = await api.post(`${API_URL}/api/auth/change-password`, {
         headers: {
           Origin: CLIENT_ORIGIN,
           Cookie: cookie,
@@ -73,6 +75,7 @@ export async function authenticatedRequesterApi(
     return {
       requesterId: body.user.id,
       email,
+      api,
       cookie,
       csrfToken: body.csrfToken,
       readHeaders: { Cookie: cookie },
@@ -84,6 +87,7 @@ export async function authenticatedRequesterApi(
     };
   }
 
+  await api.dispose();
   throw new Error(`Unable to authenticate seeded requester ${email}`);
 }
 
