@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import App from "../../src/App.js";
 import * as api from "../../src/api.js";
+import { mockCurrentUser, setRoute } from "../auth-fixtures.js";
 
 const requester = { id: 1, name: "Alice Requester" };
 const category = { id: 1, name: "Hardware" };
@@ -13,7 +14,7 @@ const ticket = {
   category,
   relatedSystem: system,
   requestedPriority: "HIGH" as const,
-  currentStatus: "NEW",
+  currentStatus: "NEW" as const,
   createdAt: "2026-08-31T10:00:00.000Z",
   updatedAt: "2026-08-31T10:00:00.000Z",
 };
@@ -25,41 +26,38 @@ const listResponse: api.TicketListResponse = {
 };
 
 async function renderShell(mockTickets = true) {
-  sessionStorage.setItem("toktickit.requesterId", "1");
-  vi.spyOn(api, "getDevelopmentRequesters").mockResolvedValue([requester]);
+  setRoute("/requester/tickets");
+  mockCurrentUser();
   vi.spyOn(api, "getCategories").mockResolvedValue([category]);
   vi.spyOn(api, "getRelatedSystems").mockResolvedValue([system]);
   if (mockTickets) vi.spyOn(api, "getTickets").mockResolvedValue(listResponse);
   render(<App />);
-  await screen.findByText("Welcome to TokTickIT");
+  await screen.findByRole("heading", { name: "My Tickets" });
 }
 
-afterEach(() => { sessionStorage.clear(); vi.restoreAllMocks(); });
+afterEach(() => { sessionStorage.clear(); vi.restoreAllMocks(); setRoute(); });
 
 describe("Lab 2 keyboard and accessibility contract", () => {
   it("exposes one primary heading and a labelled navigation landmark", async () => {
     await renderShell();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Change Requester" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change Password" })).toBeInTheDocument();
   });
 
   it("updates aria-current to the active screen instead of relying on color", async () => {
     await renderShell();
-    const workspace = screen.getByRole("link", { name: "Workspace" });
-    expect(workspace).toHaveAttribute("aria-current", "page");
-    fireEvent.click(screen.getByRole("button", { name: "My Tickets" }));
-    await screen.findByRole("heading", { name: "My Tickets" });
-    expect(workspace).not.toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("button", { name: "My Tickets" })).toHaveAttribute("aria-current", "page");
-    fireEvent.click(screen.getByRole("navigation", { name: "Primary navigation" }).querySelector("button:last-of-type") as HTMLButtonElement);
+    const myTickets = screen.getByRole("link", { name: "My Tickets" });
+    expect(myTickets).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("link", { name: "Create Ticket" }));
     await screen.findByRole("heading", { name: "Create Ticket" });
-    expect(screen.getByRole("button", { name: "Create Ticket" })).toHaveAttribute("aria-current", "page");
+    expect(myTickets).not.toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Create Ticket" })).toHaveAttribute("aria-current", "page");
   });
 
   it("associates validation errors with the first invalid control and moves focus there", async () => {
     await renderShell();
-    fireEvent.click(screen.getByRole("button", { name: "Create Ticket" }));
+    fireEvent.click(screen.getByRole("link", { name: "Create Ticket" }));
     await screen.findByRole("heading", { name: "Create Ticket" });
     await waitFor(() => expect(screen.getByLabelText(/Category/)).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Submit Ticket" }));
@@ -73,7 +71,6 @@ describe("Lab 2 keyboard and accessibility contract", () => {
     let resolveTickets!: (value: api.TicketListResponse) => void;
     vi.spyOn(api, "getTickets").mockImplementation(() => new Promise((resolve) => { resolveTickets = resolve; }));
     await renderShell(false);
-    fireEvent.click(screen.getByRole("button", { name: "My Tickets" }));
     await screen.findByText("Loading Tickets…");
     const main = document.querySelector("main.tickets-page");
     expect(main).not.toBeNull();
@@ -86,7 +83,6 @@ describe("Lab 2 keyboard and accessibility contract", () => {
 
   it("keeps statuses and attachment actions understandable by text", async () => {
     await renderShell();
-    fireEvent.click(screen.getByRole("button", { name: "My Tickets" }));
     await screen.findByRole("table");
     expect(within(screen.getByRole("table")).getByText("HIGH")).toBeInTheDocument();
     expect(within(screen.getByRole("table")).getByText("NEW")).toBeInTheDocument();

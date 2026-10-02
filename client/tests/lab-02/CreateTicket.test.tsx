@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import App from "../../src/App.js";
 import * as api from "../../src/api.js";
+import { mockCurrentUser, requesterUser, setRoute } from "../auth-fixtures.js";
 
-const requester = { id: 1, name: "Alice Requester" };
+const requester = requesterUser;
 const ticket = {
   id: 42,
   ticketNumber: "TKT-2026-000042",
@@ -20,14 +21,13 @@ const ticket = {
 };
 
 async function renderCreateTicket() {
-  sessionStorage.setItem("toktickit.requesterId", "1");
-  vi.spyOn(api, "getDevelopmentRequesters").mockResolvedValue([requester]);
+  setRoute("/requester/tickets/new");
+  mockCurrentUser();
   vi.spyOn(api, "getCategories").mockResolvedValue([{ id: 1, name: "Hardware" }]);
   vi.spyOn(api, "getRelatedSystems").mockResolvedValue([{ id: 1, name: "Corporate Laptop" }]);
   render(<App />);
-  await screen.findByText("Welcome to TokTickIT");
-  fireEvent.click(screen.getByRole("button", { name: "Create Ticket" }));
   await screen.findByRole("heading", { name: "Create Ticket" });
+  await waitFor(() => expect(screen.getByLabelText(/Category/)).toBeEnabled());
 }
 
 function fillValidForm() {
@@ -40,6 +40,7 @@ function fillValidForm() {
 afterEach(() => {
   sessionStorage.clear();
   vi.restoreAllMocks();
+  setRoute();
 });
 
 describe("Create Ticket screen", () => {
@@ -85,7 +86,7 @@ describe("Create Ticket screen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit Ticket" }));
     await screen.findByRole("heading", { name: "Ticket created" });
     expect(create).toHaveBeenCalledTimes(2);
-    expect(create.mock.calls[0][1].clientRequestId).not.toBe(create.mock.calls[1][1].clientRequestId);
+    expect(create.mock.calls[0][0].clientRequestId).not.toBe(create.mock.calls[1][0].clientRequestId);
   });
 
   it("disables repeated submission and shows a busy label", async () => {
@@ -124,7 +125,7 @@ describe("Create Ticket screen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit Ticket" }));
     await screen.findByRole("heading", { name: "Ticket created" });
     expect(create).toHaveBeenCalledTimes(2);
-    expect(create.mock.calls[0][1].clientRequestId).toBe(create.mock.calls[1][1].clientRequestId);
+    expect(create.mock.calls[0][0].clientRequestId).toBe(create.mock.calls[1][0].clientRequestId);
   });
 
   it("keeps invalid selected files visible and excludes them from upload", async () => {
@@ -159,7 +160,7 @@ describe("Create Ticket screen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(screen.getByText("first.pdf: Uploaded")).toBeInTheDocument());
     expect(upload).toHaveBeenCalledTimes(3);
-    expect(upload.mock.calls[2][2]).toBe(first);
+    expect(upload.mock.calls[2][1]).toBe(first);
   });
 
   it("appends picker selections and keeps every over-quota file visible", async () => {

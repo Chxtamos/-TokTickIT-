@@ -1,6 +1,6 @@
 # TokTickIT
 
-TokTickIT is a requester-facing IT service desk MVP for CPE 334 Lab 2. A tester selects a seeded Development Requester, creates Tickets, views only owned Tickets, and manages permitted Attachments.
+TokTickIT is an authenticated IT service desk application for CPE 334 Lab 3. It supports three roles: Requester, IT Staff, and Administrator. Requesters create and track their own Tickets, IT Staff operate a shared queue and manage Ticket workflow, and Administrators manage user accounts with safety rules for active administrators and Ticket ownership.
 
 ## Technology Stack
 
@@ -13,228 +13,148 @@ TokTickIT is a requester-facing IT service desk MVP for CPE 334 Lab 2. A tester 
 
 ```text
 toktickit/
-├── client/
-│   ├── src/
-│   ├── tests/
-│   │   ├── lab-01/
-│   │   └── lab-02/
-│   ├── e2e/lab-02/
-│   ├── .env.example
-│   └── package.json
-├── server/
-│   ├── prisma/
-│   │   ├── migrations/
-│   │   ├── schema.prisma
-│   │   └── seed.ts
-│   ├── src/
-│   ├── tests/
-│   │   └── lab-01/
-│   │       ├── health.test.ts
-│   │       └── categories.test.ts
-│   ├── .env.example
-│   └── package.json
-├── docs/
-│   └── lab-02/
-│       ├── ai-use.md
-│       ├── api-spec.md
-│       ├── reviewer.md
-│       ├── specification.md
-│       ├── tests.md
-│       └── ui-spec.md
-├── artifacts/lab-02/screenshots/
-├── output/pdf/67070507210_Lab2_Final.pdf
-├── .gitignore
-└── README.md
++-- client/
+�   +-- src/
+�   +-- tests/lab-01, lab-02, lab-03/
+�   +-- e2e/lab-02, lab-03/
+�   +-- package.json
++-- server/
+�   +-- prisma/migrations, schema.prisma, seed.ts
+�   +-- scripts/lab3/
+�   +-- src/
+�   +-- tests/lab-01, lab-02, lab-03/
+�   +-- package.json
++-- docs/lab-02/
++-- docs/lab-03/
++-- artifacts/
++-- output/
++-- README.md
 ```
 
 ## Prerequisites
 
-Install the following software before starting:
+Install Node.js/npm, PostgreSQL, and Git.
 
-- Node.js and npm
-- PostgreSQL 17
-- Git
-
-## Clone the Repository
+## Clone and Install
 
 ```powershell
 git clone https://github.com/Chxtamos/-TokTickIT-.git
 cd "-TokTickIT-"
-```
-
-## Install Dependencies
-
-Install frontend dependencies:
-
-```powershell
-cd client
-npm install
-cd ..
-```
-
-Install backend dependencies:
-
-```powershell
-cd server
-npm install
-cd ..
+npm --prefix client install
+npm --prefix server install
 ```
 
 ## Environment Setup
 
-Copy the provided environment examples (do not commit the resulting `.env` files):
+Copy the examples and keep the resulting `.env` files private:
 
 ```powershell
 Copy-Item client\.env.example client\.env
 Copy-Item server\.env.example server\.env
 ```
 
-Configure `server/.env` with your local PostgreSQL connection:
+Configure at least:
 
 ```text
 DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/toktickit?schema=public"
+CLIENT_ORIGIN="http://127.0.0.1:5173"
 ```
 
-The frontend API URL can be configured in `client/.env`:
+and in `client/.env`:
 
 ```text
 VITE_API_URL=http://localhost:3000
 ```
 
-Do not commit `.env` files, database passwords, or `node_modules`.
+Authenticated browser requests use cookie sessions, credentialed CORS, exact Origin validation, and CSRF protection on authenticated writes. Do not commit `.env` files, credentials, database passwords, session data, or `node_modules`.
 
 ## Database Setup
 
-Create a PostgreSQL database named `toktickit` and provide a database user with access to it. This can be done through pgAdmin or PostgreSQL `psql`.
-
-After configuring `DATABASE_URL`, enter the server directory:
-
 ```powershell
-cd server
+npm --prefix server exec prisma generate
+npm --prefix server exec prisma migrate deploy
+npm --prefix server run prisma:seed
 ```
 
-Generate the Prisma Client:
+The Lab 3 seed is repeat-safe. Existing credentials, activation state, and Ticket work are not overwritten. When synthetic Staff/Admin fixtures need an initial password, set `LAB_SEED_INITIAL_PASSWORD` before seeding. Migrated users without a password hash are provisioned separately with:
 
 ```powershell
-npx prisma generate
-```
-
-Apply the committed database migrations:
-
-```powershell
-npx prisma migrate deploy
-```
-
-Seed the Lab 2 reference data (safe to run repeatedly):
-
-```powershell
-npm run prisma:seed
-npm run prisma:seed
-```
-
-Check the migration status:
-
-```powershell
-npx prisma migrate status
-```
-
-The seed is idempotent and can run repeatedly without creating duplicate categories, systems, or Development Requesters.
-
-For development, create a new migration after changing `schema.prisma`:
-
-```powershell
-npx prisma migrate dev --name migration-name
+npm --prefix server run lab3:provision-migrated-users
 ```
 
 ## Running the Application
 
-Start the backend:
+Backend:
 
 ```powershell
-cd server
-npm run dev
+npm --prefix server run dev
 ```
 
-The backend runs at:
-
-```text
-http://localhost:3000
-```
-
-Start the frontend in another terminal:
+Frontend in another terminal:
 
 ```powershell
-cd client
-npm run dev
+npm --prefix client run dev
 ```
 
-Open the Vite URL shown in the terminal, normally:
+Open the Vite URL shown in the terminal, normally `http://localhost:5173`.
 
-```text
-http://localhost:5173
-```
+## Authentication and Roles
 
-Attachment files are written to a private, non-public directory. Set `ATTACHMENT_STORAGE_DIR` when needed; otherwise the server uses `server/storage/attachments`. Uploaded files and storage paths must never be committed.
+TokTickIT no longer uses the Lab 2 Development Requester selector or `X-Requester-Id` as runtime identity. Identity comes from the authenticated session.
+
+- **Requester**: create Ticket, view only owned Tickets, manage permitted Attachments, add Public Comments, and indicate that a problem appears resolved.
+- **IT Staff**: use the shared queue, view operational Ticket Detail, claim/assign/reassign, set IT Priority, perform allowed workflow transitions, add Public Comments and Internal Notes, and download active Attachments.
+- **Administrator**: includes Staff operations plus User Management for search/list/create/edit/activate/deactivate/reset-initial-password, with self-deactivation, last-active-admin, session-revocation, version, and owner-cleanup safety rules.
+
+Initial-password sessions require a mandatory password change before normal protected application access.
 
 ## REST API
 
-### Health Check
+Health:
 
 ```http
 GET /api/health
 ```
 
-Expected response:
+Authentication includes login, logout, current-session identity, and password change endpoints. Ticket and Attachment APIs are protected by authenticated role/ownership rules. Staff queue/workflow/conversation endpoints and Administrator User Management endpoints are documented in `docs/lab-03/api-spec.md`.
 
-```json
-{
-  "status": "ok",
-  "service": "TokTickIT API"
-}
-```
+Public Comments and Internal Notes are separate resources. Internal Notes are available only to IT Staff and Administrators and must never be projected to Requesters.
 
-### Reference Data
+## Isolated Integration and E2E Database
 
-```http
-GET /api/categories
-```
-
-The application exposes active-only Categories, Related Systems, and Development Requesters endpoints. All Ticket and Attachment endpoints require the temporary `X-Requester-Id` context header; this is a Lab 2 test mechanism, not authentication.
-
-### Ticket and Attachment workflows
-
-The REST API supports idempotent Ticket creation, owner-scoped My Tickets and Ticket Detail retrieval, active/removed Attachment metadata, validated upload/download, and soft removal. See `docs/lab-02/api-spec.md` for the normative request/response contract and safe error behavior.
-
-## Running Tests
-
-Backend tests (including PostgreSQL integration):
+Never run database-writing integration/E2E tests against the development database. Use a separate PostgreSQL database whose database name contains `test`.
 
 ```powershell
-$env:RUN_DB_INTEGRATION="1"
+$env:DATABASE_URL = "postgresql://USER:PASSWORD@localhost:5432/toktickit?schema=public"
+$env:TEST_DATABASE_URL = "postgresql://USER:PASSWORD@localhost:5432/toktickit_test?schema=public"
+$env:RUN_DB_INTEGRATION = "1"
+$env:LAB_SEED_INITIAL_PASSWORD = "local-lab-only-change-me-2026"
+
+npm --prefix server run prisma:migrate:test
+npm --prefix server run prisma:seed:test
 npm --prefix server test
-```
-
-Client unit/UI tests:
-
-```powershell
 npm --prefix client test
-```
-
-Playwright E2E (requires PostgreSQL and Chromium):
-
-```powershell
-npx playwright install chromium
+npm --prefix client run build
+npm --prefix server run build
 npm --prefix client run e2e
 ```
 
-The final Lab 2 evidence currently records 62 Server tests, 54 Client tests, and 9 Playwright E2E tests passed. Full traceability and screenshot evidence are documented in `docs/lab-02/tests.md` and `artifacts/lab-02/screenshots/`.
+The test guard fails closed for missing, malformed, non-PostgreSQL, or unsafe same-database targets. A different schema in the development database is not sufficient isolation.
 
-## Lab 2 documentation
+## Lab 3 Documentation
 
-- `docs/lab-02/specification.md` - approved engineering contract and Definition of Done.
-- `docs/lab-02/api-spec.md` - normative REST API contract.
-- `docs/lab-02/ui-spec.md` - UI, accessibility, and responsive contract.
-- `docs/lab-02/tests.md` - test plan, final results, traceability, and visual checklist.
-- `docs/lab-02/reviewer.md` - peer-review and release record.
-- `docs/lab-02/ai-use.md` - selected prompts and student reflection.
-- `output/pdf/67070507210_Lab2_Final.pdf` - concise final delivery report using Answer Part 1 through Answer Part 9.
+The current normative and release documents are:
+
+- `docs/lab-03/specification.md` - functional/business requirements, authorization/workflow rules, ACs, and Product DoD.
+- `docs/lab-03/api-spec.md` - request/response/status/session/CSRF/concurrency contract.
+- `docs/lab-03/ui-spec.md` - role UI, Zen Green, responsive/accessibility, and visual evidence contract.
+- `docs/lab-03/tests.md` - traceability and observed test/release evidence.
+- `docs/lab-03/reviewer.md` - peer-review and release record.
+- `docs/lab-03/ai-use.md` - selected AI prompts and student reflection.
+- `docs/lab-03/implementation-plan.md` - historical issue/branch plan and staging flow.
+
+Lab 2 documentation remains under `docs/lab-02/` as historical/regression context.
+
+## Release Flow
+
+Feature branches merge into `lab3-staging`. The Lab 3 release PR is **`lab3-staging` -> `main`**. Issue #65 remains open through that merge because its acceptance also requires exact-final-`main` reruns, RELEASE-01/final-main evidence, and the final single Part 1-9 PDF. The issue is closed only after those post-merge requirements are complete.

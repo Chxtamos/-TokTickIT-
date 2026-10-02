@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { getPrisma } from "../../src/prisma.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { PrismaClient } from "@prisma/client";
+import {
+  assertIntegrationDatabase,
+  createIntegrationPrisma,
+  isDatabaseIntegrationRequested,
+} from "../../src/prisma.js";
 import {
   lab2Categories,
   lab2RelatedSystems,
@@ -7,17 +12,29 @@ import {
   seedLab2ReferenceData,
 } from "../../prisma/seed-data.js";
 
-describe("Lab 2 reference-data seed", () => {
-  it("is idempotent and provides the required active and inactive reference data", async () => {
-    const prisma = getPrisma();
+const runIntegration = isDatabaseIntegrationRequested();
+if (runIntegration) assertIntegrationDatabase();
+const integration = runIntegration ? describe : describe.skip;
 
+integration("Lab 2 reference-data seed", () => {
+  let prisma: PrismaClient;
+
+  beforeAll(async () => {
+    prisma = createIntegrationPrisma();
+  });
+
+  afterAll(async () => {
+    await prisma?.$disconnect();
+  });
+
+  it("is idempotent and provides the required active and inactive reference data", async () => {
     await seedLab2ReferenceData(prisma);
     await seedLab2ReferenceData(prisma);
 
     const [categories, relatedSystems, requesters] = await Promise.all([
       prisma.category.findMany({ orderBy: { name: "asc" } }),
       prisma.relatedSystem.findMany({ orderBy: { name: "asc" } }),
-      prisma.requesterUser.findMany({ orderBy: { email: "asc" } }),
+      prisma.requesterUser.findMany({ where: { role: "REQUESTER" }, orderBy: { email: "asc" } }),
     ]);
 
     expect(categories.filter((category) => category.isActive).map((category) => category.name).sort()).toEqual(

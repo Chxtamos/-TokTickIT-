@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import App from "../../src/App.js";
 import * as api from "../../src/api.js";
+import { mockCurrentUser, setRoute } from "../auth-fixtures.js";
 
 const requester = { id: 1, name: "Alice Requester" };
 const category = { id: 1, name: "Hardware" };
@@ -12,21 +13,14 @@ const ticket: api.TicketDetail = { id: 42, ticketNumber: "TKT-2026-000042", tick
 const listResponse: api.TicketListResponse = { items: [{ id: 42, ticketNumber: ticket.ticketNumber, summary: ticket.summary, category, relatedSystem: system, requestedPriority: ticket.requestedPriority, currentStatus: ticket.currentStatus, createdAt: ticket.createdAt, updatedAt: ticket.updatedAt }], pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1, hasPreviousPage: false, hasNextPage: false }, applied: { search: "", categoryId: null, relatedSystemId: null, requestedPriority: null, currentStatus: null, sortBy: "updatedAt", sortDirection: "desc" } };
 
 async function renderDetail(getDetail = vi.spyOn(api, "getTicketDetail").mockResolvedValue(ticket)) {
-  sessionStorage.setItem("toktickit.requesterId", "1");
-  vi.spyOn(api, "getDevelopmentRequesters").mockResolvedValue([requester]);
-  vi.spyOn(api, "getCategories").mockResolvedValue([category]);
-  vi.spyOn(api, "getRelatedSystems").mockResolvedValue([system]);
-  vi.spyOn(api, "getTickets").mockResolvedValue(listResponse);
+  setRoute("/requester/tickets/42");
+  mockCurrentUser();
   render(<App />);
-  await screen.findByText("Requester: Alice Requester");
-  fireEvent.click(screen.getByRole("button", { name: "My Tickets" }));
-  await screen.findByRole("table");
-  fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "View Ticket" }));
   await screen.findByRole("heading", { name: ticket.ticketNumber });
   return getDetail;
 }
 
-afterEach(() => { sessionStorage.clear(); vi.restoreAllMocks(); });
+afterEach(() => { sessionStorage.clear(); vi.restoreAllMocks(); setRoute(); });
 
 describe("Attachment section", () => {
   it("downloads an active owned Attachment with requester context", async () => {
@@ -36,7 +30,7 @@ describe("Attachment section", () => {
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     await renderDetail();
     fireEvent.click(screen.getByRole("button", { name: "Download" }));
-    await waitFor(() => expect(download).toHaveBeenCalledWith(1, 42, 10));
+    await waitFor(() => expect(download).toHaveBeenCalledWith(42, 10));
   });
 
   it("queues a valid file and refreshes authoritative metadata after upload", async () => {
@@ -47,7 +41,7 @@ describe("Attachment section", () => {
     fireEvent.change(screen.getByLabelText(/Add Attachment/), { target: { files: [file] } });
     expect(within(screen.getByRole("list", { name: "Pending Attachments" })).getByRole("listitem")).toHaveTextContent("new.pdf");
     fireEvent.click(screen.getByRole("button", { name: "Upload" }));
-    await waitFor(() => expect(upload).toHaveBeenCalledWith(1, 42, file));
+    await waitFor(() => expect(upload).toHaveBeenCalledWith(42, file));
     await waitFor(() => expect(getDetail).toHaveBeenCalledTimes(2));
     expect(screen.queryByText("new.pdf")).not.toBeInTheDocument();
   });
@@ -59,7 +53,7 @@ describe("Attachment section", () => {
     fireEvent.change(screen.getByLabelText(/Add Attachment/), { target: { files: [file] } });
     fireEvent.click(screen.getByRole("button", { name: "Upload" }));
     expect(await screen.findByText("Upload failed")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    fireEvent.click(within(screen.getByRole("list", { name: "Pending Attachments" })).getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(upload).toHaveBeenCalledTimes(2));
   });
 
@@ -103,7 +97,7 @@ describe("Attachment section", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("between 5 and 250");
     fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "No longer needed" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm removal" }));
-    await waitFor(() => expect(remove).toHaveBeenCalledWith(1, 42, 10, "No longer needed"));
+    await waitFor(() => expect(remove).toHaveBeenCalledWith(42, 10, "No longer needed"));
   });
 
   it("shows Removing busy state and prevents repeated removal while the request is pending", async () => {
@@ -143,6 +137,6 @@ describe("Attachment section", () => {
     expect(within(removedRow as HTMLElement).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Download" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("File temporarily unavailable");
-    expect(download).toHaveBeenCalledWith(1, 42, 10);
+    expect(download).toHaveBeenCalledWith(42, 10);
   });
 });

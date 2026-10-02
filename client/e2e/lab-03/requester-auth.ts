@@ -1,0 +1,154 @@
+import { expect, request as requestFactory, type APIRequestContext, type Page } from "@playwright/test";
+
+const INITIAL_PASSWORD = process.env.LAB_SEED_INITIAL_PASSWORD ?? "local-lab-only-seed-password-2026";
+const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3000";
+const CLIENT_ORIGIN = "http://127.0.0.1:5173";
+const REQUESTER_EMAILS = [
+  "anan.srisuk@example.test",
+  "benjamas.kittipong@example.test",
+  "chaiwat.somchai@example.test",
+  "daranee.ploy@example.test",
+];
+const changedRequesterIds = new Set<number>();
+
+function replacementPassword(requesterId: number): string {
+  return `${INITIAL_PASSWORD}-requester-${requesterId}-changed`;
+}
+
+function emailForRequester(requesterId: number): string {
+  const email = REQUESTER_EMAILS[requesterId - 1];
+  if (!email) throw new Error(`No seeded requester email is mapped for requester id ${requesterId}`);
+  return email;
+}
+
+export type AuthenticatedRequesterApi = {
+  requesterId: number;
+  email: string;
+  api: APIRequestContext;
+  cookie: string;
+  csrfToken: string;
+  readHeaders: Record<string, string>;
+  writeHeaders: Record<string, string>;
+};
+
+function cookiePair(header: string | undefined): string {
+  const pair = header?.split(";")[0] ?? "";
+  if (!pair.includes("=")) throw new Error("Authentication response did not include a session cookie.");
+  return pair;
+}
+
+export async function authenticatedRequesterApi(
+  _request: APIRequestContext,
+  requesterId = 1,
+): Promise<AuthenticatedRequesterApi> {
+  const email = emailForRequester(requesterId);
+  const changed = replacementPassword(requesterId);
+  const api = await requestFactory.newContext();
+  const candidates = changedRequesterIds.has(requesterId)
+    ? [changed, INITIAL_PASSWORD]
+    : [INITIAL_PASSWORD, changed];
+
+  for (const candidate of candidates) {
+    const login = await api.post(`${API_URL}/api/auth/login`, {
+      headers: { Origin: CLIENT_ORIGIN },
+      data: { email, password: candidate },
+    });
+    if (login.status() !== 200) continue;
+
+    let body = await login.json() as {
+      user: { id: number; mustChangePassword: boolean };
+      csrfToken: string;
+    };
+    let cookie = cookiePair(login.headers()["set-cookie"]);
+
+    if (body.user.mustChangePassword) {
+      const changedResponse = await api.post(`${API_URL}/api/auth/change-password`, {
+        headers: {
+          Origin: CLIENT_ORIGIN,
+          Cookie: cookie,
+          "X-CSRF-Token": body.csrfToken,
+        },
+        data: { currentPassword: candidate, newPassword: changed, confirmPassword: changed },
+      });
+      expect(changedResponse.status()).toBe(200);
+      body = await changedResponse.json() as typeof body;
+      cookie = cookiePair(changedResponse.headers()["set-cookie"]);
+      changedRequesterIds.add(requesterId);
+    } else if (candidate === changed) {
+      changedRequesterIds.add(requesterId);
+    }
+
+    expect(body.user.id).toBe(requesterId);
+    return {
+      requesterId: body.user.id,
+      email,
+      api,
+      cookie,
+      csrfToken: body.csrfToken,
+      readHeaders: { Cookie: cookie },
+      writeHeaders: {
+        Cookie: cookie,
+        Origin: CLIENT_ORIGIN,
+        "X-CSRF-Token": body.csrfToken,
+      },
+    };
+  }
+
+  await api.dispose();
+  throw new Error(`Unable to authenticate seeded requester ${email}`);
+}
+
+export async function enterAuthenticatedRequester(page: Page, requesterId = 1): Promise<void> {
+  await page.goto("/");
+  if (await page.getByRole("heading", { name: "My Tickets", exact: true }).isVisible().catch(() => false)) return;
+  await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+
+  const email = emailForRequester(requesterId);
+  const changed = replacementPassword(requesterId);
+  const candidates = changedRequesterIds.has(requesterId)
+    ? [changed, INITIAL_PASSWORD]
+    : [INITIAL_PASSWORD, changed];
+  let signedIn = false;
+  for (const candidate of candidates) {
+    await expect(page.getByLabel("Email")).toBeEnabled();
+    await page.getByLabel("Email").fill(email);
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill(candidate);
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+
+    // Login is asynchronous.  Do not start the fallback-password attempt while
+    // the first submission still owns the disabled form; wait for one of the
+    // three authoritative post-submit states instead.
+    const outcome = await Promise.race([
+      page.getByRole("heading", { name: "My Tickets", exact: true }).waitFor({ state: "visible" }).then(() => "workspace" as const),
+      page.getByRole("heading", { name: "Change your initial password", exact: true }).waitFor({ state: "visible" }).then(() => "change-password" as const),
+      page.getByRole("alert").waitFor({ state: "visible" }).then(() => "rejected" as const),
+    ]);
+
+    if (outcome === "workspace") {
+      if (candidate === changed) changedRequesterIds.add(requesterId);
+      signedIn = true;
+      break;
+    }
+    if (outcome === "change-password") {
+      await page.getByLabel("Current Password").fill(candidate);
+      await page.getByRole("textbox", { name: "New Password", exact: true }).fill(changed);
+      await page.getByRole("textbox", { name: "Confirm New Password", exact: true }).fill(changed);
+      await page.getByRole("button", { name: "Save Password", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "My Tickets", exact: true })).toBeVisible();
+      changedRequesterIds.add(requesterId);
+      signedIn = true;
+      break;
+    }
+    await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+  }
+
+  if (!signedIn) throw new Error(`Unable to sign in seeded requester ${email}`);
+  await expect(page.getByRole("heading", { name: "My Tickets", exact: true })).toBeVisible();
+}
+
+export async function leaveAuthenticatedRequester(page: Page): Promise<void> {
+  if (await page.getByRole("button", { name: "Logout", exact: true }).count()) {
+    await page.getByRole("button", { name: "Logout", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
+  }
+}

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import App from "../../src/App.js";
 import * as api from "../../src/api.js";
+import { mockCurrentUser, setRoute } from "../auth-fixtures.js";
 
 const requester = { id: 1, name: "Alice Requester" };
 const category = { id: 1, name: "Hardware" };
@@ -13,7 +14,7 @@ const ticket = {
   category,
   relatedSystem: system,
   requestedPriority: "HIGH" as const,
-  currentStatus: "NEW",
+  currentStatus: "NEW" as const,
   createdAt: "2026-08-31T10:00:00.000Z",
   updatedAt: "2026-08-31T10:00:00.000Z",
 };
@@ -25,21 +26,21 @@ const listResponse: api.TicketListResponse = {
 };
 
 async function renderShell() {
-  sessionStorage.setItem("toktickit.requesterId", "1");
-  vi.spyOn(api, "getDevelopmentRequesters").mockResolvedValue([requester]);
+  setRoute("/requester/tickets");
+  mockCurrentUser();
   vi.spyOn(api, "getCategories").mockResolvedValue([category]);
   vi.spyOn(api, "getRelatedSystems").mockResolvedValue([system]);
   vi.spyOn(api, "getTickets").mockResolvedValue(listResponse);
   render(<App />);
-  await screen.findByText("Welcome to TokTickIT");
+  await screen.findByRole("heading", { name: "My Tickets" });
 }
 
-afterEach(() => { sessionStorage.clear(); vi.restoreAllMocks(); });
+afterEach(() => { sessionStorage.clear(); vi.restoreAllMocks(); setRoute(); });
 
 describe("Lab 2 Zen Green visual semantics", () => {
   it("uses labelled required fields and consistent validation markers on Create Ticket", async () => {
     await renderShell();
-    fireEvent.click(screen.getByRole("button", { name: "Create Ticket" }));
+    fireEvent.click(screen.getByRole("link", { name: "Create Ticket" }));
     await screen.findByRole("heading", { name: "Create Ticket" });
 
     expect(screen.getByLabelText(/Category/)).toBeRequired();
@@ -52,7 +53,7 @@ describe("Lab 2 Zen Green visual semantics", () => {
 
   it("distinguishes read-only fields and button hierarchy", async () => {
     await renderShell();
-    fireEvent.click(screen.getByRole("button", { name: "Create Ticket" }));
+    fireEvent.click(screen.getByRole("link", { name: "Create Ticket" }));
     await screen.findByRole("heading", { name: "Create Ticket" });
 
     expect(screen.getByDisplayValue("Generated after submission")).toHaveAttribute("readonly");
@@ -64,7 +65,6 @@ describe("Lab 2 Zen Green visual semantics", () => {
 
   it("shows equivalent desktop table and mobile card content with text-labelled states", async () => {
     await renderShell();
-    fireEvent.click(screen.getByRole("button", { name: "My Tickets" }));
     const table = await screen.findByRole("table");
     const card = document.querySelector(".ticket-card");
     expect(card).not.toBeNull();
@@ -79,7 +79,7 @@ describe("Lab 2 Zen Green visual semantics", () => {
     let resolveCreate!: (value: { ticket: api.CreatedTicket; replayed: boolean }) => void;
     vi.spyOn(api, "createTicket").mockImplementation(() => new Promise<{ ticket: api.CreatedTicket; replayed: boolean }>((resolve) => { resolveCreate = resolve; }));
     await renderShell();
-    fireEvent.click(screen.getByRole("button", { name: "Create Ticket" }));
+    fireEvent.click(screen.getByRole("link", { name: "Create Ticket" }));
     await screen.findByRole("heading", { name: "Create Ticket" });
     fireEvent.change(screen.getByLabelText(/Category/), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText(/Related System/), { target: { value: "1" } });

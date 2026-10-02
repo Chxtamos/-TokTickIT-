@@ -5,10 +5,13 @@ import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { createApp } from "../../src/app.js";
+import { assertIntegrationDatabase, createIntegrationPrisma, isDatabaseIntegrationRequested } from "../../src/prisma.js";
+import { createProvisionedTestUser, createTestSession, testClientOrigin } from "../helpers/auth-session.js";
 
-const runIntegration = process.env.RUN_DB_INTEGRATION === "1" && Boolean(process.env.DATABASE_URL);
+const runIntegration = isDatabaseIntegrationRequested();
+if (runIntegration) assertIntegrationDatabase();
 const integration = runIntegration ? describe : describe.skip;
-const storageDirectory = path.resolve(process.cwd(), "storage", "attachments-integration");
+const storageDirectory = process.env.TEST_ATTACHMENT_STORAGE_DIR ?? path.resolve(process.cwd(), ".test-storage", "attachments-integration");
 const pdfBytes = Buffer.from("%PDF-1.7\npostgres integration fixture");
 
 integration("Attachment APIs PostgreSQL integration", () => {
@@ -17,6 +20,10 @@ integration("Attachment APIs PostgreSQL integration", () => {
   let requesterB: number;
   let categoryId: number;
   let relatedSystemId: number;
+  let authA: Awaited<ReturnType<typeof createTestSession>>;
+  let authB: Awaited<ReturnType<typeof createTestSession>>;
+  let authStaff: Awaited<ReturnType<typeof createTestSession>>;
+  let testUserIds: number[] = [];
   const ticketIds: number[] = [];
 
   async function createTicket(requesterId: number, summary: string) {
@@ -44,25 +51,36 @@ integration("Attachment APIs PostgreSQL integration", () => {
   beforeAll(async () => {
     process.env.ATTACHMENT_STORAGE_DIR = storageDirectory;
     await rm(storageDirectory, { recursive: true, force: true });
-    prisma = new PrismaClient();
+    prisma = createIntegrationPrisma();
     await prisma.$connect();
-    const [requesters, category, relatedSystem] = await Promise.all([
-      prisma.requesterUser.findMany({ where: { isActive: true }, select: { id: true }, orderBy: { id: "asc" }, take: 2 }),
+    const [category, relatedSystem] = await Promise.all([
       prisma.category.findFirst({ where: { isActive: true }, select: { id: true } }),
       prisma.relatedSystem.findFirst({ where: { isActive: true }, select: { id: true } }),
     ]);
-    if (requesters.length < 2 || !category || !relatedSystem) {
+    if (!category || !relatedSystem) {
       throw new Error("Integration test requires two active Requesters and seeded reference data.");
     }
-    requesterA = requesters[0].id;
-    requesterB = requesters[1].id;
+    const [userA, userB, staff] = await Promise.all([
+      createProvisionedTestUser(prisma, "REQUESTER", "Attachment A"),
+      createProvisionedTestUser(prisma, "REQUESTER", "Attachment B"),
+      createProvisionedTestUser(prisma, "IT_STAFF", "Attachment Staff"),
+    ]);
+    requesterA = userA.id;
+    requesterB = userB.id;
+    testUserIds = [userA.id, userB.id, staff.id];
     categoryId = category.id;
     relatedSystemId = relatedSystem.id;
+    [authA, authB] = await Promise.all([
+      createTestSession(prisma, requesterA),
+      createTestSession(prisma, requesterB),
+    ]);
+    authStaff = await createTestSession(prisma, staff.id);
   });
 
   afterAll(async () => {
     if (prisma) {
       if (ticketIds.length > 0) await prisma.ticket.deleteMany({ where: { id: { in: ticketIds } } });
+      for (const id of testUserIds) await prisma.requesterUser.delete({ where: { id } }).catch(() => undefined);
       await prisma.$disconnect();
     }
     await rm(storageDirectory, { recursive: true, force: true });
@@ -74,7 +92,9 @@ integration("Attachment APIs PostgreSQL integration", () => {
     const app = createApp(prisma);
     const uploaded = await request(app)
       .post(`/api/tickets/${ticketId}/attachments`)
-      .set("X-Requester-Id", String(requesterA))
+      .set("Cookie", authA.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", authA.csrfToken)
       .attach("file", pdfBytes, "lifecycle.pdf");
     expect(uploaded.status).toBe(201);
 
@@ -82,28 +102,35 @@ integration("Attachment APIs PostgreSQL integration", () => {
     const stored = await prisma.attachment.findUnique({ where: { id: attachmentId } });
     expect(stored).toMatchObject({ ticketId, originalName: "lifecycle.pdf", mimeType: "application/pdf", removedAt: null });
 
-    const listed = await request(app).get(`/api/tickets/${ticketId}/attachments`).set("X-Requester-Id", String(requesterA));
+    const listed = await request(app).get(`/api/tickets/${ticketId}/attachments`).set("Cookie", authA.cookie);
     expect(listed.status).toBe(200);
     expect(listed.body).toHaveLength(1);
     expect(listed.body[0]).toMatchObject({ id: attachmentId, state: "ACTIVE", downloadUrl: `/api/tickets/${ticketId}/attachments/${attachmentId}/download` });
 
-    const downloaded = await request(app).get(`/api/tickets/${ticketId}/attachments/${attachmentId}/download`).set("X-Requester-Id", String(requesterA));
+    const downloaded = await request(app).get(`/api/tickets/${ticketId}/attachments/${attachmentId}/download`).set("Cookie", authA.cookie);
     expect(downloaded.status).toBe(200);
     expect(Buffer.from(downloaded.body).equals(pdfBytes)).toBe(true);
     expect(downloaded.headers["x-content-type-options"]).toBe("nosniff");
 
-    const nonOwner = await request(app).get(`/api/tickets/${ticketId}/attachments`).set("X-Requester-Id", String(requesterB));
+    const staffListed = await request(app).get(`/api/tickets/${ticketId}/attachments`).set("Cookie", authStaff.cookie);
+    const staffDownloaded = await request(app).get(`/api/tickets/${ticketId}/attachments/${attachmentId}/download`).set("Cookie", authStaff.cookie);
+    expect(staffListed.status).toBe(200);
+    expect(staffDownloaded.status).toBe(200);
+
+    const nonOwner = await request(app).get(`/api/tickets/${ticketId}/attachments`).set("Cookie", authB.cookie);
     expect(nonOwner.status).toBe(404);
 
     const removed = await request(app)
       .delete(`/api/tickets/${ticketId}/attachments/${attachmentId}`)
-      .set("X-Requester-Id", String(requesterA))
+      .set("Cookie", authA.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", authA.csrfToken)
       .send({ reason: "No longer required" });
     expect(removed.status).toBe(200);
     expect(removed.body).toMatchObject({ state: "REMOVED", downloadUrl: null, removedReason: "No longer required" });
     await expect(prisma.attachment.findUnique({ where: { id: attachmentId } })).resolves.toMatchObject({ removedAt: expect.any(Date), removedReason: "No longer required" });
 
-    const removedDownload = await request(app).get(`/api/tickets/${ticketId}/attachments/${attachmentId}/download`).set("X-Requester-Id", String(requesterA));
+    const removedDownload = await request(app).get(`/api/tickets/${ticketId}/attachments/${attachmentId}/download`).set("Cookie", authA.cookie);
     expect(removedDownload.status).toBe(404);
   });
 
@@ -118,7 +145,9 @@ integration("Attachment APIs PostgreSQL integration", () => {
 
     const response = await request(createApp(prisma))
       .post(`/api/tickets/${ticketId}/attachments`)
-      .set("X-Requester-Id", String(requesterA))
+      .set("Cookie", authA.cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", authA.csrfToken)
       .attach("file", pdfBytes, "storage-failure.pdf");
 
     expect(response.status).toBe(500);
@@ -146,8 +175,8 @@ integration("Attachment APIs PostgreSQL integration", () => {
 
     const app = createApp(prisma);
     const results = await Promise.all([
-      request(app).post(`/api/tickets/${ticketId}/attachments`).set("X-Requester-Id", String(requesterA)).attach("file", pdfBytes, "race-a.pdf"),
-      request(app).post(`/api/tickets/${ticketId}/attachments`).set("X-Requester-Id", String(requesterA)).attach("file", pdfBytes, "race-b.pdf"),
+      request(app).post(`/api/tickets/${ticketId}/attachments`).set("Cookie", authA.cookie).set("Origin", testClientOrigin).set("X-CSRF-Token", authA.csrfToken).attach("file", pdfBytes, "race-a.pdf"),
+      request(app).post(`/api/tickets/${ticketId}/attachments`).set("Cookie", authA.cookie).set("Origin", testClientOrigin).set("X-CSRF-Token", authA.csrfToken).attach("file", pdfBytes, "race-b.pdf"),
     ]);
     expect(results.map((result) => result.status).sort()).toEqual([201, 409]);
     await expect(prisma.attachment.count({ where: { ticketId, removedAt: null } })).resolves.toBe(5);

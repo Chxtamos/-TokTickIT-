@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp, type ReferenceDataPrisma } from "../../src/app.js";
+import { testClientOrigin, withMockRequesterSession } from "../helpers/auth-session.js";
 
 const ticket = {
   id: 42,
@@ -32,7 +33,9 @@ function makePrisma(options: { tickets?: unknown[]; totalItems?: number; inactiv
 describe("GET /api/tickets", () => {
   it("returns owner-scoped summaries with the contract defaults", async () => {
     const prisma = makePrisma();
-    const res = await request(createApp(prisma)).get("/api/tickets").set("X-Requester-Id", "1");
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets").set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken);
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -66,9 +69,11 @@ describe("GET /api/tickets", () => {
 
   it("applies search, filters, pagination, and deterministic sorting with AND semantics", async () => {
     const prisma = makePrisma({ totalItems: 21 });
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .get("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .query({
         search: "  VPN ",
         categoryId: "2",
@@ -112,29 +117,29 @@ describe("GET /api/tickets", () => {
 
   it("returns an empty valid page beyond the final page with accurate totals", async () => {
     const prisma = makePrisma({ tickets: [], totalItems: 21 });
-    const res = await request(createApp(prisma)).get("/api/tickets").set("X-Requester-Id", "1").query({ page: "4", pageSize: "10" });
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma)).get("/api/tickets").set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken).query({ page: "4", pageSize: "10" });
 
     expect(res.status).toBe(200);
     expect(res.body.items).toEqual([]);
     expect(res.body.pagination).toEqual({ page: 4, pageSize: 10, totalItems: 21, totalPages: 3, hasPreviousPage: true, hasNextPage: false });
   });
 
-  it("rejects missing or inactive requester context", async () => {
+  it("requires an authenticated session", async () => {
     const prisma = makePrisma();
     const missing = await request(createApp(prisma)).get("/api/tickets");
-    expect(missing.status).toBe(400);
-    expect(missing.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
-
-    const inactive = await request(createApp(makePrisma({ inactiveRequester: true }))).get("/api/tickets").set("X-Requester-Id", "1");
-    expect(inactive.status).toBe(400);
-    expect(inactive.body.error.code).toBe("REQUESTER_CONTEXT_INVALID");
+    expect(missing.status).toBe(401);
+    expect(missing.body.error.code).toBe("SESSION_REQUIRED");
   });
 
   it("rejects unsupported and malformed query values", async () => {
     const prisma = makePrisma();
-    const res = await request(createApp(prisma))
+    const res = await request(createApp(withMockRequesterSession(prisma).prisma))
       .get("/api/tickets")
-      .set("X-Requester-Id", "1")
+      .set("Cookie", withMockRequesterSession(prisma).cookie)
+      .set("Origin", testClientOrigin)
+      .set("X-CSRF-Token", withMockRequesterSession(prisma).csrfToken)
       .query({ unknown: "true", categoryId: "9007199254740992", page: "0", pageSize: "15", sortDirection: ["asc", "desc"] });
 
     expect(res.status).toBe(400);
@@ -150,7 +155,8 @@ describe("GET /api/tickets", () => {
   });
 
   it("returns a safe error when listing fails", async () => {
-    const res = await request(createApp(makePrisma({ fail: true }))).get("/api/tickets").set("X-Requester-Id", "1");
+    const fixture = withMockRequesterSession(makePrisma({ fail: true }));
+    const res = await request(createApp(fixture.prisma)).get("/api/tickets").set("Cookie", fixture.cookie);
 
     expect(res.status).toBe(500);
     expect(res.body.error).toMatchObject({ code: "TICKET_LIST_FAILED", message: "Unable to load Tickets." });
