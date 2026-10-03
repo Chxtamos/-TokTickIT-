@@ -1,6 +1,6 @@
 # Lab 3 AI Use and Student Reflection
 
-Prepared 2026-09-15 and updated 2026-10-03. Lab 3 is released to `main` at `55d80fe`; exact-final-main Client/Server/E2E CI is green, and PR #86 carries the post-release responsive evidence and final submission package. Earlier implementation used the Codex desktop coding agent where the exact model identifier was not exposed. The final evidence pass also used ChatGPT GPT-5.6 Sol. No AI-generated peer approval or human visual sign-off is claimed.
+Prepared 2026-09-15 and updated 2026-10-03. Lab 3 final release is on `main` at `d152bc10dafe146e59304d9d09343f81295429ad`; exact-final-main Client/Server/E2E CI is green. PR #86 carries the reviewed responsive/final-submission evidence and PR #87 promotes that staging state to final `main`. Earlier implementation used the Codex desktop coding agent where the exact model identifier was not exposed. The final evidence pass also used ChatGPT GPT-5.6 Sol. No AI-generated peer approval or human visual sign-off is claimed.
 
 ## Actual selected prompts so far
 
