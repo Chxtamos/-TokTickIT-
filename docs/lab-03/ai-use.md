@@ -1,6 +1,6 @@
 # Lab 3 AI Use and Student Reflection
 
-Prepared 2026-09-15 and updated 2026-09-28. Current stage: feature implementation through Requester, Staff, conversations, and Administrator User Management is merged into `lab3-staging`; Issue #65 is in final release/evidence review before `lab3-staging` -> `main`, followed by exact-final-main verification and the final PDF. Tool/product: Codex desktop coding agent. The exact model identifier was not exposed to this task; the student should record the actual app/model setting rather than infer a model name. No AI-generated peer approval is claimed.
+Prepared 2026-09-15 and updated 2026-10-03. Lab 3 is released to `main` at `55d80fe`; exact-final-main Client/Server/E2E CI is green, and PR #86 carries the post-release responsive evidence and final submission package. Earlier implementation used the Codex desktop coding agent where the exact model identifier was not exposed. The final evidence pass also used ChatGPT GPT-5.6 Sol. No AI-generated peer approval or human visual sign-off is claimed.
 
 ## Actual selected prompts so far
 

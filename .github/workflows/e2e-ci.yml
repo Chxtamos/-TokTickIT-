@@ -69,3 +69,10 @@ jobs:
       - name: Run E2E tests
         working-directory: client
         run: npm run e2e
+      - name: Upload Lab 3 visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab3-visual-evidence
+          path: artifacts/lab-03/screenshots/
+          if-no-files-found: ignore
