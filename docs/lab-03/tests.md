@@ -282,4 +282,12 @@ Post-release evidence PR #86 starts from that exact final-main commit and adds o
 
 Screenshot evidence is stored under `artifacts/lab-03/screenshots/{1440,768,390,360,zoom-200}/`. Automated assertions prove no document-level horizontal overflow for every captured major screen. The screenshots are suitable for the required human visual checklist, but automated capture/inspection is not represented as a human sign-off. A student/reviewer visual sign-off remains the final non-automatable action before Product DoD can be marked complete.
 
-RELEASE-01 automated portion: PASS on exact final `main` `55d80fe` for migration, twice-run seed, unit/API/PostgreSQL/UI/auth/regression/E2E/build evidence, and PASS on PR #86 for the required responsive evidence suite after the audit fixes. VIS-01/A11Y-01 human sign-off remains explicitly pending until a person reviews the stored screenshots and checklist; no AI-authored approval is substituted.
+RELEASE-01 automated portion: PASS on the earlier release baseline `55d80fe` for migration, twice-run seed, unit/API/PostgreSQL/UI/auth/regression/E2E/build evidence, and PASS on PR #86 for the required responsive evidence suite after the audit fixes. VIS-01/A11Y-01 human sign-off remains explicitly pending until a person reviews the stored screenshots and checklist; no AI-authored approval is substituted.
+
+### Final release synchronization - 2026-10-03
+
+Final release PR #87 promoted reviewed `lab3-staging` head `c03494c` to `main` as merge commit `d152bc10dafe146e59304d9d09343f81295429ad`. Peepipat-Suesoongnuen approved PR #87 in review `5401333806` after reviewing the 58-file release diff and exact-head CI/provenance.
+
+The exact final-main push on `d152bc1` is green: Client CI run `37131535259` (#142) SUCCESS; Server CI run `37131535224` (#155) SUCCESS; E2E CI run `37131535237` (#124) SUCCESS. This supersedes `55d80fe` as the final-main revision while preserving the earlier detailed suite counts and the PR #86 25/25 responsive evidence.
+
+PR #86 was approved by Peepipat-Suesoongnuen in review `5401247258`; that reviewer inspected all 64 files and opened the screenshot evidence, confirming the screenshots were real and contained no secret leakage. The review explicitly recorded the formal human sign-off as still pending. Therefore RELEASE-01 automated/release evidence is PASS on `d152bc1`, while the final human VIS-01/A11Y-01 checklist remains the only non-automatable completion gate. An AI/coding-agent inspection must not be relabeled as human sign-off.
