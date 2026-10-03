@@ -1,13 +1,13 @@
 # TokTickIT Lab 3 Final Submission Evidence
 
-Final released main revision used as the product baseline: `55d80fe109eec03e683e394da2a51a1e59ddb5c4`.
-Post-release evidence/fix PR: #86 (`docs/38-lab3-final-submission`).
+Final released main revision used as the product baseline: `d152bc10dafe146e59304d9d09343f81295429ad`.
+Final evidence PR: #86 (`docs/38-lab3-final-submission`); final release PR: #87 (`lab3-staging` -> `main`).
 
 ## Answer Part 1: Git Use with Engineering Workflow
 
-Lab 3 used feature branches and peer-reviewed PRs into `lab3-staging`, followed by release PR #84 from `lab3-staging` to `main`. PR #84 was approved on corrected head `aa45eb7` and merged as `55d80fe` on 2026-10-02. The implementation/review history is rendered from `docs/lab-03/reviewer.md`; it records reviewer identity, requested changes, correction evidence, approvals, CI and merge commits for the real PR set. Issue #65 is deliberately reopened while post-release evidence PR #86 is under review; the Project item is Started and PR #86 is PR Review. It must become Done only after the final evidence PR is reviewed/merged and the human visual checklist is signed off.
+Lab 3 used feature branches and peer-reviewed PRs into `lab3-staging`. PR #84 released the implementation baseline to `main` as `55d80fe`; PR #86 then added the reviewed final evidence/responsive corrections to `lab3-staging`, and PR #87 promoted that reviewed staging state to `main` as `d152bc1` on 2026-10-03. PR #87 was approved by Peepipat-Suesoongnuen before merge. The implementation/review history is rendered from `docs/lab-03/reviewer.md`. Issue #65 remains open only for final documentation synchronization and the explicitly required human visual/accessibility sign-off.
 
-Links: repository https://github.com/Chxtamos/-TokTickIT- ; release PR https://github.com/Chxtamos/-TokTickIT-/pull/84 ; evidence PR https://github.com/Chxtamos/-TokTickIT-/pull/86 ; Project https://github.com/users/Chxtamos/projects/6 .
+Links: repository https://github.com/Chxtamos/-TokTickIT- ; initial release PR https://github.com/Chxtamos/-TokTickIT-/pull/84 ; evidence PR https://github.com/Chxtamos/-TokTickIT-/pull/86 ; final release PR https://github.com/Chxtamos/-TokTickIT-/pull/87 ; Project https://github.com/users/Chxtamos/projects/6 .
 
 ## Answer Part 2: Spec DD
 
@@ -15,7 +15,7 @@ The Sprint 3 contract is in `docs/lab-03/specification.md`, `ui-spec.md`, and `a
 
 ## Answer Part 3: Test DD and Traceability
 
-`docs/lab-03/tests.md` is the source-of-truth test plan and AC-to-test index. Exact final `main` `55d80fe` evidence: Client CI #134 / run 37054900319 passed 15 files and 93 tests plus production build; Server CI #147 / run 37054900447 applied all four migrations, ran PostgreSQL integration, passed 30 files and 219 tests plus server build; E2E CI #116 / run 37054900427 ran migrations, seed twice, isolated credential provisioning, and passed 20/20 Playwright tests. Post-release evidence head `8bd84be` passes Client #137, Server #150, and E2E #119 with 25/25 Playwright tests including the final responsive capture suite.
+`docs/lab-03/tests.md` is the source-of-truth test plan and AC-to-test index. Exact final `main` `d152bc1` evidence: Client CI #142 / run 37131535259 passed; Server CI #155 / run 37131535224 passed; E2E CI #124 / run 37131535237 passed. These exact-final-main runs execute the released tree that includes the PR #86 evidence/responsive corrections. The earlier PR #86 evidence suite passed 25/25 Playwright tests including the final responsive capture cases.
 
 ## Answer Part 4: AI Use with Reflection
 
@@ -41,4 +41,4 @@ User Management provides Name/Email/Role/Status/Edit, search, role filter, creat
 
 `docs/lab-03/ui-spec.md` defines the Zen Green visual/accessibility contract. PR #86 adds deterministic evidence for 1440, 768, 390 and 360 CSS-pixel widths and a 200%-zoom-equivalent 720 CSS-pixel layout. It captures Login, Requester My Tickets, Staff Queue, Staff Ticket Detail and Administrator User Management and asserts no document-level horizontal overflow. The first audit exposed two real defects (Requester at 768 and Administrator cards at 360); both were corrected before the green evidence run. Screenshot contact sheets are included in the PDF and the original PNGs are stored under `artifacts/lab-03/screenshots/`.
 
-Important completion note: the automated evidence and screenshots are complete, but the handout/contract requires a human visual/accessibility checklist. The coding agent does not fabricate a human sign-off. A student or peer reviewer must inspect the stored screenshots for design consistency, role navigation, badges, editable/read-only styling, validation placement, focus, clipping, overlap, horizontal overflow and absence of secret/Internal Note leakage, then record that sign-off before Issue #65/Product DoD is finally closed.
+Important completion note: automated evidence, exact-final-main CI, screenshots and peer review of PRs #86/#87 are complete. PR #86 reviewer Peepipat-Suesoongnuen explicitly opened the screenshot evidence and confirmed it was real and contained no secret leakage, but also confirmed that the formal human sign-off was still pending. The remaining manual gate is a student/peer visual/accessibility checklist covering design consistency, role navigation, badges, editable/read-only styling, validation placement, keyboard/focus behavior, clipping, overlap, horizontal overflow and absence of secret/Internal Note leakage. An AI/coding agent cannot truthfully substitute for that human sign-off.
