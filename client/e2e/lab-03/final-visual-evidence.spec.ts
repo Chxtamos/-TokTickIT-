@@ -8,9 +8,6 @@ const INITIAL_PASSWORD = process.env.LAB_SEED_INITIAL_PASSWORD ?? "local-lab-onl
 const ROOT = path.resolve(process.cwd(), "..", "artifacts", "lab-03", "screenshots");
 
 async function shot(page: Page, viewport: string, name: string) {
-  if (viewport === "zoom-200") {
-    await page.evaluate(() => { document.documentElement.style.zoom = "200%"; });
-  }
   await assertNoHorizontalOverflow(page);
   const dir = path.join(ROOT, viewport);
   await mkdir(dir, { recursive: true });
@@ -79,7 +76,9 @@ test.describe("Issue #65 final responsive visual evidence", () => {
 
   test("captures major Lab 3 screens at 200 percent zoom", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.setViewportSize({ width: 1440, height: 900 });
+    // A 1440x900 browser at 200% zoom exposes a 720x450 CSS-pixel layout viewport.
+    // Exercise that effective layout directly so responsive behavior is deterministic in headless CI.
+    await page.setViewportSize({ width: 720, height: 450 });
     await captureRoleSet(page, "zoom-200");
   });
 });
