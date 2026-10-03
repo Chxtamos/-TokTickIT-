@@ -11,6 +11,7 @@ async function shot(page: Page, viewport: string, name: string) {
   if (viewport === "zoom-200") {
     await page.evaluate(() => { document.documentElement.style.zoom = "200%"; });
   }
+  await assertNoHorizontalOverflow(page);
   const dir = path.join(ROOT, viewport);
   await mkdir(dir, { recursive: true });
   await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage: true });

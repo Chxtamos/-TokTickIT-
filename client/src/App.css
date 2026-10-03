@@ -161,7 +161,7 @@ nav a:hover { text-decoration: underline; }
 @media (max-width: 700px) { .auth-card { padding: 24px 20px; } .header-inner { align-items: flex-start; flex-direction: column; gap: 12px; } .account-context { margin-left: 0; flex-wrap: wrap; } nav { width: 100%; flex-wrap: wrap; } }
 @media (max-width: 760px) { .readonly-grid, .form-grid { grid-template-columns: 1fr; } .ticket-form { padding: 18px; } .form-actions { flex-direction: column-reverse; } .form-actions button { width: 100% !important; } }
 @media (max-width: 600px) { .page-heading { flex-direction: column; } .page-heading .button-primary { width: 100%; } .ticket-filters, .queue-control-grid, .queue-sort-grid { grid-template-columns: 1fr; } .pagination { flex-wrap: wrap; } .detail-card { padding: 18px; } .detail-grid { grid-template-columns: 1fr; } .detail-wide { grid-column: auto; } }
-@media (max-width: 767px) { .tickets-table-wrap { display: none; } .tickets-cards { display: block; } }
+@media (max-width: 768px) { .tickets-table-wrap { display: none; } .tickets-cards { display: block; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }
 
 /* Lab 3 integrated Staff Detail */
@@ -205,4 +205,5 @@ nav a:hover { text-decoration: underline; }
 .checkbox-row { display:flex !important; align-items:center; gap:.55rem !important; }
 .button-row { display:flex; flex-wrap:wrap; gap:.75rem; }
 @media (max-width: 767px) { .admin-filter-grid { grid-template-columns:1fr; } .admin-user-table-wrap { display:none; } .admin-user-cards { display:grid; gap:1rem; } .admin-users-page .page-heading { align-items:flex-start; gap:1rem; } .admin-users-page .page-heading > .button { width:100%; } }
-@media (max-width: 390px) { .admin-editor .button-row .button { width:100%; } }
+.admin-user-cards p, .admin-user-cards .button { overflow-wrap:anywhere; }
+@media (max-width: 390px) { .admin-editor .button-row .button, .admin-user-cards .button { width:100%; white-space:normal; } }
