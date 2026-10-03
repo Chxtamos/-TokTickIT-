@@ -29,7 +29,6 @@ jobs:
       RUN_DB_INTEGRATION: "1"
       CLIENT_ORIGIN: http://127.0.0.1:5173
       NODE_ENV: test
-      LAB2_E2E_LEGACY_AUTH: "1"
       LAB_SEED_INITIAL_PASSWORD: "local-lab-only-seed-password-2026"
       TEST_ATTACHMENT_STORAGE_DIR: ${{ github.workspace }}/e2e/.tmp/attachments
       E2E_API_URL: http://127.0.0.1:3000
@@ -70,3 +69,10 @@ jobs:
       - name: Run E2E tests
         working-directory: client
         run: npm run e2e
+      - name: Upload Lab 3 visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab3-visual-evidence
+          path: artifacts/lab-03/screenshots/
+          if-no-files-found: ignore

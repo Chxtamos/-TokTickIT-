@@ -216,6 +216,15 @@ Retain existing owner/filter indexes and normalized-email CHECK. Rename User tab
 
 Every AC maps to planned tests in [tests.md](tests.md); each implementation Issue identifies its ACs and evidence.
 
+### Release lifecycle clarification for Issue #65
+
+Issue #65 has two distinct gates that must not be conflated:
+
+1. **Pre-merge release-candidate gate on `lab3-staging`:** implementation is complete, required automated suites/builds/migration checks for the release candidate are green with zero required skips, release documentation is synchronized, and peer review of the `lab3-staging` -> `main` release PR has no unresolved blocker.
+2. **Post-merge completion gate on exact final `main`:** rerun affected checks on the exact merged revision, finish the human responsive/accessibility/visual checklist and screenshots if not already completed on the release candidate, cross-reference those results in RELEASE-01, finalize reviewer/AI/My Reflection evidence, and produce the single Part 1-9 PDF.
+
+Merge of the reviewed release PR is therefore **not** a claim that Product DoD or Issue #65 is complete. Issue #65 stays open until the post-merge completion gate is satisfied. This ordering is explicit because exact-final-`main` evidence cannot exist before the release merge.
+
 ## 10. Product Definition of Done
 
 - [ ] Student/peer reviews the consistent specification/API/UI/test plan before main implementation completion; real approval is recorded.
@@ -225,8 +234,8 @@ Every AC maps to planned tests in [tests.md](tests.md); each implementation Issu
 - [ ] All preserved Requester functions and new staff/account workflows work at required widths and through keyboard operation.
 - [ ] No secrets/plaintext passwords/uploads/sensitive traces are committed; ignore rules cover new storage and test artifacts.
 - [ ] All required tests/builds pass on isolated PostgreSQL; zero required skips; planned/actual paths and status are updated truthfully.
-- [ ] Screenshots and manual visual checklist verify design, focus, labels, overflow and role boundaries.
-- [ ] Each Issue links its reviewed feature PR; feature branches integrate into lab3-staging and a reviewed release promotes to main; Project Issues are Done.
+- [ ] Human screenshots/manual visual checklist verify design, focus, labels, overflow and role boundaries. This may be completed on the release candidate or exact final `main`, but it is mandatory before Issue #65/Product DoD is closed.
+- [ ] Each implementation Issue links its reviewed feature PR; feature branches integrate into `lab3-staging`; a reviewed release promotes to `main`. Issue #65 intentionally remains open through that merge until final-main verification and submission evidence are complete.
 - [ ] Final main tests, builds, migration/regression and evidence record revision, commands, environment and results; rerun affected checks if source changes.
 - [ ] reviewer.md contains actual reviewer identity, PR comments/responses/approvals; ai-use.md contains actual 6-10 selected prompts and the student's own reflection.
 - [ ] One concise PDF presents Answer Part 1-9 in order with working links and readable screenshots; repository/final main remains source of truth.
