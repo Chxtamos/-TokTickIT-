@@ -6,7 +6,7 @@ This file is intentionally evidence-only. Do not fabricate reviewer identity, ap
 
 - Branch: `feature/41-lab4-engineering-contract`
 - Target: `lab4-staging`
-- Pull Request: pending
+- Pull Request: #100 `Feature 41: Define Lab 4 engineering contract and test plan`
 - Reviewer: pending real peer review
 - Review status: pending
 - Comments/responses: pending
