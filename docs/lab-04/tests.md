@@ -9,7 +9,7 @@ Status: planned before implementation for Issue #91. `Final` remains **Planned**
 | API-01 | API | AC-03 | Requester reads owned Actions/non-owned protection | Owned 200; non-owned safe 404 | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
 | API-02 | API | AC-03 | Requester/direct wrong-role writes | 403 and no mutation | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
 | API-03 | API | AC-01 | Valid Action create | Correct Ticket, backend actor/time, 201 | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
-| API-04 | API | AC-02 | Repeated create/idempotency conflict + non-enumeration | One row; same replay safe; changed authorized payload 409; inaccessible Ticket reveals nothing | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
+| API-04 | API | AC-02 | Repeated create/idempotency conflict + non-enumeration | One row; same replay safe; changed authorized payload 409; inaccessible Ticket reveals nothing | `server/tests/lab-04/actions-taken.api.test.ts` | Passed after PR #102 non-enumeration feedback revision |
 | API-05 | API | AC-04 | Active/inactive/wrong-role assignee | Only active operational assignee accepted | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
 | API-06 | API | AC-05 | Action edit/status/complete/cancel | Validation and lifecycle enforced | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
 | API-07 | API | AC-06 | Stale Action expectedVersion | 409; newer row preserved | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |

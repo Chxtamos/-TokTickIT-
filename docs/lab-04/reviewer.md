@@ -28,7 +28,8 @@ Later entries must link the real PR/review and summarize actual requested change
 - Branch: `feature/43-lab4-actions-api`
 - Target: `lab4-staging`
 - Pull Request: #102 `Feature 43: Implement Actions Taken APIs and authorization`
-- Reviewer: pending real peer review
-- Review status: pending
+- Reviewer: `Tanaboonnnnn` reviewed exact head `0d240280db66636d900b447c81a7bc07c47d2a0c`.
+- Review status: changes requested on 2026-10-24; re-review pending after feedback commit.
+- Comments/responses: reviewer found one evidence blocker: API-04 claimed AC-02/BR-13/BR-33 non-enumeration coverage without explicitly replaying an existing idempotency key from a Requester who does not own the Ticket. The feedback revision adds identical and changed-payload inaccessible replay cases, asserts the same role-forbidden response with no replay/conflict disclosure, and verifies no additional Action row is created.
 - TDD evidence: RED commit `cfc1514` contains the Actions Taken API tests before implementation and produced 7/7 failures because the contracted routes did not yet exist; GREEN commit `592f8d33ab52f2cece6f4a58b95b1e9946cb5595` implements the contract and passes the focused API suite.
 - Verification: Actions Taken API PostgreSQL suite 7/7 passed on exact GREEN commit; Lab 3 migration regression 1/1 passed; Lab 2 seed regression 1/1 passed; TypeScript server build and `git diff --check` passed.

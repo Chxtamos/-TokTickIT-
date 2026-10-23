@@ -217,6 +217,21 @@ integration("Lab 4 Actions Taken API", () => {
     expect(conflict.status).toBe(409);
     expect(conflict.body.error.code).toBe("IDEMPOTENCY_CONFLICT");
 
+    const countBeforeInaccessibleReplay = await prisma.actionTaken.count({ where: { ticketId: ticket.id } });
+    const inaccessibleIdentical = await writeAuth(authRequesterB).post(`/api/staff/tickets/${ticket.id}/actions`).send(body);
+    const inaccessibleDifferent = await writeAuth(authRequesterB).post(`/api/staff/tickets/${ticket.id}/actions`).send({
+      ...body,
+      description: "A different payload must not reveal that this idempotency key already exists.",
+    });
+    for (const response of [inaccessibleIdentical, inaccessibleDifferent]) {
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe("ROLE_FORBIDDEN");
+      expect(response.body).not.toHaveProperty("action");
+      expect(response.body).not.toHaveProperty("replayed");
+      expect(JSON.stringify(response.body)).not.toContain("IDEMPOTENCY_CONFLICT");
+    }
+    await expect(prisma.actionTaken.count({ where: { ticketId: ticket.id } })).resolves.toBe(countBeforeInaccessibleReplay);
+
     const concurrentTicket = await createTicket(requesterA.id, "concurrent-idempotency");
     const concurrentBody = createBody();
     const results = await Promise.all([
