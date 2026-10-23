@@ -42,6 +42,15 @@ import {
   validateConversationBody,
   type ConversationPrisma,
 } from "./conversation.js";
+import {
+  ActionTakenError,
+  createAction,
+  listActions,
+  updateAction,
+  validateActionCreateBody,
+  validateActionUpdateBody,
+  type ActionsPrisma,
+} from "./actions-taken.js";
 
 export type ReferenceDataPrisma = Pick<
   PrismaClient,
@@ -606,6 +615,29 @@ function conversationFailureResponse(res: Response, error: unknown) {
   );
 }
 
+function actionTakenFailureResponse(res: Response, error: unknown, fallbackCode: string, fallbackMessage: string) {
+  if (error instanceof ActionTakenError) {
+    if (error.code === "RESOURCE_NOT_FOUND") return errorResponse(res, 404, error.code, "Resource not found.");
+    if (error.code === "ROLE_FORBIDDEN") return errorResponse(res, 403, error.code, "This account is not permitted to perform that operation.");
+    if (error.code === "VERSION_CONFLICT") return errorResponse(res, 409, error.code, "The Action changed. Refresh and try again.");
+    if (error.code === "IDEMPOTENCY_CONFLICT") return errorResponse(res, 409, error.code, "This request ID was already used for different Action data.");
+    if (error.code === "ASSIGNEE_INELIGIBLE") return errorResponse(res, 409, error.code, "The selected assignee is not an active IT Staff or Administrator account.");
+    if (error.code === "ACTION_TERMINAL") return errorResponse(res, 409, error.code, "Completed or cancelled Actions are read-only.");
+    if (error.code === "ACTION_TRANSITION_INVALID") return errorResponse(res, 409, error.code, "The requested Action status transition is not permitted.");
+    if (error.code === "FOLLOW_UP_INVALID") {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        followUpNote: ["Follow-up note must contain 5 to 1,000 characters while follow-up is required."],
+      });
+    }
+    if (error.code === "COMPLETION_INVALID") {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        status: ["Completion requires a valid Result and no outstanding follow-up requirement."],
+      });
+    }
+  }
+  return errorResponse(res, 500, fallbackCode, fallbackMessage);
+}
+
 function methodNotAllowed(res: Response) {
   res.setHeader("Allow", "GET, POST");
   return errorResponse(
@@ -706,6 +738,76 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       res.status(200).json(requesters);
     } catch {
       res.status(500).json({ error: "REFERENCE_DATA_UNAVAILABLE" });
+    }
+  });
+
+  app.get("/api/tickets/:ticketId/actions", async (req: AuthenticatedRequest, res: Response) => {
+    if (rejectMutationQuery(req, res)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        ticketId: ["Ticket ID must be a positive PostgreSQL integer."],
+      });
+    }
+    const actor = authenticatedUser(req);
+    try {
+      const items = await listActions(prisma as unknown as ActionsPrisma, { id: actor.id, role: actor.role }, ticketId);
+      return res.status(200).json({ items });
+    } catch (error) {
+      return actionTakenFailureResponse(res, error, "ACTIONS_LIST_FAILED", "Unable to load Actions Taken.");
+    }
+  });
+
+  app.post("/api/staff/tickets/:ticketId/actions", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    if (!requireRequestCsrf(req, res)) return;
+    if (rejectMutationQuery(req, res)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        ticketId: ["Ticket ID must be a positive PostgreSQL integer."],
+      });
+    }
+    const validation = validateActionCreateBody(req.body);
+    if (!validation.input) return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", validation.fieldErrors);
+    try {
+      const result = await createAction(
+        prisma as unknown as ActionsPrisma,
+        authenticatedUser(req).id,
+        ticketId,
+        validation.input,
+      );
+      return res.status(result.replayed ? 200 : 201).json({ action: result.item, replayed: result.replayed });
+    } catch (error) {
+      return actionTakenFailureResponse(res, error, "ACTION_CREATE_FAILED", "Unable to create Action Taken.");
+    }
+  });
+
+  app.patch("/api/staff/tickets/:ticketId/actions/:actionId", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    if (!requireRequestCsrf(req, res)) return;
+    if (rejectMutationQuery(req, res)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    const actionId = parsePositiveId(req.params.actionId);
+    const fieldErrors: Record<string, string[]> = {};
+    if (!ticketId) fieldErrors.ticketId = ["Ticket ID must be a positive PostgreSQL integer."];
+    if (!actionId) fieldErrors.actionId = ["Action ID must be a positive PostgreSQL integer."];
+    if (Object.keys(fieldErrors).length > 0) {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", fieldErrors);
+    }
+    const validation = validateActionUpdateBody(req.body);
+    if (!validation.input) return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", validation.fieldErrors);
+    try {
+      const action = await updateAction(
+        prisma as unknown as ActionsPrisma,
+        authenticatedUser(req).id,
+        ticketId!,
+        actionId!,
+        validation.input,
+      );
+      return res.status(200).json({ action });
+    } catch (error) {
+      return actionTakenFailureResponse(res, error, "ACTION_UPDATE_FAILED", "Unable to update Action Taken.");
     }
   });
 
