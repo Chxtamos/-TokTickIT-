@@ -10,6 +10,7 @@ ChatGPT was used as a specification/coding assistant. This record must contain o
 2. Asked the agent to define the order of work from baseline verification through staged release and final evidence.
 3. Asked the agent to inspect the existing repository, verify the Lab 3 baseline, create the Lab 4 Issues, establish a safe `lab4-staging` baseline, and begin Issue #91 while checking the current branch/remote before every push or commit.
 4. Asked the agent to read the real human review feedback on PR #100 and revise the engineering contract consistently before implementation, including resolution evidence, reopen cycles, parent/child concurrency, idempotency disclosure, and Action mutation audit semantics.
+5. Asked the agent to address the real human feedback on PR #101. The follow-up work added a genuine Lab-3-baseline-to-Lab-4 migration/backfill test, lifecycle-realistic seeded Action audit history, full-seed non-destructive evidence, and corrected reviewer records.
 
 ## Current use and limitations
 

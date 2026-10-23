@@ -26,7 +26,7 @@ export async function seedLab2ReferenceData(prisma: PrismaClient) {
   for (const name of lab2Categories) {
     await prisma.category.upsert({
       where: { name },
-      update: { isActive: true },
+      update: {},
       create: { name, isActive: true },
     });
   }
@@ -34,7 +34,7 @@ export async function seedLab2ReferenceData(prisma: PrismaClient) {
   for (const name of lab2RelatedSystems) {
     await prisma.relatedSystem.upsert({
       where: { name },
-      update: { isActive: true },
+      update: {},
       create: { name, isActive: true },
     });
   }
@@ -43,7 +43,7 @@ export async function seedLab2ReferenceData(prisma: PrismaClient) {
     const email = requester.email.trim().toLowerCase();
     await prisma.requesterUser.upsert({
       where: { email },
-      update: { name: requester.name, isActive: requester.isActive },
+      update: {},
       create: { ...requester, email },
     });
   }
@@ -91,7 +91,7 @@ export async function seedLab3Fixtures(prisma: PrismaClient) {
   for (const fixture of lab3StaffFixtures) {
     await prisma.requesterUser.upsert({
       where: { email: fixture.email },
-      update: { name: fixture.name, role: fixture.role, isActive: fixture.isActive },
+      update: {},
       create: {
         name: fixture.name,
         email: fixture.email,
@@ -170,4 +170,150 @@ export async function seedLab3Fixtures(prisma: PrismaClient) {
 
   const highestReservedNumber = 900024;
   await prisma.$executeRaw`SELECT setval('"TicketNumberSequence"', GREATEST((SELECT last_value FROM "TicketNumberSequence"), ${highestReservedNumber}), true)`;
+}
+
+export async function seedLab4Fixtures(prisma: PrismaClient) {
+  await prisma.requesterUser.upsert({
+    where: { email: "lab4.empty.requester@example.test" },
+    update: {},
+    create: {
+      name: "Lab 4 Empty Dashboard Requester",
+      email: "lab4.empty.requester@example.test",
+      role: "REQUESTER",
+      isActive: true,
+    },
+  });
+
+  const tickets = await prisma.ticket.findMany({
+    where: { ticketNumber: { in: ["TKT-2026-900001", "TKT-2026-900002", "TKT-2026-900003"] } },
+    orderBy: { ticketNumber: "asc" },
+    select: { id: true, ticketNumber: true, workflowCycle: true },
+  });
+  const staff = await prisma.requesterUser.findMany({
+    where: { role: { in: ["IT_STAFF", "ADMINISTRATOR"] }, isActive: true },
+    orderBy: { id: "asc" },
+    select: { id: true },
+  });
+  if (tickets.length !== 3 || staff.length < 2) {
+    throw new Error("Lab 4 seed requires the Lab 3 Ticket fixtures and at least two active operational users.");
+  }
+
+  const createFixture = async (input: {
+    ticketIndex: number;
+    key: string;
+    description: string;
+    result: string | null;
+    status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+    assigneeId: number | null;
+  }) => {
+    const ticket = tickets[input.ticketIndex];
+    const clientRequestId = stableUuid(`lab4-action-${input.key}`);
+    const requestPayloadHash = payloadHash({
+      ticketId: ticket.id,
+      description: input.description,
+      result: null,
+      status: "PENDING",
+      assigneeId: input.assigneeId,
+      workflowCycle: ticket.workflowCycle,
+    });
+    const existing = await prisma.actionTaken.findUnique({
+      where: { ticketId_clientRequestId: { ticketId: ticket.id, clientRequestId } },
+      select: { id: true },
+    });
+    if (existing) return;
+
+    const action = await prisma.$transaction(async (tx) => {
+      const created = await tx.actionTaken.create({
+        data: {
+          ticketId: ticket.id,
+          workflowCycle: ticket.workflowCycle,
+          performedById: staff[0].id,
+          assigneeId: input.assigneeId,
+          description: input.description,
+          result: null,
+          followUpRequired: false,
+          followUpNote: null,
+          attachmentNotes: null,
+          status: "PENDING",
+          clientRequestId,
+          requestPayloadHash,
+          version: 1,
+        },
+      });
+      await tx.actionTakenEvent.create({
+        data: {
+          actionId: created.id,
+          actorId: staff[0].id,
+          eventType: "CREATED",
+          resultingVersion: 1,
+          changedFields: [
+            "description", "assigneeId", "followUpRequired", "followUpNote",
+            "attachmentNotes", "status",
+          ],
+          fromStatus: null,
+          toStatus: "PENDING",
+          previousAssigneeId: null,
+          nextAssigneeId: input.assigneeId,
+        },
+      });
+
+      if (input.status === "PENDING") return created;
+
+      const transitioned = await tx.actionTaken.update({
+        where: { id: created.id },
+        data: {
+          status: input.status,
+          result: input.result,
+          version: 2,
+        },
+      });
+      await tx.actionTakenEvent.create({
+        data: {
+          actionId: created.id,
+          actorId: staff[0].id,
+          eventType: "STATUS_CHANGED",
+          resultingVersion: 2,
+          changedFields: input.status === "COMPLETED" ? ["status", "result"] : ["status"],
+          fromStatus: "PENDING",
+          toStatus: input.status,
+          previousAssigneeId: input.assigneeId,
+          nextAssigneeId: input.assigneeId,
+        },
+      });
+      return transitioned;
+    });
+    return action;
+  };
+
+  // TKT-2026-900001 intentionally remains the zero-Action fixture.
+  await createFixture({
+    ticketIndex: 1,
+    key: "single-completed",
+    description: "Verified the reported service and recorded a successful support action.",
+    result: "Service verification completed successfully for the Lab 4 fixture.",
+    status: "COMPLETED",
+    assigneeId: staff[0].id,
+  });
+  await createFixture({
+    ticketIndex: 2,
+    key: "multi-completed",
+    description: "Collected diagnostic information for the multi-action Lab 4 fixture.",
+    result: "Diagnostics were collected and reviewed.",
+    status: "COMPLETED",
+    assigneeId: staff[0].id,
+  });
+  await createFixture({
+    ticketIndex: 2,
+    key: "multi-in-progress",
+    description: "Continue remediation work for the multi-action Lab 4 fixture.",
+    result: null,
+    status: "IN_PROGRESS",
+    assigneeId: staff[1].id,
+  });
+}
+
+export async function seedAllFixtures(prisma: PrismaClient) {
+  await seedLab2ReferenceData(prisma);
+  await seedLab3Fixtures(prisma);
+  await seedLab4Fixtures(prisma);
 }
