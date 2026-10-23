@@ -43,9 +43,14 @@ model RequesterUser {
   ownerChangesPrevious  TicketOwnerChange[] @relation("OwnerChangePrevious")
   ownerChangesNext      TicketOwnerChange[] @relation("OwnerChangeNext")
   ownerChangesActor     TicketOwnerChange[] @relation("OwnerChangeActor")
+  performedActions      ActionTaken[]       @relation("ActionPerformedBy")
+  assignedActions       ActionTaken[]       @relation("ActionAssignee")
+  actionEventsActor     ActionTakenEvent[]  @relation("ActionEventActor")
+  actionEventsPrevOwner ActionTakenEvent[]  @relation("ActionEventPreviousAssignee")
+  actionEventsNextOwner ActionTakenEvent[]  @relation("ActionEventNextAssignee")
 
-  @@map("User")
   @@index([role, isActive])
+  @@map("User")
 }
 
 model Session {
@@ -83,7 +88,8 @@ model Ticket {
   itPriority            RequestedPriority @default(MEDIUM)
   currentStatus         TicketStatus      @default(NEW)
   version               Int               @default(1)
-  resolutionSummary    String?           @db.VarChar(2000)
+  workflowCycle         Int               @default(1)
+  resolutionSummary     String?           @db.VarChar(2000)
   resolvedAt            DateTime?
   closedAt              DateTime?
   requesterResolvedAt   DateTime?
@@ -94,15 +100,16 @@ model Ticket {
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 
-  requester          RequesterUser       @relation("TicketRequester", fields: [requesterId], references: [id], onDelete: Restrict)
-  owner              RequesterUser?      @relation("TicketOwner", fields: [ticketOwnerId], references: [id], onDelete: Restrict)
-  requesterResolved  RequesterUser?      @relation("RequesterResolvedBy", fields: [requesterResolvedById], references: [id], onDelete: Restrict)
-  category           Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  relatedSystem      RelatedSystem       @relation(fields: [relatedSystemId], references: [id], onDelete: Restrict)
-  attachments        Attachment[]
-  publicComments     PublicComment[]
-  internalNotes      InternalNote[]
-  ownerChanges       TicketOwnerChange[]
+  requester         RequesterUser       @relation("TicketRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  owner             RequesterUser?      @relation("TicketOwner", fields: [ticketOwnerId], references: [id], onDelete: Restrict)
+  requesterResolved RequesterUser?      @relation("RequesterResolvedBy", fields: [requesterResolvedById], references: [id], onDelete: Restrict)
+  category          Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  relatedSystem     RelatedSystem       @relation(fields: [relatedSystemId], references: [id], onDelete: Restrict)
+  attachments       Attachment[]
+  publicComments    PublicComment[]
+  internalNotes     InternalNote[]
+  ownerChanges      TicketOwnerChange[]
+  actionsTaken      ActionTaken[]
 
   @@unique([requesterId, clientRequestId])
   @@index([requesterId, updatedAt, id])
@@ -115,16 +122,68 @@ model Ticket {
   @@index([requesterResolvedById])
 }
 
+model ActionTaken {
+  id                 Int               @id @default(autoincrement())
+  ticketId           Int
+  workflowCycle      Int               @default(1)
+  performedById      Int
+  assigneeId         Int?
+  description        String            @db.VarChar(2000)
+  result             String?           @db.VarChar(2000)
+  followUpRequired   Boolean           @default(false)
+  followUpNote       String?           @db.VarChar(1000)
+  attachmentNotes    String?           @db.VarChar(1000)
+  status             ActionTakenStatus @default(PENDING)
+  clientRequestId    String            @db.Uuid
+  requestPayloadHash String            @db.Char(64)
+  version            Int               @default(1)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  ticket      Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  performedBy RequesterUser      @relation("ActionPerformedBy", fields: [performedById], references: [id], onDelete: Restrict)
+  assignee    RequesterUser?     @relation("ActionAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  events      ActionTakenEvent[]
+
+  @@unique([ticketId, clientRequestId])
+  @@index([ticketId, workflowCycle, createdAt, id])
+  @@index([assigneeId, status, updatedAt, id])
+  @@index([performedById, updatedAt, id])
+}
+
+model ActionTakenEvent {
+  id                 Int                  @id @default(autoincrement())
+  actionId           Int
+  actorId            Int
+  eventType          ActionTakenEventType
+  resultingVersion   Int
+  changedFields      Json
+  fromStatus         ActionTakenStatus?
+  toStatus           ActionTakenStatus?
+  previousAssigneeId Int?
+  nextAssigneeId     Int?
+  createdAt          DateTime             @default(now())
+
+  action           ActionTaken    @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  actor            RequesterUser  @relation("ActionEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+  previousAssignee RequesterUser? @relation("ActionEventPreviousAssignee", fields: [previousAssigneeId], references: [id], onDelete: Restrict)
+  nextAssignee     RequesterUser? @relation("ActionEventNextAssignee", fields: [nextAssigneeId], references: [id], onDelete: Restrict)
+
+  @@unique([actionId, resultingVersion])
+  @@index([actionId, createdAt, id])
+  @@index([actorId, createdAt, id])
+}
+
 model Attachment {
-  id                   Int            @id @default(autoincrement())
+  id                   Int       @id @default(autoincrement())
   ticketId             Int
-  originalName         String         @db.VarChar(255)
-  storageKey           String         @unique @db.Uuid
-  mimeType             String         @db.VarChar(100)
+  originalName         String    @db.VarChar(255)
+  storageKey           String    @unique @db.Uuid
+  mimeType             String    @db.VarChar(100)
   sizeBytes            Int
-  uploadedAt           DateTime       @default(now())
+  uploadedAt           DateTime  @default(now())
   removedAt            DateTime?
-  removedReason        String?        @db.VarChar(250)
+  removedReason        String?   @db.VarChar(250)
   removedByRequesterId Int?
 
   ticket             Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
@@ -135,18 +194,18 @@ model Attachment {
 }
 
 model TicketOwnerChange {
-  id             Int                  @id @default(autoincrement())
-  ticketId       Int
+  id              Int                     @id @default(autoincrement())
+  ticketId        Int
   previousOwnerId Int?
-  nextOwnerId    Int?
-  actorId        Int
-  changedAt      DateTime             @default(now())
-  reason         TicketOwnerChangeReason
+  nextOwnerId     Int?
+  actorId         Int
+  changedAt       DateTime                @default(now())
+  reason          TicketOwnerChangeReason
 
-  ticket         Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  previousOwner  RequesterUser? @relation("OwnerChangePrevious", fields: [previousOwnerId], references: [id], onDelete: Restrict)
-  nextOwner      RequesterUser? @relation("OwnerChangeNext", fields: [nextOwnerId], references: [id], onDelete: Restrict)
-  actor          RequesterUser  @relation("OwnerChangeActor", fields: [actorId], references: [id], onDelete: Restrict)
+  ticket        Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  previousOwner RequesterUser? @relation("OwnerChangePrevious", fields: [previousOwnerId], references: [id], onDelete: Restrict)
+  nextOwner     RequesterUser? @relation("OwnerChangeNext", fields: [nextOwnerId], references: [id], onDelete: Restrict)
+  actor         RequesterUser  @relation("OwnerChangeActor", fields: [actorId], references: [id], onDelete: Restrict)
 
   @@index([ticketId, changedAt, id])
   @@index([previousOwnerId])
@@ -154,28 +213,28 @@ model TicketOwnerChange {
 }
 
 model PublicComment {
-  id        Int           @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   ticketId  Int
   authorId  Int
-  content   String        @db.VarChar(5000)
-  createdAt DateTime      @default(now())
+  content   String   @db.VarChar(5000)
+  createdAt DateTime @default(now())
 
-  ticket Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  author RequesterUser  @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  ticket Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author RequesterUser @relation(fields: [authorId], references: [id], onDelete: Restrict)
 
   @@index([ticketId, createdAt, id])
   @@index([authorId])
 }
 
 model InternalNote {
-  id        Int           @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   ticketId  Int
   authorId  Int
-  content   String        @db.VarChar(5000)
-  createdAt DateTime      @default(now())
+  content   String   @db.VarChar(5000)
+  createdAt DateTime @default(now())
 
-  ticket Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  author RequesterUser  @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  ticket Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author RequesterUser @relation(fields: [authorId], references: [id], onDelete: Restrict)
 
   @@index([ticketId, createdAt, id])
   @@index([authorId])
@@ -209,4 +268,18 @@ enum TicketOwnerChangeReason {
   ASSIGNED
   REASSIGNED
   ACCOUNT_INELIGIBLE
+}
+
+enum ActionTakenStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActionTakenEventType {
+  CREATED
+  UPDATED
+  ASSIGNED
+  STATUS_CHANGED
 }

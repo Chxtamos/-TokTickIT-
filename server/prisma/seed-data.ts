@@ -171,3 +171,113 @@ export async function seedLab3Fixtures(prisma: PrismaClient) {
   const highestReservedNumber = 900024;
   await prisma.$executeRaw`SELECT setval('"TicketNumberSequence"', GREATEST((SELECT last_value FROM "TicketNumberSequence"), ${highestReservedNumber}), true)`;
 }
+
+export async function seedLab4Fixtures(prisma: PrismaClient) {
+  await prisma.requesterUser.upsert({
+    where: { email: "lab4.empty.requester@example.test" },
+    update: { name: "Lab 4 Empty Dashboard Requester", role: "REQUESTER", isActive: true },
+    create: {
+      name: "Lab 4 Empty Dashboard Requester",
+      email: "lab4.empty.requester@example.test",
+      role: "REQUESTER",
+      isActive: true,
+    },
+  });
+
+  const tickets = await prisma.ticket.findMany({
+    where: { ticketNumber: { in: ["TKT-2026-900001", "TKT-2026-900002", "TKT-2026-900003"] } },
+    orderBy: { ticketNumber: "asc" },
+    select: { id: true, ticketNumber: true, workflowCycle: true },
+  });
+  const staff = await prisma.requesterUser.findMany({
+    where: { role: { in: ["IT_STAFF", "ADMINISTRATOR"] }, isActive: true },
+    orderBy: { id: "asc" },
+    select: { id: true },
+  });
+  if (tickets.length !== 3 || staff.length < 2) {
+    throw new Error("Lab 4 seed requires the Lab 3 Ticket fixtures and at least two active operational users.");
+  }
+
+  const createFixture = async (input: {
+    ticketIndex: number;
+    key: string;
+    description: string;
+    result: string | null;
+    status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+    assigneeId: number | null;
+  }) => {
+    const ticket = tickets[input.ticketIndex];
+    const clientRequestId = stableUuid(`lab4-action-${input.key}`);
+    const requestPayloadHash = payloadHash({
+      ticketId: ticket.id,
+      description: input.description,
+      result: input.result,
+      status: input.status,
+      assigneeId: input.assigneeId,
+      workflowCycle: ticket.workflowCycle,
+    });
+    const action = await prisma.actionTaken.upsert({
+      where: { ticketId_clientRequestId: { ticketId: ticket.id, clientRequestId } },
+      update: {},
+      create: {
+        ticketId: ticket.id,
+        workflowCycle: ticket.workflowCycle,
+        performedById: staff[0].id,
+        assigneeId: input.assigneeId,
+        description: input.description,
+        result: input.result,
+        followUpRequired: false,
+        followUpNote: null,
+        attachmentNotes: null,
+        status: input.status,
+        clientRequestId,
+        requestPayloadHash,
+        version: 1,
+      },
+    });
+    await prisma.actionTakenEvent.upsert({
+      where: { actionId_resultingVersion: { actionId: action.id, resultingVersion: 1 } },
+      update: {},
+      create: {
+        actionId: action.id,
+        actorId: staff[0].id,
+        eventType: "CREATED",
+        resultingVersion: 1,
+        changedFields: [
+          "description", "result", "assigneeId", "followUpRequired", "followUpNote",
+          "attachmentNotes", "status",
+        ],
+        fromStatus: null,
+        toStatus: input.status,
+        previousAssigneeId: null,
+        nextAssigneeId: input.assigneeId,
+      },
+    });
+  };
+
+  // TKT-2026-900001 intentionally remains the zero-Action fixture.
+  await createFixture({
+    ticketIndex: 1,
+    key: "single-completed",
+    description: "Verified the reported service and recorded a successful support action.",
+    result: "Service verification completed successfully for the Lab 4 fixture.",
+    status: "COMPLETED",
+    assigneeId: staff[0].id,
+  });
+  await createFixture({
+    ticketIndex: 2,
+    key: "multi-completed",
+    description: "Collected diagnostic information for the multi-action Lab 4 fixture.",
+    result: "Diagnostics were collected and reviewed.",
+    status: "COMPLETED",
+    assigneeId: staff[0].id,
+  });
+  await createFixture({
+    ticketIndex: 2,
+    key: "multi-in-progress",
+    description: "Continue remediation work for the multi-action Lab 4 fixture.",
+    result: null,
+    status: "IN_PROGRESS",
+    assigneeId: staff[1].id,
+  });
+}
