@@ -69,6 +69,7 @@ async function main() {
 
     await prisma.$transaction(async (tx) => {
       await tx.ticketOwnerChange.deleteMany({ where: { ticketId: ticket.id } });
+      await tx.actionTaken.deleteMany({ where: { ticketId: ticket.id } });
       await tx.publicComment.deleteMany({ where: { ticketId: ticket.id, content: { startsWith: "E2E " } } });
       await tx.internalNote.deleteMany({ where: { ticketId: ticket.id, content: { startsWith: "E2E " } } });
       await tx.attachment.deleteMany({ where: { OR: [{ storageKey: STAFF_ATTACHMENT_KEY }, { ticketId: ticket.id, originalName: STAFF_ATTACHMENT_NAME }] } });

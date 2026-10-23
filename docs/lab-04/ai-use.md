@@ -12,6 +12,7 @@ ChatGPT was used as a specification/coding assistant. This record must contain o
 4. Asked the agent to read the real human review feedback on PR #100 and revise the engineering contract consistently before implementation, including resolution evidence, reopen cycles, parent/child concurrency, idempotency disclosure, and Action mutation audit semantics.
 5. Asked the agent to address the real human feedback on PR #101. The follow-up work added a genuine Lab-3-baseline-to-Lab-4 migration/backfill test, lifecycle-realistic seeded Action audit history, full-seed non-destructive evidence, and corrected reviewer records.
 6. Asked the agent to continue with Issue #93 after PR #101 merged. The agent implemented Actions Taken list/create/update APIs, backend role/ownership/CSRF enforcement, validation, idempotency, concurrency/version handling, lifecycle rules, audit events, and PostgreSQL API tests while preserving a real RED test commit before the GREEN implementation.
+7. Asked the agent to continue with Issue #94 after PR #102 merged. The agent added a shared Actions Taken Ticket Detail UI for Requester/IT Staff/Administrator roles, client API bindings, recoverable create/edit/conflict behavior, responsive Zen Green styling, UI tests and focused Playwright viewport/role evidence while preserving a RED test commit before implementation.
 
 ## Current use and limitations
 
