@@ -17,8 +17,8 @@ Status: planned before implementation for Issue #91. `Final` remains **Planned**
 | API-09 | API | AC-08, AC-09, AC-19 | Ticket final transition matrix/current-cycle resolution gate | CANCELLED-only/old-cycle/incomplete Actions block; valid current-cycle completion permits resolution | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-10 | API | AC-10 | Requester dashboard ownership/calculations | Only self data; accurate zero/non-zero values | `server/tests/lab-04/requester-dashboard.api.test.ts` | Planned |
 | API-11 | API | AC-11, AC-12 | Staff/Admin dashboard calculations | Accurate authoritative metrics/concise lists | `server/tests/lab-04/staff-dashboard.api.test.ts` | Planned |
-| DB-01 | PostgreSQL | AC-13, AC-22 | Forward migration/backfill on Lab 3-shaped data | Earlier rows preserved; Tickets default cycle 1; Action/audit schema valid | `server/tests/lab-04/migration.postgres.integration.test.ts` | Planned |
-| DB-02 | PostgreSQL | AC-13 | Seed twice | No duplicates/destructive overwrite | `server/tests/lab-04/seed.postgres.integration.test.ts` | Planned |
+| DB-01 | PostgreSQL | AC-13, AC-22 | Forward migration/backfill on Lab 3-shaped data | Earlier rows preserved; Tickets default cycle 1; Action/audit schema valid | `server/tests/lab-04/migration.postgres.integration.test.ts` | Passed on PR #101 feedback revision |
+| DB-02 | PostgreSQL | AC-13 | Seed twice | No duplicates/destructive overwrite | `server/tests/lab-04/seed.postgres.integration.test.ts` | Passed on PR #101 feedback revision |
 | DB-03 | PostgreSQL | AC-02, AC-06, AC-20 | Concurrent create/update/resolve constraints | Identical creates converge; stale edits lose safely; parent lock serializes Action-vs-resolve race | `server/tests/lab-04/actions.postgres.integration.test.ts` | Planned |
 | DB-04 | PostgreSQL | AC-11 | Selected dashboard query truth | API counts match direct representative queries | `server/tests/lab-04/dashboard.postgres.integration.test.ts` | Planned |
 | DB-05 | PostgreSQL | AC-19, AC-20 | Close -> reopen -> new-cycle resolution race | Reopen increments cycle atomically; prior-cycle completion cannot satisfy new resolution; concurrent child mutation cannot slip past gate | `server/tests/lab-04/workflow-cycle.postgres.integration.test.ts` | Planned |
@@ -70,3 +70,5 @@ Status: planned before implementation for Issue #91. `Final` remains **Planned**
 For each implementation Issue: add/activate a meaningful failing test against this approved contract, implement the minimum behavior, refactor, then run affected suites/builds. PostgreSQL migration/concurrency/idempotency/dashboard-truth guarantees require real isolated PostgreSQL coverage where mocks cannot prove them. A skipped required integration test is not a pass.
 
 Final evidence must record revision, commands, exit statuses, suite/test counts including skips, actual test paths and safe output locations. Human visual/accessibility review remains explicitly human evidence; automated screenshots are supporting evidence only.
+
+Issue #92 note: the first feature commit combined tests and implementation, so repository history does not provide a separate RED commit for this Issue. Final TDD evidence must state this limitation truthfully and must not claim a preserved RED -> GREEN commit sequence for #92.

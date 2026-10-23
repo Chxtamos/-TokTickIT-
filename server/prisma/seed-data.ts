@@ -26,7 +26,7 @@ export async function seedLab2ReferenceData(prisma: PrismaClient) {
   for (const name of lab2Categories) {
     await prisma.category.upsert({
       where: { name },
-      update: { isActive: true },
+      update: {},
       create: { name, isActive: true },
     });
   }
@@ -34,7 +34,7 @@ export async function seedLab2ReferenceData(prisma: PrismaClient) {
   for (const name of lab2RelatedSystems) {
     await prisma.relatedSystem.upsert({
       where: { name },
-      update: { isActive: true },
+      update: {},
       create: { name, isActive: true },
     });
   }
@@ -43,7 +43,7 @@ export async function seedLab2ReferenceData(prisma: PrismaClient) {
     const email = requester.email.trim().toLowerCase();
     await prisma.requesterUser.upsert({
       where: { email },
-      update: { name: requester.name, isActive: requester.isActive },
+      update: {},
       create: { ...requester, email },
     });
   }
@@ -91,7 +91,7 @@ export async function seedLab3Fixtures(prisma: PrismaClient) {
   for (const fixture of lab3StaffFixtures) {
     await prisma.requesterUser.upsert({
       where: { email: fixture.email },
-      update: { name: fixture.name, role: fixture.role, isActive: fixture.isActive },
+      update: {},
       create: {
         name: fixture.name,
         email: fixture.email,
@@ -175,7 +175,7 @@ export async function seedLab3Fixtures(prisma: PrismaClient) {
 export async function seedLab4Fixtures(prisma: PrismaClient) {
   await prisma.requesterUser.upsert({
     where: { email: "lab4.empty.requester@example.test" },
-    update: { name: "Lab 4 Empty Dashboard Requester", role: "REQUESTER", isActive: true },
+    update: {},
     create: {
       name: "Lab 4 Empty Dashboard Requester",
       email: "lab4.empty.requester@example.test",
@@ -211,48 +211,78 @@ export async function seedLab4Fixtures(prisma: PrismaClient) {
     const requestPayloadHash = payloadHash({
       ticketId: ticket.id,
       description: input.description,
-      result: input.result,
-      status: input.status,
+      result: null,
+      status: "PENDING",
       assigneeId: input.assigneeId,
       workflowCycle: ticket.workflowCycle,
     });
-    const action = await prisma.actionTaken.upsert({
+    const existing = await prisma.actionTaken.findUnique({
       where: { ticketId_clientRequestId: { ticketId: ticket.id, clientRequestId } },
-      update: {},
-      create: {
-        ticketId: ticket.id,
-        workflowCycle: ticket.workflowCycle,
-        performedById: staff[0].id,
-        assigneeId: input.assigneeId,
-        description: input.description,
-        result: input.result,
-        followUpRequired: false,
-        followUpNote: null,
-        attachmentNotes: null,
-        status: input.status,
-        clientRequestId,
-        requestPayloadHash,
-        version: 1,
-      },
+      select: { id: true },
     });
-    await prisma.actionTakenEvent.upsert({
-      where: { actionId_resultingVersion: { actionId: action.id, resultingVersion: 1 } },
-      update: {},
-      create: {
-        actionId: action.id,
-        actorId: staff[0].id,
-        eventType: "CREATED",
-        resultingVersion: 1,
-        changedFields: [
-          "description", "result", "assigneeId", "followUpRequired", "followUpNote",
-          "attachmentNotes", "status",
-        ],
-        fromStatus: null,
-        toStatus: input.status,
-        previousAssigneeId: null,
-        nextAssigneeId: input.assigneeId,
-      },
+    if (existing) return;
+
+    const action = await prisma.$transaction(async (tx) => {
+      const created = await tx.actionTaken.create({
+        data: {
+          ticketId: ticket.id,
+          workflowCycle: ticket.workflowCycle,
+          performedById: staff[0].id,
+          assigneeId: input.assigneeId,
+          description: input.description,
+          result: null,
+          followUpRequired: false,
+          followUpNote: null,
+          attachmentNotes: null,
+          status: "PENDING",
+          clientRequestId,
+          requestPayloadHash,
+          version: 1,
+        },
+      });
+      await tx.actionTakenEvent.create({
+        data: {
+          actionId: created.id,
+          actorId: staff[0].id,
+          eventType: "CREATED",
+          resultingVersion: 1,
+          changedFields: [
+            "description", "assigneeId", "followUpRequired", "followUpNote",
+            "attachmentNotes", "status",
+          ],
+          fromStatus: null,
+          toStatus: "PENDING",
+          previousAssigneeId: null,
+          nextAssigneeId: input.assigneeId,
+        },
+      });
+
+      if (input.status === "PENDING") return created;
+
+      const transitioned = await tx.actionTaken.update({
+        where: { id: created.id },
+        data: {
+          status: input.status,
+          result: input.result,
+          version: 2,
+        },
+      });
+      await tx.actionTakenEvent.create({
+        data: {
+          actionId: created.id,
+          actorId: staff[0].id,
+          eventType: "STATUS_CHANGED",
+          resultingVersion: 2,
+          changedFields: input.status === "COMPLETED" ? ["status", "result"] : ["status"],
+          fromStatus: "PENDING",
+          toStatus: input.status,
+          previousAssigneeId: input.assigneeId,
+          nextAssigneeId: input.assigneeId,
+        },
+      });
+      return transitioned;
     });
+    return action;
   };
 
   // TKT-2026-900001 intentionally remains the zero-Action fixture.
@@ -280,4 +310,10 @@ export async function seedLab4Fixtures(prisma: PrismaClient) {
     status: "IN_PROGRESS",
     assigneeId: staff[1].id,
   });
+}
+
+export async function seedAllFixtures(prisma: PrismaClient) {
+  await seedLab2ReferenceData(prisma);
+  await seedLab3Fixtures(prisma);
+  await seedLab4Fixtures(prisma);
 }
