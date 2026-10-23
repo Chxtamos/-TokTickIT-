@@ -9,6 +9,7 @@ ChatGPT was used as a specification/coding assistant. This record must contain o
 1. Asked the agent to read Lab 4 in detail and decompose the sprint into no more than ten GitHub Issues.
 2. Asked the agent to define the order of work from baseline verification through staged release and final evidence.
 3. Asked the agent to inspect the existing repository, verify the Lab 3 baseline, create the Lab 4 Issues, establish a safe `lab4-staging` baseline, and begin Issue #91 while checking the current branch/remote before every push or commit.
+4. Asked the agent to read the real human review feedback on PR #100 and revise the engineering contract consistently before implementation, including resolution evidence, reopen cycles, parent/child concurrency, idempotency disclosure, and Action mutation audit semantics.
 
 ## Current use and limitations
 

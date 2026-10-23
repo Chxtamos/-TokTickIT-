@@ -15,7 +15,7 @@ Status: Issue #91 specification baseline. Existing Lab 3 authentication/session/
 
 ```text
 ActionTaken {
-  id, ticketId, description, result,
+  id, ticketId, workflowCycle, description, result,
   performedBy: { id, name },
   assignee: { id, name } | null,
   status: PENDING | IN_PROGRESS | COMPLETED | CANCELLED,
@@ -25,6 +25,8 @@ ActionTaken {
 ```
 
 `performedBy`, timestamps and version are server-owned. Requesters receive this safe operational DTO for owned Tickets; no account credentials/private notes are included.
+
+`performedBy` is the immutable creator/recorder. Later mutation actors are preserved separately in immutable server-side `ActionTakenEvent` records; APIs must not overwrite `performedBy` when another user assigns, edits, completes or cancels the Action.
 
 ## Actions Taken endpoints
 
@@ -49,15 +51,19 @@ Request:
 }
 ```
 
-Status is initially `PENDING`; creator/time are backend-owned. `201` creates. Repeated identical `(ticketId, clientRequestId)` returns the original representation without a second row. Reuse with different normalized payload returns `409 IDEMPOTENCY_CONFLICT`. Inactive/ineligible assignee returns `409 ASSIGNEE_INELIGIBLE`.
+Status is initially `PENDING`; creator/time are backend-owned and `workflowCycle` is copied from the locked parent Ticket. `201` creates. The backend authenticates and authorizes access to the Ticket before looking up/disclosing an idempotency record. Repeated identical authorized `(ticketId, clientRequestId)` returns the original representation without a second row. Concurrent identical authorized creates converge to that same representation after the unique-race winner commits. Reuse with different normalized payload returns `409 IDEMPOTENCY_CONFLICT`. Inactive/ineligible assignee returns `409 ASSIGNEE_INELIGIBLE`.
 
 ### PATCH `/api/staff/tickets/:ticketId/actions/:actionId`
 
-IT Staff/Administrator only. Request may contain `description`, `result`, `assigneeId`, `followUpRequired`, `followUpNote`, `attachmentNotes`, `status`, and mandatory `expectedVersion`. Creator/time cannot be changed. Terminal Actions reject further edits with `409 ACTION_TERMINAL`. Invalid lifecycle transition returns `409 ACTION_TRANSITION_INVALID`.
+IT Staff/Administrator only. Request may contain `description`, `result`, `assigneeId`, `followUpRequired`, `followUpNote`, `attachmentNotes`, `status`, and mandatory `expectedVersion`. Creator/time/workflowCycle cannot be changed. Terminal Actions reject further edits with `409 ACTION_TERMINAL`. Invalid lifecycle transition returns `409 ACTION_TRANSITION_INVALID`. Every successful mutation appends an immutable audit event in the same transaction with authenticated actor, resulting version and changed fields; completion/cancellation actor is therefore preserved even when different from `performedBy`.
 
 ## Ticket workflow extension
 
-Existing Lab 3 status endpoint/path and `expectedVersion` contract are retained. Transition to RESOLVED additionally checks the Lab 4 resolution gate: at least one Action exists and every Action is COMPLETED/CANCELLED. Failure returns `409 RESOLUTION_ACTIONS_INCOMPLETE` without changing Ticket status/version.
+Existing Lab 3 status endpoint/path and `expectedVersion` contract are retained. Ticket has server-owned `workflowCycle`, initially 1. Transition RESOLVED/CLOSED -> REOPENED increments this cycle atomically in the successful status transaction.
+
+Transition to RESOLVED additionally checks only Actions whose `workflowCycle` equals the Ticket's current cycle: at least one must be `COMPLETED` with a valid Result, and every current-cycle Action must be terminal (`COMPLETED` or `CANCELLED`). CANCELLED-only history and completed Actions from earlier cycles do not satisfy the gate. Failure returns `409 RESOLUTION_ACTIONS_INCOMPLETE` without changing Ticket status/version.
+
+For Action create/update/status mutations and RESOLVED transitions, the transaction first locks the parent Ticket row and then evaluates/mutates current-cycle child state. This serializes parent/child races: resolution cannot pass its gate while a concurrent Action is inserted or changed between gate evaluation and Ticket update. Action PATCH still checks its own `expectedVersion` while holding the parent lock.
 
 ## Requester Dashboard
 
@@ -100,7 +106,7 @@ Counts/calculations follow specification BR-23/24. Endpoint returns summaries on
 
 ## Validation and conflicts
 
-Action text/follow-up/result limits follow specification BR-05/06. IDs must be safe positive integers. `expectedVersion` must be a positive integer. Create UUID must be syntactically valid. Resource IDs are validated before database lookup where possible. Authorization is role-first; Requester ownership lookup remains non-enumerating.
+Action text/follow-up/result limits follow specification BR-05/06. IDs must be safe positive integers. `expectedVersion` must be a positive integer. Create UUID must be syntactically valid. Resource IDs are validated before database lookup where possible. Authorization is role-first; Requester ownership lookup remains non-enumerating. Idempotency lookup never precedes Ticket authorization, so replay/conflict responses cannot act as an existence oracle for inaccessible Tickets or Actions.
 
 ## Compatibility
 
