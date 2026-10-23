@@ -6,14 +6,14 @@ Status: planned before implementation for Issue #91. `Final` remains **Planned**
 | --- | --- | --- | --- | --- | --- | --- |
 | UNIT-01 | Unit | AC-05 | Action validation/follow-up/result boundaries | Contract rules accepted/rejected exactly | `server/tests/lab-04/action-validation.test.ts` | Planned |
 | UNIT-02 | Unit | AC-05, AC-07 | Action transition and stable-order helpers | Only allowed transitions; deterministic order | `server/tests/lab-04/action-workflow.test.ts` | Planned |
-| API-01 | API | AC-03 | Requester reads owned Actions/non-owned protection | Owned 200; non-owned safe 404 | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-02 | API | AC-03 | Requester/direct wrong-role writes | 403 and no mutation | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-03 | API | AC-01 | Valid Action create | Correct Ticket, backend actor/time, 201 | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-04 | API | AC-02 | Repeated create/idempotency conflict + non-enumeration | One row; same replay safe; changed authorized payload 409; inaccessible Ticket reveals nothing | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-05 | API | AC-04 | Active/inactive/wrong-role assignee | Only active operational assignee accepted | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-06 | API | AC-05 | Action edit/status/complete/cancel | Validation and lifecycle enforced | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-07 | API | AC-06 | Stale Action expectedVersion | 409; newer row preserved | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-08 | API | AC-07, AC-21 | Immutable creator/time + audit actors + list ordering | Immutable fields rejected; stable order; each successful mutation creates actor/version event | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
+| API-01 | API | AC-03 | Requester reads owned Actions/non-owned protection | Owned 200; non-owned safe 404 | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
+| API-02 | API | AC-03 | Requester/direct wrong-role writes | 403 and no mutation | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
+| API-03 | API | AC-01 | Valid Action create | Correct Ticket, backend actor/time, 201 | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
+| API-04 | API | AC-02 | Repeated create/idempotency conflict + non-enumeration | One row; same replay safe; changed authorized payload 409; inaccessible Ticket reveals nothing | `server/tests/lab-04/actions-taken.api.test.ts` | Passed after PR #102 non-enumeration feedback revision |
+| API-05 | API | AC-04 | Active/inactive/wrong-role assignee | Only active operational assignee accepted | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
+| API-06 | API | AC-05 | Action edit/status/complete/cancel | Validation and lifecycle enforced | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
+| API-07 | API | AC-06 | Stale Action expectedVersion | 409; newer row preserved | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
+| API-08 | API | AC-07, AC-21 | Immutable creator/time + audit actors + list ordering | Immutable fields rejected; stable order; each successful mutation creates actor/version event | `server/tests/lab-04/actions-taken.api.test.ts` | Passed on Issue #93 GREEN verification |
 | API-09 | API | AC-08, AC-09, AC-19 | Ticket final transition matrix/current-cycle resolution gate | CANCELLED-only/old-cycle/incomplete Actions block; valid current-cycle completion permits resolution | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-10 | API | AC-10 | Requester dashboard ownership/calculations | Only self data; accurate zero/non-zero values | `server/tests/lab-04/requester-dashboard.api.test.ts` | Planned |
 | API-11 | API | AC-11, AC-12 | Staff/Admin dashboard calculations | Accurate authoritative metrics/concise lists | `server/tests/lab-04/staff-dashboard.api.test.ts` | Planned |
@@ -72,3 +72,5 @@ For each implementation Issue: add/activate a meaningful failing test against th
 Final evidence must record revision, commands, exit statuses, suite/test counts including skips, actual test paths and safe output locations. Human visual/accessibility review remains explicitly human evidence; automated screenshots are supporting evidence only.
 
 Issue #92 note: the first feature commit combined tests and implementation, so repository history does not provide a separate RED commit for this Issue. Final TDD evidence must state this limitation truthfully and must not claim a preserved RED -> GREEN commit sequence for #92.
+
+Issue #93 TDD evidence: commit `cfc1514` contains the Actions Taken API tests before implementation. Executing `server/tests/lab-04/actions-taken.api.test.ts` on that exact commit produced 7/7 failures because the contracted routes did not yet exist (404 responses). The following implementation commit is the GREEN step and must be verified on its exact revision before the Issue is considered review-ready.

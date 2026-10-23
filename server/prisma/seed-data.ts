@@ -115,8 +115,14 @@ export async function seedLab3Fixtures(prisma: PrismaClient) {
   });
   const categories = await prisma.category.findMany({ where: { isActive: true }, orderBy: { id: "asc" }, select: { id: true } });
   const systems = await prisma.relatedSystem.findMany({ where: { isActive: true }, orderBy: { id: "asc" }, select: { id: true } });
-  if (requesters.length < 5 || owners.length < 4 || categories.length === 0 || systems.length === 0) {
-    throw new Error("Lab 3 seed requires migrated Requesters, eligible owners and active reference data.");
+  // A fresh database receives the full Lab 2/3 fixture set above. On a repeat
+  // seed, however, existing fixture identities may have legitimate operational
+  // edits (for example an account being deactivated). Preserve those edits and
+  // continue as long as enough eligible data remains to build deterministic
+  // synthetic Tickets, rather than resetting accounts merely to satisfy seed
+  // cardinality assumptions.
+  if (requesters.length === 0 || owners.length === 0 || categories.length === 0 || systems.length === 0) {
+    throw new Error("Lab 3 seed requires at least one migrated Requester, eligible owner and active reference-data row.");
   }
 
   for (let index = 0; index < 24; index += 1) {
