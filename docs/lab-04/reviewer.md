@@ -22,3 +22,13 @@ Later entries must link the real PR/review and summarize actual requested change
 - Review status: changes requested on 2026-10-23; re-review pending after feedback commit.
 - Comments/responses: reviewer requested real pre-Lab-4 migration/backfill proof, lifecycle-realistic seed audit history, full-seed non-destructive evidence, and correction of the PR #100 reviewer record. The follow-up revision addresses these blockers; approval is not claimed until a real re-review occurs.
 - Verification: Prisma validate/build passed; focused PostgreSQL Lab 4 migration and seed tests passed; representative Lab 3 Staff workflow and Lab 2 Attachment PostgreSQL regression tests passed on an isolated `toktickit_lab4_test` database.
+
+## Issue #93 Actions Taken APIs and Authorization
+
+- Branch: `feature/43-lab4-actions-api`
+- Target: `lab4-staging`
+- Pull Request: #102 `Feature 43: Implement Actions Taken APIs and authorization`
+- Reviewer: pending real peer review
+- Review status: pending
+- TDD evidence: RED commit `cfc1514` contains the Actions Taken API tests before implementation and produced 7/7 failures because the contracted routes did not yet exist; GREEN commit `592f8d33ab52f2cece6f4a58b95b1e9946cb5595` implements the contract and passes the focused API suite.
+- Verification: Actions Taken API PostgreSQL suite 7/7 passed on exact GREEN commit; Lab 3 migration regression 1/1 passed; Lab 2 seed regression 1/1 passed; TypeScript server build and `git diff --check` passed.
