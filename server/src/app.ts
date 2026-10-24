@@ -564,6 +564,14 @@ function ticketMutationErrorResponse(
     if (error.code === "STATUS_TRANSITION_INVALID") {
       return errorResponse(res, 409, error.code, "The requested Ticket status transition is not permitted.");
     }
+    if (error.code === "RESOLUTION_ACTIONS_INCOMPLETE") {
+      return errorResponse(
+        res,
+        409,
+        error.code,
+        "Complete all current-cycle Actions and record at least one completed Action with a valid Result before resolving this Ticket.",
+      );
+    }
   }
   return errorResponse(res, 500, fallbackCode, fallbackMessage);
 }
@@ -1127,7 +1135,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
         await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
         const current = await tx.ticket.findFirst({
           where: { id: ticketId },
-          select: { id: true, version: true, currentStatus: true, resolutionSummary: true },
+          select: { id: true, version: true, currentStatus: true, resolutionSummary: true, workflowCycle: true },
         });
         if (!current) throw new TicketMutationError("RESOURCE_NOT_FOUND");
         if (current.version !== input.expectedVersion) throw new TicketMutationError("VERSION_CONFLICT");
@@ -1136,6 +1144,23 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
         }
         if (input.currentStatus === "CLOSED" && !current.resolutionSummary) {
           throw new TicketMutationError("STATUS_TRANSITION_INVALID");
+        }
+        if (input.currentStatus === "RESOLVED") {
+          const actions = await tx.actionTaken.findMany({
+            where: { ticketId, workflowCycle: current.workflowCycle },
+            select: { status: true, result: true },
+          });
+          const hasCompletedEvidence = actions.some((action) => (
+            action.status === "COMPLETED"
+            && typeof action.result === "string"
+            && action.result.trim().length >= 5
+            && action.result.trim().length <= 2_000
+          ));
+          const allTerminal = actions.length > 0
+            && actions.every((action) => action.status === "COMPLETED" || action.status === "CANCELLED");
+          if (!hasCompletedEvidence || !allTerminal) {
+            throw new TicketMutationError("RESOLUTION_ACTIONS_INCOMPLETE");
+          }
         }
         const updated = await tx.ticket.updateMany({
           where: { id: ticketId, version: input.expectedVersion },

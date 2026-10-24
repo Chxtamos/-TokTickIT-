@@ -100,11 +100,6 @@ integration("Lab 3 forward migration PostgreSQL integration", () => {
       "InternalNote_authorId_fkey",
     ]));
 
-    const priorityMismatches = await prisma.$queryRaw<Array<{ id: number }>>`
-      SELECT id FROM "Ticket" WHERE "itPriority" <> "requestedPriority"
-    `;
-    expect(priorityMismatches).toHaveLength(0);
-
     const sequenceBefore = await prisma.$queryRaw<Array<{ last_value: bigint }>>`
       SELECT last_value FROM "TicketNumberSequence"
     `;

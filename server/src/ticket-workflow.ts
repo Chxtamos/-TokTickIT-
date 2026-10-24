@@ -228,6 +228,7 @@ export function statusMutationData(
   if (target === "REOPENED") {
     return {
       ...common,
+      workflowCycle: { increment: 1 },
       lastStatusReason: input.reason,
       resolutionSummary: null,
       resolvedAt: null,
