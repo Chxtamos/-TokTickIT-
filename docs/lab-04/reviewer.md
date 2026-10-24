@@ -60,7 +60,7 @@ Later entries must link the real PR/review and summarize actual requested change
 
 - Branch: `feature/46-lab4-staff-dashboard`
 - Target: `lab4-staging`
-- Pull Request: pending creation after evidence commit.
+- Pull Request: #105 `Feature 46: Build IT Staff dashboard`
 - Reviewer: pending real peer review.
 - Review status: pending.
 - Comments/responses: pending. Do not claim approval or reviewer feedback until it exists on GitHub.
