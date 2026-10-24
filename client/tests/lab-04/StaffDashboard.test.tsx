@@ -32,8 +32,8 @@ describe("Lab 4 Staff Dashboard UI", () => {
   it("renders authoritative metrics, status/priority summaries and bounded operational lists", async () => {
     setupDashboard();
     expect(await screen.findByRole("heading", { name: "IT Staff Dashboard" })).toBeInTheDocument();
+    expect(await screen.findByText("Urgent mailbox issue")).toBeInTheDocument();
     expect(screen.getByText("2", { selector: ".dashboard-metric-value" })).toBeInTheDocument();
-    expect(screen.getByText("Urgent mailbox issue")).toBeInTheDocument();
     expect(screen.getByText("Checked mailbox permissions")).toBeInTheDocument();
     expect(screen.getByText("WAITING FOR REQUESTER")).toBeInTheDocument();
     expect(screen.getByText("URGENT")).toBeInTheDocument();
