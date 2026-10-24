@@ -44,6 +44,7 @@ import {
 } from "./conversation.js";
 import {
   ActionTakenError,
+  actionSelect,
   createAction,
   listActions,
   updateAction,
@@ -840,6 +841,91 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       return res.status(200).json(owners);
     } catch {
       return errorResponse(res, 500, "TICKET_OWNERS_UNAVAILABLE", "Unable to load eligible Ticket owners.");
+    }
+  });
+
+  app.get("/api/staff/dashboard", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    const unsupported = Object.keys(req.query);
+    if (unsupported.length > 0) {
+      return errorResponse(
+        res,
+        400,
+        "VALIDATION_FAILED",
+        "This endpoint does not accept query parameters.",
+        Object.fromEntries(unsupported.map((key) => [key, ["This query parameter is not supported."]])),
+      );
+    }
+
+    const currentUserId = authenticatedUser(req).id;
+    const nonTerminal: TicketStatus[] = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"];
+    const dashboardPrisma = prisma as unknown as PrismaClient;
+    const dashboardTicketSelect = {
+      id: true,
+      ticketNumber: true,
+      summary: true,
+      requestedPriority: true,
+      itPriority: true,
+      currentStatus: true,
+      version: true,
+      createdAt: true,
+      updatedAt: true,
+      category: { select: { id: true, name: true } },
+      relatedSystem: { select: { id: true, name: true } },
+      owner: { select: { id: true, name: true, email: true, role: true } },
+      requester: { select: { id: true, name: true, email: true, role: true } },
+    } satisfies Prisma.TicketSelect;
+
+    try {
+      const [unassignedTickets, myTickets, myOpenActions, statusGroups, priorityGroups, recentOrUrgent, myRecentActions] = await Promise.all([
+        dashboardPrisma.ticket.count({ where: { ticketOwnerId: null, currentStatus: { in: nonTerminal } } }),
+        dashboardPrisma.ticket.count({ where: { ticketOwnerId: currentUserId, currentStatus: { in: nonTerminal } } }),
+        dashboardPrisma.actionTaken.count({ where: { assigneeId: currentUserId, status: { in: ["PENDING", "IN_PROGRESS"] } } }),
+        dashboardPrisma.ticket.groupBy({ by: ["currentStatus"], _count: { _all: true } }),
+        dashboardPrisma.ticket.groupBy({ by: ["itPriority"], where: { currentStatus: { in: nonTerminal } }, _count: { _all: true } }),
+        dashboardPrisma.ticket.findMany({
+          where: { currentStatus: { in: nonTerminal } },
+          orderBy: [{ itPriority: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
+          take: 10,
+          select: dashboardTicketSelect,
+        }),
+        dashboardPrisma.actionTaken.findMany({
+          where: { OR: [{ performedById: currentUserId }, { assigneeId: currentUserId }] },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          take: 5,
+          select: actionSelect,
+        }),
+      ]);
+
+      const byStatus: Record<TicketStatus, number> = {
+        NEW: 0,
+        OPEN: 0,
+        IN_PROGRESS: 0,
+        WAITING_FOR_REQUESTER: 0,
+        RESOLVED: 0,
+        CLOSED: 0,
+        REOPENED: 0,
+        CANCELLED: 0,
+      };
+      for (const row of statusGroups) byStatus[row.currentStatus] = row._count._all;
+
+      const byItPriority: Record<RequestedPriority, number> = { LOW: 0, MEDIUM: 0, HIGH: 0, URGENT: 0 };
+      for (const row of priorityGroups) byItPriority[row.itPriority] = row._count._all;
+
+      return res.status(200).json({
+        metrics: { unassignedTickets, myTickets, myOpenActions },
+        byStatus,
+        byItPriority,
+        recentOrUrgent: recentOrUrgent.map(staffTicketSummaryResponse),
+        myRecentActions,
+        drillDown: {
+          unassignedTickets: "/staff/tickets?owner=unassigned",
+          myTickets: "/staff/tickets?owner=mine",
+          myOpenActions: "/staff/dashboard#my-actions",
+        },
+      });
+    } catch {
+      return errorResponse(res, 500, "STAFF_DASHBOARD_FAILED", "Unable to load Staff Dashboard.");
     }
   });
 

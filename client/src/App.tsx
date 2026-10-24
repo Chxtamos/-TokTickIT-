@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { changePassword, clearInMemoryAuth, createTicket, CreatedTicket, downloadTicketAttachment, getCategories, getCurrentUser, getEligibleTicketOwners, getRelatedSystems, getStaffTickets, getTicketDetail, getTickets, indicateResolution, login, logout, ReferenceItem, removeTicketAttachment, type ApiValidationError, type AuthUser, type EligibleOwner, type Priority, type StaffQueueQuery, type StaffTicketListResponse, type StaffTicketSummary, TicketAttachmentMetadata, TicketDetail, TicketListQuery, TicketListResponse, TicketStatus, TicketSummary, uploadTicketAttachment } from "./api.js";
 import { StaffTicketDetailScreen } from "./StaffTicketDetail.js";
+import { StaffDashboardScreen } from "./StaffDashboard.js";
 import { UserManagementScreen } from "./UserManagement.js";
 import { TicketConversation } from "./TicketConversation.js";
 import { ActionsTakenSection } from "./ActionsTaken.js";
@@ -619,7 +620,7 @@ function roleLabel(role: AuthUser["role"]): string {
 }
 
 function roleLanding(role: AuthUser["role"]): string {
-  return role === "REQUESTER" ? "/requester/tickets" : role === "IT_STAFF" ? "/staff/tickets" : "/admin/users";
+  return role === "REQUESTER" ? "/requester/tickets" : role === "IT_STAFF" ? "/staff/dashboard" : "/admin/users";
 }
 
 function LoginScreen({ onAuthenticated, notice }: { onAuthenticated: (user: AuthUser) => void; notice: string | null }) {
@@ -753,7 +754,7 @@ function ApplicationShell({ user, route, navigate, onChangePassword, onLogout, o
   const requesterDetailMatch = route.match(/^\/requester\/tickets\/([1-9]\d*)$/);
   const requesterRoute = user.role === "REQUESTER" && (route === "/requester/tickets" || route === "/requester/tickets/new" || requesterDetailMatch);
   const staffDetailMatch = route.match(/^\/staff\/tickets\/([1-9]\d*)$/);
-  const staffRoute = (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") && (route === "/staff/tickets" || Boolean(staffDetailMatch));
+  const staffRoute = (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") && (route === "/staff/dashboard" || route === "/staff/tickets" || Boolean(staffDetailMatch));
   const adminRoute = user.role === "ADMINISTRATOR" && route === "/admin/users";
   return (
     <div className="app-shell">
@@ -762,8 +763,8 @@ function ApplicationShell({ user, route, navigate, onChangePassword, onLogout, o
           <a className="brand" href={landing} onClick={(event) => { event.preventDefault(); navigate(landing); }}>TokTickIT</a>
           <nav aria-label="Primary navigation">
             {user.role === "REQUESTER" && <><a href="/requester/tickets" aria-current={route === "/requester/tickets" || Boolean(requesterDetailMatch) ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/requester/tickets"); }}>My Tickets</a><a href="/requester/tickets/new" aria-current={route === "/requester/tickets/new" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/requester/tickets/new"); }}>Create Ticket</a></>}
-            {user.role === "IT_STAFF" && <a href="/staff/tickets" aria-current={staffRoute ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/tickets"); }}>Ticket Queue</a>}
-            {user.role === "ADMINISTRATOR" && <><a href="/admin/users" aria-current={route === "/admin/users" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/admin/users"); }}>User Management</a><a href="/staff/tickets" aria-current={staffRoute ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/tickets"); }}>Ticket Queue</a></>}
+            {user.role === "IT_STAFF" && <><a href="/staff/dashboard" aria-current={route === "/staff/dashboard" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/dashboard"); }}>Dashboard</a><a href="/staff/tickets" aria-current={route === "/staff/tickets" || Boolean(staffDetailMatch) ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/tickets"); }}>Ticket Queue</a></>}
+            {user.role === "ADMINISTRATOR" && <><a href="/admin/users" aria-current={route === "/admin/users" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/admin/users"); }}>User Management</a><a href="/staff/dashboard" aria-current={route === "/staff/dashboard" ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/dashboard"); }}>Dashboard</a><a href="/staff/tickets" aria-current={route === "/staff/tickets" || Boolean(staffDetailMatch) ? "page" : undefined} onClick={(event) => { event.preventDefault(); navigate("/staff/tickets"); }}>Ticket Queue</a></>}
           </nav>
           <div className="account-context">
             <span>{user.name} · {roleLabel(user.role)}</span>
@@ -773,7 +774,7 @@ function ApplicationShell({ user, route, navigate, onChangePassword, onLogout, o
         </div>
       </header>
       {logoutError && <div className="shell-content shell-alert"><div className="alert alert-error" role="alert">{logoutError}<button className="button button-secondary retry-button" type="button" onClick={onLogout}>Retry logout</button></div></div>}
-      {requesterRoute && route === "/requester/tickets/new" ? <CreateTicketScreen requester={user} onBack={() => navigate("/requester/tickets")} /> : requesterRoute && route === "/requester/tickets" ? <MyTicketsScreen requester={user} onCreate={() => navigate("/requester/tickets/new")} onViewTicket={(ticketId) => navigate(`/requester/tickets/${ticketId}`)} initialQuery={ticketQuery} onQueryChange={setTicketQuery} /> : requesterRoute && requesterDetailMatch ? <TicketDetailScreen requester={user} ticketId={Number(requesterDetailMatch[1])} onBack={() => navigate("/requester/tickets")} /> : staffRoute && route === "/staff/tickets" ? <StaffTicketQueueScreen initialQuery={staffQueueQuery} onQueryChange={setStaffQueueQuery} onOpen={(ticketId) => navigate(`/staff/tickets/${ticketId}`)} /> : staffRoute && staffDetailMatch ? <StaffTicketDetailScreen user={user} ticketId={Number(staffDetailMatch[1])} onBack={() => navigate("/staff/tickets")} /> : adminRoute ? <UserManagementScreen currentUser={user} onReauthentication={onReauthentication} /> : <ForbiddenScreen landing={landing} navigate={navigate} />}
+      {requesterRoute && route === "/requester/tickets/new" ? <CreateTicketScreen requester={user} onBack={() => navigate("/requester/tickets")} /> : requesterRoute && route === "/requester/tickets" ? <MyTicketsScreen requester={user} onCreate={() => navigate("/requester/tickets/new")} onViewTicket={(ticketId) => navigate(`/requester/tickets/${ticketId}`)} initialQuery={ticketQuery} onQueryChange={setTicketQuery} /> : requesterRoute && requesterDetailMatch ? <TicketDetailScreen requester={user} ticketId={Number(requesterDetailMatch[1])} onBack={() => navigate("/requester/tickets")} /> : staffRoute && route === "/staff/dashboard" ? <StaffDashboardScreen onFilterQueue={(filter) => { setStaffQueueQuery({ ...DEFAULT_STAFF_QUEUE_QUERY, ...filter, page: 1 }); navigate("/staff/tickets"); }} onOpenTicket={(ticketId) => navigate(`/staff/tickets/${ticketId}`)} /> : staffRoute && route === "/staff/tickets" ? <StaffTicketQueueScreen initialQuery={staffQueueQuery} onQueryChange={setStaffQueueQuery} onOpen={(ticketId) => navigate(`/staff/tickets/${ticketId}`)} /> : staffRoute && staffDetailMatch ? <StaffTicketDetailScreen user={user} ticketId={Number(staffDetailMatch[1])} onBack={() => navigate("/staff/tickets")} /> : adminRoute ? <UserManagementScreen currentUser={user} onReauthentication={onReauthentication} /> : <ForbiddenScreen landing={landing} navigate={navigate} />}
     </div>
   );
 }
