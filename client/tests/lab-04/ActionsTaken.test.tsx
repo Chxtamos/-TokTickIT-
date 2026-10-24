@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ActionsTakenSection } from "../../src/ActionsTaken.js";
 import * as api from "../../src/api.js";
 
@@ -69,6 +69,16 @@ const actions: api.ActionTaken[] = [
 
 function mockActions(items: api.ActionTaken[] = actions) {
   return vi.spyOn(api, "getTicketActions").mockResolvedValue(items);
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -225,5 +235,58 @@ describe("Lab 4 Actions Taken", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry Actions" }));
     expect(await screen.findByText("No Actions Taken yet.")).toBeInTheDocument();
     expect(getActions).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the newer Ticket history authoritative when an older request resolves last", async () => {
+    const ticketA = deferred<api.ActionTaken[]>();
+    const ticketB = deferred<api.ActionTaken[]>();
+    const getActions = vi.spyOn(api, "getTicketActions").mockImplementation((ticketId) => {
+      if (ticketId === 42) return ticketA.promise;
+      if (ticketId === 43) return ticketB.promise;
+      throw new Error(`Unexpected Ticket ${ticketId}`);
+    });
+    const actionA: api.ActionTaken = { ...actions[0], id: 201, ticketId: 42, description: "Ticket A stale history." };
+    const actionB: api.ActionTaken = { ...actions[0], id: 202, ticketId: 43, description: "Ticket B authoritative history." };
+
+    const { rerender } = render(<ActionsTakenSection ticketId={42} user={requester} assignees={[]} />);
+    await waitFor(() => expect(getActions).toHaveBeenCalledWith(42));
+    rerender(<ActionsTakenSection ticketId={43} user={requester} assignees={[]} />);
+    await waitFor(() => expect(getActions).toHaveBeenCalledWith(43));
+
+    await act(async () => ticketB.resolve([actionB]));
+    expect(await screen.findByText("Ticket B authoritative history.")).toBeInTheDocument();
+    await act(async () => ticketA.resolve([actionA]));
+
+    await waitFor(() => {
+      expect(screen.getByText("Ticket B authoritative history.")).toBeInTheDocument();
+      expect(screen.queryByText("Ticket A stale history.")).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+  });
+
+  it("ignores a stale error from the previous Ticket after the current Ticket loads successfully", async () => {
+    const ticketA = deferred<api.ActionTaken[]>();
+    const ticketB = deferred<api.ActionTaken[]>();
+    const getActions = vi.spyOn(api, "getTicketActions").mockImplementation((ticketId) => {
+      if (ticketId === 42) return ticketA.promise;
+      if (ticketId === 43) return ticketB.promise;
+      throw new Error(`Unexpected Ticket ${ticketId}`);
+    });
+    const actionB: api.ActionTaken = { ...actions[1], id: 203, ticketId: 43, description: "Current Ticket remains visible." };
+
+    const { rerender } = render(<ActionsTakenSection ticketId={42} user={requester} assignees={[]} />);
+    await waitFor(() => expect(getActions).toHaveBeenCalledWith(42));
+    rerender(<ActionsTakenSection ticketId={43} user={requester} assignees={[]} />);
+    await waitFor(() => expect(getActions).toHaveBeenCalledWith(43));
+
+    await act(async () => ticketB.resolve([actionB]));
+    expect(await screen.findByText("Current Ticket remains visible.")).toBeInTheDocument();
+    await act(async () => ticketA.reject(new Error("Stale Ticket A load failed.")));
+
+    await waitFor(() => {
+      expect(screen.getByText("Current Ticket remains visible.")).toBeInTheDocument();
+      expect(screen.queryByText("Stale Ticket A load failed.")).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createTicketAction,
   getTicketActions,
@@ -117,8 +117,10 @@ export function ActionsTakenSection({
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error" | "conflict"; message: string } | null>(null);
+  const requestGeneration = useRef(0);
 
   async function loadActions(preserveForm = false) {
+    const generation = ++requestGeneration.current;
     if (preserveForm) setRefreshing(true);
     else {
       setState("loading");
@@ -126,6 +128,7 @@ export function ActionsTakenSection({
     }
     try {
       const loaded = await getTicketActions(ticketId);
+      if (generation !== requestGeneration.current) return;
       setItems(loaded);
       setState("ready");
       setLoadError(null);
@@ -136,6 +139,7 @@ export function ActionsTakenSection({
         }
       }
     } catch (cause) {
+      if (generation !== requestGeneration.current) return;
       const error = cause as ApiValidationError;
       if (preserveForm) {
         setFeedback({ kind: "error", message: error.message || "Unable to refresh Actions Taken." });
@@ -144,16 +148,21 @@ export function ActionsTakenSection({
         setLoadError(error.message || "Unable to load Actions Taken.");
       }
     } finally {
-      setRefreshing(false);
+      if (generation === requestGeneration.current) setRefreshing(false);
     }
   }
 
   useEffect(() => {
+    requestGeneration.current += 1;
+    setItems([]);
     setMode(null);
     setDraft(emptyDraft());
     setFieldErrors({});
     setFeedback(null);
     void loadActions(false);
+    return () => {
+      requestGeneration.current += 1;
+    };
   }, [ticketId]);
 
   const editingAction = useMemo(

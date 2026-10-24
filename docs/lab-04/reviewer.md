@@ -39,8 +39,8 @@ Later entries must link the real PR/review and summarize actual requested change
 - Branch: `feature/44-lab4-actions-ui`
 - Target: `lab4-staging`
 - Pull Request: #103 `Feature 44: Add Actions Taken UI to Ticket Detail`
-- Reviewer: pending real peer review.
-- Review status: pending.
-- Comments/responses: pending. Do not claim approval or reviewer feedback until it exists on GitHub.
+- Reviewer: `Tanaboonnnnn` reviewed exact head `34a45b77ab1a4c69ad321b3052a61f50600450fa`.
+- Review status: changes requested on 2026-10-24; re-review pending after feedback commit.
+- Comments/responses: reviewer found one correctness blocker: an older in-flight Actions request could settle after a Ticket change and overwrite the newer Ticket's history or error state. The feedback revision adds a request-generation guard across success/error/finally transitions, clears stale items on Ticket changes, and adds deterministic stale-success and stale-error React regression cases.
 - TDD evidence: RED commit `f2b579e9aaaa992972aff11275d9bc0450af45a5` defines the Actions Taken UI behavior before implementation; GREEN commit `4d26e0e0403a77ebb11894917a27757c2b3bc645` implements the shared Requester/Staff/Admin Ticket Detail UI and client API bindings.
-- Verification: focused Actions Taken UI suite 7/7 passed; Requester/Staff Ticket Detail regression 16/16 passed; full client suite 100/100 passed; client and server builds passed; focused Playwright Staff-to-Requester/read-only plus responsive viewport evidence passed 2/2. Final Human visual/accessibility sign-off remains pending.
+- Verification: after the PR #103 feedback revision, focused Actions Taken UI suite 9/9 passed (including stale-success and stale-error races); Requester/Staff Ticket Detail regression 16/16 passed; full client suite 102/102 passed; client and server builds passed; focused Playwright Staff-to-Requester/read-only plus responsive viewport evidence passed 2/2. Final Human visual/accessibility sign-off remains pending.
