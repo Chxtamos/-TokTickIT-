@@ -82,6 +82,26 @@ integration("Issue #60 Staff workflow PostgreSQL concurrency", () => {
     });
   }
 
+  async function createCompletedAction(ticketId: number) {
+    return prisma.actionTaken.create({
+      data: {
+        ticketId,
+        workflowCycle: 1,
+        performedById: staffAId,
+        assigneeId: staffAId,
+        description: "Lab 4 current-cycle completion evidence for the legacy workflow regression.",
+        result: "Verified completion evidence for the Ticket resolution gate.",
+        followUpRequired: false,
+        followUpNote: null,
+        attachmentNotes: null,
+        status: "COMPLETED",
+        clientRequestId: randomUUID(),
+        requestPayloadHash: randomUUID().replaceAll("-", "").padEnd(64, "0"),
+        version: 1,
+      },
+    });
+  }
+
   function api(session = auth) {
     const app = createApp(prisma);
     const authenticated = (call: request.Test) => call.set("Cookie", session.cookie).set("Origin", testClientOrigin).set("X-CSRF-Token", session.csrfToken);
@@ -129,6 +149,7 @@ integration("Issue #60 Staff workflow PostgreSQL concurrency", () => {
 
   it("allows one of competing owner/priority/status writes and leaves no partial loser effects", async () => {
     const ticket = await createTicket("IN_PROGRESS");
+    await createCompletedAction(ticket.id);
     const client = api();
     const results = await Promise.all([
       client.patch(`/api/staff/tickets/${ticket.id}/owner`).send({ ticketOwnerId: staffBId, expectedVersion: 1 }),
@@ -159,6 +180,7 @@ integration("Issue #60 Staff workflow PostgreSQL concurrency", () => {
 
   it("persists resolve/close/reopen timestamps and clears the prior work-cycle indication", async () => {
     const ticket = await createTicket("IN_PROGRESS");
+    await createCompletedAction(ticket.id);
     await prisma.ticket.update({
       where: { id: ticket.id },
       data: { requesterResolvedAt: new Date(), requesterResolvedById: requesterId },
