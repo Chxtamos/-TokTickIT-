@@ -44,3 +44,14 @@ Later entries must link the real PR/review and summarize actual requested change
 - Comments/responses: reviewer found one correctness blocker: an older in-flight Actions request could settle after a Ticket change and overwrite the newer Ticket's history or error state. The feedback revision adds a request-generation guard across success/error/finally transitions, clears stale items on Ticket changes, and adds deterministic stale-success and stale-error React regression cases.
 - TDD evidence: RED commit `f2b579e9aaaa992972aff11275d9bc0450af45a5` defines the Actions Taken UI behavior before implementation; GREEN commit `4d26e0e0403a77ebb11894917a27757c2b3bc645` implements the shared Requester/Staff/Admin Ticket Detail UI and client API bindings.
 - Verification: after the PR #103 feedback revision, focused Actions Taken UI suite 9/9 passed (including stale-success and stale-error races); Requester/Staff Ticket Detail regression 16/16 passed; full client suite 102/102 passed; client and server builds passed; focused Playwright Staff-to-Requester/read-only plus responsive viewport evidence passed 2/2. Final Human visual/accessibility sign-off remains pending.
+
+## Issue #95 Final Ticket Workflow and Resolution Rules
+
+- Branch: `feature/45-lab4-ticket-workflow`
+- Target: `lab4-staging`
+- Pull Request: #104 `Feature 45: Finalize Ticket workflow and resolution rules`
+- Reviewer: pending real peer review.
+- Review status: pending.
+- Comments/responses: pending. Do not claim approval or reviewer feedback until it exists on GitHub.
+- TDD evidence: RED commit `14fdfebd5eefc5dc7719e7d0a3978524c01b4f34` produced 3/6 backend workflow failures and 2/10 UI workflow failures for the missing current-cycle resolution gate, reopen cycle increment, and workflow feedback. GREEN commit `e3075f8b3d92ed14f3d7fea82c37f47ff5ff6d4c` implements the contracted behavior.
+- Verification: on the exact GREEN commit, focused Ticket workflow API 6/6 passed; full Lab 4 server suite 15/15 passed; targeted Lab 3/Lab 4 workflow and migration regression 31/31 passed; Ticket workflow UI 10/10 passed; full client suite 112/112 passed; client and server builds passed. Human review is pending.
