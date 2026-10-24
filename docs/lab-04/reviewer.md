@@ -33,3 +33,14 @@ Later entries must link the real PR/review and summarize actual requested change
 - Comments/responses: reviewer found one evidence blocker: API-04 claimed AC-02/BR-13/BR-33 non-enumeration coverage without explicitly replaying an existing idempotency key from a Requester who does not own the Ticket. The feedback revision adds identical and changed-payload inaccessible replay cases, asserts the same role-forbidden response with no replay/conflict disclosure, and verifies no additional Action row is created.
 - TDD evidence: RED commit `cfc1514` contains the Actions Taken API tests before implementation and produced 7/7 failures because the contracted routes did not yet exist; GREEN commit `592f8d33ab52f2cece6f4a58b95b1e9946cb5595` implements the contract and passes the focused API suite.
 - Verification: Actions Taken API PostgreSQL suite 7/7 passed on exact GREEN commit; Lab 3 migration regression 1/1 passed; Lab 2 seed regression 1/1 passed; TypeScript server build and `git diff --check` passed.
+
+## Issue #94 Actions Taken Ticket Detail UI
+
+- Branch: `feature/44-lab4-actions-ui`
+- Target: `lab4-staging`
+- Pull Request: #103 `Feature 44: Add Actions Taken UI to Ticket Detail`
+- Reviewer: `Tanaboonnnnn` reviewed exact head `34a45b77ab1a4c69ad321b3052a61f50600450fa`.
+- Review status: changes requested on 2026-10-24; re-review pending after feedback commit.
+- Comments/responses: reviewer found one correctness blocker: an older in-flight Actions request could settle after a Ticket change and overwrite the newer Ticket's history or error state. The feedback revision adds a request-generation guard across success/error/finally transitions, clears stale items on Ticket changes, and adds deterministic stale-success and stale-error React regression cases.
+- TDD evidence: RED commit `f2b579e9aaaa992972aff11275d9bc0450af45a5` defines the Actions Taken UI behavior before implementation; GREEN commit `4d26e0e0403a77ebb11894917a27757c2b3bc645` implements the shared Requester/Staff/Admin Ticket Detail UI and client API bindings.
+- Verification: after the PR #103 feedback revision, focused Actions Taken UI suite 9/9 passed (including stale-success and stale-error races); Requester/Staff Ticket Detail regression 16/16 passed; full client suite 102/102 passed; client and server builds passed; focused Playwright Staff-to-Requester/read-only plus responsive viewport evidence passed 2/2. Final Human visual/accessibility sign-off remains pending.

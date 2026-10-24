@@ -207,3 +207,47 @@ nav a:hover { text-decoration: underline; }
 @media (max-width: 767px) { .admin-filter-grid { grid-template-columns:1fr; } .admin-user-table-wrap { display:none; } .admin-user-cards { display:grid; gap:1rem; } .admin-users-page .page-heading { align-items:flex-start; gap:1rem; } .admin-users-page .page-heading > .button { width:100%; } }
 .admin-user-cards p, .admin-user-cards .button { overflow-wrap:anywhere; }
 @media (max-width: 390px) { .admin-editor .button-row .button, .admin-user-cards .button { width:100%; white-space:normal; } }
+
+/* Lab 4 Actions Taken */
+.actions-taken-card { border-top: 4px solid var(--color-green-secondary); overflow: hidden; }
+.actions-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.actions-section-heading h2 { margin-bottom: 8px; }
+.actions-section-heading .section-hint { margin-bottom: 0; }
+.actions-add-button { width: auto; flex: 0 0 auto; margin-top: 0; }
+.actions-list { display: grid; gap: 14px; margin-top: 18px; }
+.action-item { min-width: 0; padding: 16px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-page); }
+.action-item-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.action-item-heading > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.action-item-heading .button { flex: 0 0 auto; min-height: 36px; padding: 6px 12px; }
+.action-created { color: var(--color-text-muted); font-size: 14px; overflow-wrap: anywhere; }
+.action-description { margin: 14px 0; max-width: none !important; color: var(--color-text) !important; font-weight: 700; overflow-wrap: anywhere; }
+.action-meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 0; }
+.action-meta-grid > div { min-width: 0; }
+.action-meta-grid dt { color: var(--color-text-muted); font-size: 13px; font-weight: 700; }
+.action-meta-grid dd { margin: 3px 0 0; overflow-wrap: anywhere; }
+.action-meta-wide { grid-column: 1 / -1; }
+.action-terminal-note { margin: 14px 0 0 !important; font-size: 13px; font-weight: 800; }
+.action-form { display: grid; gap: 14px; margin-top: 18px; padding: 18px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-page); }
+.action-form-heading h3 { margin: 0 0 4px; color: var(--color-green-primary); }
+.action-form-heading p { margin: 0; font-size: 14px; }
+.action-form label { min-width: 0; color: var(--color-text); font-weight: 700; }
+.action-form textarea, .action-form select { display: block; width: 100%; max-width: 100%; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-text); }
+.action-form textarea { min-height: 96px; resize: vertical; }
+.action-form small { display: block; margin-top: 5px; font-weight: 400; }
+.action-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.action-checkbox { display: flex; align-items: center; gap: 10px; width: fit-content; }
+.action-checkbox input { width: 20px; height: 20px; min-height: 0; margin: 0; }
+.action-form .form-actions { margin-top: 4px; }
+
+@media (max-width: 760px) {
+  .actions-section-heading, .action-item-heading { flex-direction: column; }
+  .actions-add-button, .action-item-heading .button { width: 100%; }
+  .action-meta-grid, .action-form-grid { grid-template-columns: 1fr; }
+  .action-meta-wide { grid-column: auto; }
+}
+
+@media (max-width: 390px) {
+  .actions-taken-card, .action-item, .action-form { min-width: 0; }
+  .action-item-heading > div, .action-meta-grid, .action-form-grid { min-width: 0; }
+  .action-form textarea, .action-form select, .actions-taken-card .button { max-width: 100%; white-space: normal; }
+}

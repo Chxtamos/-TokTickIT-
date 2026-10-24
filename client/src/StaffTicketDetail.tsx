@@ -16,6 +16,7 @@ import {
   type TicketStatus,
 } from "./api.js";
 import { TicketConversation } from "./TicketConversation.js";
+import { ActionsTakenSection } from "./ActionsTaken.js";
 
 const NEXT_STATUSES: Record<TicketStatus, TicketStatus[]> = {
   NEW: ["OPEN", "CANCELLED"],
@@ -217,6 +218,7 @@ export function StaffTicketDetailScreen({ user, ticketId, onBack }: { user: Auth
 
       <section className="detail-card" aria-labelledby="staff-resolution-heading"><h2 id="staff-resolution-heading">Resolution and Requester Indication</h2><dl className="detail-grid"><div><dt>Requester indication</dt><dd>{detail.requesterResolvedAt ? `${formatDate(detail.requesterResolvedAt)} by ${detail.requesterResolvedBy?.name ?? "Requester"}` : "Not indicated"}</dd></div><div><dt>Resolved at</dt><dd>{formatDate(detail.resolvedAt)}</dd></div><div><dt>Closed at</dt><dd>{formatDate(detail.closedAt)}</dd></div>{detail.resolutionSummary && <div className="detail-wide"><dt>Resolution Summary</dt><dd className="preserve-whitespace">{detail.resolutionSummary}</dd></div>}{detail.lastStatusReason && <div className="detail-wide"><dt>Latest Status Reason</dt><dd className="preserve-whitespace">{detail.lastStatusReason}</dd></div>}</dl></section>
 
+      <ActionsTakenSection ticketId={detail.id} user={user} assignees={owners} />
       <StaffAttachmentSection ticketId={detail.id} attachments={detail.attachments} />
       <TicketConversation ticketId={detail.id} kind="public" />
       <TicketConversation ticketId={detail.id} kind="internal" />
