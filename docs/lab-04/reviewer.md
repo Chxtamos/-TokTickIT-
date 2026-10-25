@@ -50,8 +50,19 @@ Later entries must link the real PR/review and summarize actual requested change
 - Branch: `feature/45-lab4-ticket-workflow`
 - Target: `lab4-staging`
 - Pull Request: #104 `Feature 45: Finalize Ticket workflow and resolution rules`
-- Reviewer: pending real peer review.
-- Review status: pending.
-- Comments/responses: pending. Do not claim approval or reviewer feedback until it exists on GitHub.
+- Reviewer: `Tanaboonnnnn` approved exact head `5a8cf4f2819ccd1d9fcbce433cd94a22a9175da0` on 2026-10-24.
+- Review status: approved and merged into `lab4-staging` as merge commit `cb821a616bad2efed3566cfe7808879fd1599e2a`.
+- Comments/responses: reviewer confirmed the approved transition matrix, current-cycle resolution gate, atomic reopen cycle increment, advisory Requester indication and recoverable Staff UI behavior; no blocking finding remained in the approval review.
 - TDD evidence: RED commit `14fdfebd5eefc5dc7719e7d0a3978524c01b4f34` produced 3/6 backend workflow failures and 2/10 UI workflow failures for the missing current-cycle resolution gate, reopen cycle increment, and workflow feedback. GREEN commit `e3075f8b3d92ed14f3d7fea82c37f47ff5ff6d4c` implements the contracted behavior.
-- Verification: on the exact GREEN commit, focused Ticket workflow API 6/6 passed; full Lab 4 server suite 15/15 passed; targeted Lab 3/Lab 4 workflow and migration regression 31/31 passed; Ticket workflow UI 10/10 passed; full client suite 112/112 passed; client and server builds passed. Human review is pending.
+- Verification: on the exact GREEN commit, focused Ticket workflow API 6/6 passed; full Lab 4 server suite 15/15 passed; targeted Lab 3/Lab 4 workflow and migration regression 31/31 passed; Ticket workflow UI 10/10 passed; full client suite 112/112 passed; client and server builds passed. Human review was later recorded on GitHub before merge.
+
+## Issue #96 IT Staff Dashboard
+
+- Branch: `feature/46-lab4-staff-dashboard`
+- Target: `lab4-staging`
+- Pull Request: #105 `Feature 46: Build IT Staff dashboard`
+- Reviewer: `Tanaboonnnnn` reviewed exact head `f5b8adc394bba916de837fe66b387e305f7ac2b8`.
+- Review status: changes requested on 2026-10-25; re-review pending after feedback commit.
+- Comments/responses: reviewer identified two behavioral blockers. First, `recentOrUrgent` incorrectly grouped all priority levels before recency instead of placing only URGENT first and ordering every non-URGENT Ticket by `updatedAt DESC, id DESC`. Second, the `My Open Actions` card linked to `myRecentActions`, which could omit the assigned PENDING/IN_PROGRESS Actions counted by the metric. The feedback revision now fills the 10-ticket list with URGENT Tickets first and recency-ordered non-URGENT Tickets for remaining slots, adds a dedicated `myOpenActionItems` dataset for assigned PENDING/IN_PROGRESS Actions, and points the metric card at that exact list.
+- TDD evidence: RED commit `c157e54f7790bb663ca4d1fb534a37f2900e6fb1` produced 2/2 Staff Dashboard API failures (missing endpoint) and 3/3 Staff Dashboard UI failures (missing client contract/route). GREEN commit `b6dbb6e91ad48386287763913772da504aeff1ed` implements the contracted Staff Dashboard.
+- Verification: after the PR #105 feedback revision, Staff Dashboard API 2/2 passed with PostgreSQL ordering/take-10 and open-Action drill-down assertions; full Lab 4 server suite 17/17 passed; Staff Dashboard UI 4/4 passed including an open Action intentionally displaced from `myRecentActions`; full client suite 116/116 passed; server/client builds and `git diff --check` passed. Re-review is pending.

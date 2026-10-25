@@ -154,6 +154,16 @@ export interface StaffTicketListResponse {
   applied: Omit<StaffQueueQuery, "page" | "pageSize">;
 }
 
+export interface StaffDashboardResponse {
+  metrics: { unassignedTickets: number; myTickets: number; myOpenActions: number };
+  byStatus: Record<TicketStatus, number>;
+  byItPriority: Record<Priority, number>;
+  recentOrUrgent: StaffTicketSummary[];
+  myOpenActionItems: ActionTaken[];
+  myRecentActions: ActionTaken[];
+  drillDown: { unassignedTickets: string; myTickets: string; myOpenActions: string };
+}
+
 export interface ApiValidationError extends Error {
   statusCode?: number;
   code?: string;
@@ -289,6 +299,16 @@ export async function getStaffTickets(query: StaffQueueQuery): Promise<StaffTick
   const value = await response.json() as StaffTicketListResponse;
   if (!value || !Array.isArray(value.items) || !value.pagination || typeof value.pagination.totalItems !== "number" || !value.applied) {
     throw new Error("TokTickIT API returned invalid Staff Ticket Queue data");
+  }
+  return value;
+}
+
+export async function getStaffDashboard(): Promise<StaffDashboardResponse> {
+  const response = await apiFetch("/staff/dashboard", {}, { authenticated: true });
+  if (!response.ok) return throwApiError(response, "Unable to load Staff Dashboard.");
+  const value = await response.json() as StaffDashboardResponse;
+  if (!value?.metrics || !value.byStatus || !value.byItPriority || !Array.isArray(value.recentOrUrgent) || !Array.isArray(value.myOpenActionItems) || !Array.isArray(value.myRecentActions) || !value.drillDown) {
+    throw new Error("TokTickIT API returned invalid Staff Dashboard data");
   }
   return value;
 }
