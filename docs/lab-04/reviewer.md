@@ -61,8 +61,8 @@ Later entries must link the real PR/review and summarize actual requested change
 - Branch: `feature/46-lab4-staff-dashboard`
 - Target: `lab4-staging`
 - Pull Request: #105 `Feature 46: Build IT Staff dashboard`
-- Reviewer: pending real peer review.
-- Review status: pending.
-- Comments/responses: pending. Do not claim approval or reviewer feedback until it exists on GitHub.
+- Reviewer: `Tanaboonnnnn` reviewed exact head `f5b8adc394bba916de837fe66b387e305f7ac2b8`.
+- Review status: changes requested on 2026-10-25; re-review pending after feedback commit.
+- Comments/responses: reviewer identified two behavioral blockers. First, `recentOrUrgent` incorrectly grouped all priority levels before recency instead of placing only URGENT first and ordering every non-URGENT Ticket by `updatedAt DESC, id DESC`. Second, the `My Open Actions` card linked to `myRecentActions`, which could omit the assigned PENDING/IN_PROGRESS Actions counted by the metric. The feedback revision now fills the 10-ticket list with URGENT Tickets first and recency-ordered non-URGENT Tickets for remaining slots, adds a dedicated `myOpenActionItems` dataset for assigned PENDING/IN_PROGRESS Actions, and points the metric card at that exact list.
 - TDD evidence: RED commit `c157e54f7790bb663ca4d1fb534a37f2900e6fb1` produced 2/2 Staff Dashboard API failures (missing endpoint) and 3/3 Staff Dashboard UI failures (missing client contract/route). GREEN commit `b6dbb6e91ad48386287763913772da504aeff1ed` implements the contracted Staff Dashboard.
-- Verification: exact GREEN Staff Dashboard API 2/2 passed; full Lab 4 server suite 17/17 passed; Staff Dashboard UI 3/3 passed; full client suite 115/115 passed; server/client builds passed. Human review is pending.
+- Verification: after the PR #105 feedback revision, Staff Dashboard API 2/2 passed with PostgreSQL ordering/take-10 and open-Action drill-down assertions; full Lab 4 server suite 17/17 passed; Staff Dashboard UI 4/4 passed including an open Action intentionally displaced from `myRecentActions`; full client suite 116/116 passed; server/client builds and `git diff --check` passed. Re-review is pending.

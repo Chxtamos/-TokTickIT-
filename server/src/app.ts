@@ -877,17 +877,23 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     } satisfies Prisma.TicketSelect;
 
     try {
-      const [unassignedTickets, myTickets, myOpenActions, statusGroups, priorityGroups, recentOrUrgent, myRecentActions] = await Promise.all([
+      const [unassignedTickets, myTickets, myOpenActions, statusGroups, priorityGroups, urgentTickets, myOpenActionItems, myRecentActions] = await Promise.all([
         dashboardPrisma.ticket.count({ where: { ticketOwnerId: null, currentStatus: { in: nonTerminal } } }),
         dashboardPrisma.ticket.count({ where: { ticketOwnerId: currentUserId, currentStatus: { in: nonTerminal } } }),
         dashboardPrisma.actionTaken.count({ where: { assigneeId: currentUserId, status: { in: ["PENDING", "IN_PROGRESS"] } } }),
         dashboardPrisma.ticket.groupBy({ by: ["currentStatus"], _count: { _all: true } }),
         dashboardPrisma.ticket.groupBy({ by: ["itPriority"], where: { currentStatus: { in: nonTerminal } }, _count: { _all: true } }),
         dashboardPrisma.ticket.findMany({
-          where: { currentStatus: { in: nonTerminal } },
-          orderBy: [{ itPriority: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
+          where: { currentStatus: { in: nonTerminal }, itPriority: "URGENT" },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
           take: 10,
           select: dashboardTicketSelect,
+        }),
+        dashboardPrisma.actionTaken.findMany({
+          where: { assigneeId: currentUserId, status: { in: ["PENDING", "IN_PROGRESS"] } },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          take: 10,
+          select: actionSelect,
         }),
         dashboardPrisma.actionTaken.findMany({
           where: { OR: [{ performedById: currentUserId }, { assigneeId: currentUserId }] },
@@ -896,6 +902,17 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
           select: actionSelect,
         }),
       ]);
+
+      const remainingRecentSlots = Math.max(0, 10 - urgentTickets.length);
+      const nonUrgentTickets = remainingRecentSlots > 0
+        ? await dashboardPrisma.ticket.findMany({
+          where: { currentStatus: { in: nonTerminal }, itPriority: { not: "URGENT" } },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          take: remainingRecentSlots,
+          select: dashboardTicketSelect,
+        })
+        : [];
+      const recentOrUrgent = [...urgentTickets, ...nonUrgentTickets];
 
       const byStatus: Record<TicketStatus, number> = {
         NEW: 0,
@@ -917,11 +934,12 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
         byStatus,
         byItPriority,
         recentOrUrgent: recentOrUrgent.map(staffTicketSummaryResponse),
+        myOpenActionItems,
         myRecentActions,
         drillDown: {
           unassignedTickets: "/staff/tickets?owner=unassigned",
           myTickets: "/staff/tickets?owner=mine",
-          myOpenActions: "/staff/dashboard#my-actions",
+          myOpenActions: "/staff/dashboard#my-open-actions",
         },
       });
     } catch {

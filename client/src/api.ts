@@ -159,6 +159,7 @@ export interface StaffDashboardResponse {
   byStatus: Record<TicketStatus, number>;
   byItPriority: Record<Priority, number>;
   recentOrUrgent: StaffTicketSummary[];
+  myOpenActionItems: ActionTaken[];
   myRecentActions: ActionTaken[];
   drillDown: { unassignedTickets: string; myTickets: string; myOpenActions: string };
 }
@@ -306,7 +307,7 @@ export async function getStaffDashboard(): Promise<StaffDashboardResponse> {
   const response = await apiFetch("/staff/dashboard", {}, { authenticated: true });
   if (!response.ok) return throwApiError(response, "Unable to load Staff Dashboard.");
   const value = await response.json() as StaffDashboardResponse;
-  if (!value?.metrics || !value.byStatus || !value.byItPriority || !Array.isArray(value.recentOrUrgent) || !Array.isArray(value.myRecentActions) || !value.drillDown) {
+  if (!value?.metrics || !value.byStatus || !value.byItPriority || !Array.isArray(value.recentOrUrgent) || !Array.isArray(value.myOpenActionItems) || !Array.isArray(value.myRecentActions) || !value.drillDown) {
     throw new Error("TokTickIT API returned invalid Staff Dashboard data");
   }
   return value;
