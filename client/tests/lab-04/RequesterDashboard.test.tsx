@@ -30,9 +30,9 @@ describe("Lab 4 Requester Dashboard UI", () => {
   it("renders concise owned metrics and recent Ticket summaries", async () => {
     setupDashboard();
     expect(await screen.findByRole("heading", { name: "Requester Dashboard" })).toBeInTheDocument();
+    expect(await screen.findByText("Recently updated VPN issue")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Open Tickets/ })).toHaveTextContent("3");
     expect(screen.getByRole("button", { name: /Waiting for Requester/ })).toHaveTextContent("1");
-    expect(screen.getByText("Recently updated VPN issue")).toBeInTheDocument();
     expect(screen.getByText("Recently resolved laptop issue")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });

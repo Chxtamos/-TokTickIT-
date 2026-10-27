@@ -86,6 +86,7 @@ type TicketListQuery = {
   relatedSystemId: number | null;
   requestedPriority: RequestedPriority | null;
   currentStatus: TicketStatus | null;
+  state: "open" | null;
   sortBy: "createdAt" | "updatedAt" | "ticketNumber";
   sortDirection: "asc" | "desc";
   page: number;
@@ -98,6 +99,7 @@ const ticketListQueryFields = new Set([
   "relatedSystemId",
   "requestedPriority",
   "currentStatus",
+  "state",
   "sortBy",
   "sortDirection",
   "page",
@@ -262,6 +264,11 @@ function parseTicketListQuery(query: Request["query"]): { input?: TicketListQuer
       : null;
   if (statusValue !== undefined && currentStatus === null) fieldErrors.currentStatus = ["Current status is invalid."];
 
+  const stateValue = read("state");
+  const state = stateValue === undefined ? null : stateValue === "open" ? "open" : null;
+  if (stateValue !== undefined && state === null) fieldErrors.state = ["State filter is invalid."];
+  if (state !== null && currentStatus !== null) fieldErrors.state = ["State and currentStatus cannot be combined."];
+
   const sortByValue = read("sortBy");
   const sortBy = sortByValue === undefined ? "updatedAt" : ["createdAt", "updatedAt", "ticketNumber"].includes(sortByValue)
     ? (sortByValue as TicketListQuery["sortBy"])
@@ -311,6 +318,7 @@ function parseTicketListQuery(query: Request["query"]): { input?: TicketListQuer
       relatedSystemId,
       requestedPriority,
       currentStatus,
+      state,
       sortBy,
       sortDirection,
       page,
@@ -1300,6 +1308,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       if (input.relatedSystemId !== null) where.relatedSystemId = input.relatedSystemId;
       if (input.requestedPriority !== null) where.requestedPriority = input.requestedPriority;
       if (input.currentStatus !== null) where.currentStatus = input.currentStatus;
+      if (input.state === "open") where.currentStatus = { notIn: ["RESOLVED", "CLOSED", "CANCELLED"] };
 
       const direction = input.sortDirection;
       const orderBy: Prisma.TicketOrderByWithRelationInput[] = [
@@ -1353,6 +1362,66 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       });
     } catch {
       return errorResponse(res, 500, "TICKET_LIST_FAILED", "Unable to load Tickets.");
+    }
+  });
+
+  app.get("/api/requester/dashboard", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, ["REQUESTER"])) return;
+    const unsupported = Object.keys(req.query);
+    if (unsupported.length > 0) {
+      return errorResponse(
+        res,
+        400,
+        "VALIDATION_FAILED",
+        "This endpoint does not accept query parameters.",
+        Object.fromEntries(unsupported.map((key) => [key, ["This query parameter is not supported."]])),
+      );
+    }
+
+    const requesterId = authenticatedUser(req).id;
+    const dashboardTicketSelect = {
+      id: true,
+      ticketNumber: true,
+      summary: true,
+      requestedPriority: true,
+      itPriority: true,
+      currentStatus: true,
+      version: true,
+      createdAt: true,
+      updatedAt: true,
+      category: { select: { id: true, name: true } },
+      relatedSystem: { select: { id: true, name: true } },
+      owner: { select: { id: true, name: true, email: true, role: true } },
+    } satisfies Prisma.TicketSelect;
+
+    try {
+      const [openTickets, waitingForRequester, recentlyUpdated, recentlyResolved] = await Promise.all([
+        prisma.ticket.count({ where: { requesterId, currentStatus: { notIn: ["RESOLVED", "CLOSED", "CANCELLED"] } } }),
+        prisma.ticket.count({ where: { requesterId, currentStatus: "WAITING_FOR_REQUESTER" } }),
+        prisma.ticket.findMany({
+          where: { requesterId },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          take: 5,
+          select: dashboardTicketSelect,
+        }),
+        prisma.ticket.findMany({
+          where: { requesterId, currentStatus: { in: ["RESOLVED", "CLOSED"] } },
+          orderBy: [{ resolvedAt: "desc" }, { id: "desc" }],
+          take: 5,
+          select: dashboardTicketSelect,
+        }),
+      ]);
+      return res.status(200).json({
+        metrics: { openTickets, waitingForRequester },
+        recentlyUpdated: recentlyUpdated.map(ticketSummaryResponse),
+        recentlyResolved: recentlyResolved.map(ticketSummaryResponse),
+        drillDown: {
+          openTickets: "/my-tickets?state=open",
+          waitingForRequester: "/my-tickets?status=WAITING_FOR_REQUESTER",
+        },
+      });
+    } catch {
+      return errorResponse(res, 500, "REQUESTER_DASHBOARD_FAILED", "Unable to load Requester Dashboard.");
     }
   });
 
