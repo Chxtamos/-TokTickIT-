@@ -71,7 +71,7 @@ Later entries must link the real PR/review and summarize actual requested change
 
 - Branch: `feature/47-lab4-requester-dashboard`
 - Target: `lab4-staging`
-- Pull Request: pending creation after implementation verification.
+- Pull Request: #106 `Feature 47: Build Requester dashboard`
 - Reviewer: pending real peer review.
 - Review status: pending.
 - Comments/responses: pending. Do not claim approval or reviewer feedback until it exists on GitHub.
