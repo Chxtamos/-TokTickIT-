@@ -61,8 +61,19 @@ Later entries must link the real PR/review and summarize actual requested change
 - Branch: `feature/46-lab4-staff-dashboard`
 - Target: `lab4-staging`
 - Pull Request: #105 `Feature 46: Build IT Staff dashboard`
-- Reviewer: `Tanaboonnnnn` reviewed exact head `f5b8adc394bba916de837fe66b387e305f7ac2b8`.
-- Review status: changes requested on 2026-10-25; re-review pending after feedback commit.
+- Reviewer: `Tanaboonnnnn` requested changes on head `f5b8adc394bba916de837fe66b387e305f7ac2b8` and later approved exact revised head `943beba57725d5b9d4be4b39d063d9f61fe9d70d` on 2026-10-25.
+- Review status: approved and merged into `lab4-staging` as merge commit `fcacf00797eba093460f233d7fcb91c71d2f7338`.
 - Comments/responses: reviewer identified two behavioral blockers. First, `recentOrUrgent` incorrectly grouped all priority levels before recency instead of placing only URGENT first and ordering every non-URGENT Ticket by `updatedAt DESC, id DESC`. Second, the `My Open Actions` card linked to `myRecentActions`, which could omit the assigned PENDING/IN_PROGRESS Actions counted by the metric. The feedback revision now fills the 10-ticket list with URGENT Tickets first and recency-ordered non-URGENT Tickets for remaining slots, adds a dedicated `myOpenActionItems` dataset for assigned PENDING/IN_PROGRESS Actions, and points the metric card at that exact list.
 - TDD evidence: RED commit `c157e54f7790bb663ca4d1fb534a37f2900e6fb1` produced 2/2 Staff Dashboard API failures (missing endpoint) and 3/3 Staff Dashboard UI failures (missing client contract/route). GREEN commit `b6dbb6e91ad48386287763913772da504aeff1ed` implements the contracted Staff Dashboard.
-- Verification: after the PR #105 feedback revision, Staff Dashboard API 2/2 passed with PostgreSQL ordering/take-10 and open-Action drill-down assertions; full Lab 4 server suite 17/17 passed; Staff Dashboard UI 4/4 passed including an open Action intentionally displaced from `myRecentActions`; full client suite 116/116 passed; server/client builds and `git diff --check` passed. Re-review is pending.
+- Verification: after the PR #105 feedback revision, Staff Dashboard API 2/2 passed with PostgreSQL ordering/take-10 and open-Action drill-down assertions; full Lab 4 server suite 17/17 passed; Staff Dashboard UI 4/4 passed including an open Action intentionally displaced from `myRecentActions`; full client suite 116/116 passed; server/client builds and `git diff --check` passed. Human approval was later recorded on the exact revised head before merge.
+
+## Issue #97 Requester Dashboard
+
+- Branch: `feature/47-lab4-requester-dashboard`
+- Target: `lab4-staging`
+- Pull Request: #106 `Feature 47: Build Requester dashboard`
+- Reviewer: pending real peer review.
+- Review status: pending.
+- Comments/responses: pending. Do not claim approval or reviewer feedback until it exists on GitHub.
+- TDD evidence: RED commit `9b69dca8ecaeac2594cd73a0c8a35f07f864aa09` produced 2/2 API failures for the missing endpoint and 4/4 UI failures for the missing client Dashboard contract/route.
+- Verification: pre-commit GREEN verification passes Requester Dashboard API 2/2, full Lab 4 server 19/19, Lab 2 My Tickets API regression 6/6, Requester Dashboard UI 4/4, Change Password regression 6/6, full client 120/120, server/client builds and `git diff --check`. Human review is pending.

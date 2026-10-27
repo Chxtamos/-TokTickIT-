@@ -79,6 +79,7 @@ export interface TicketListQuery {
   relatedSystemId: number | null;
   requestedPriority: Priority | null;
   currentStatus: TicketStatus | null;
+  state?: "open" | null;
   sortBy: "createdAt" | "updatedAt" | "ticketNumber";
   sortDirection: "asc" | "desc";
   page: number;
@@ -162,6 +163,13 @@ export interface StaffDashboardResponse {
   myOpenActionItems: ActionTaken[];
   myRecentActions: ActionTaken[];
   drillDown: { unassignedTickets: string; myTickets: string; myOpenActions: string };
+}
+
+export interface RequesterDashboardResponse {
+  metrics: { openTickets: number; waitingForRequester: number };
+  recentlyUpdated: TicketSummary[];
+  recentlyResolved: TicketSummary[];
+  drillDown: { openTickets: string; waitingForRequester: string };
 }
 
 export interface ApiValidationError extends Error {
@@ -270,6 +278,7 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   if (query.relatedSystemId !== null) params.set("relatedSystemId", String(query.relatedSystemId));
   if (query.requestedPriority !== null) params.set("requestedPriority", query.requestedPriority);
   if (query.currentStatus !== null) params.set("currentStatus", query.currentStatus);
+  if (query.state === "open") params.set("state", "open");
   if (query.sortBy !== "updatedAt") params.set("sortBy", query.sortBy);
   if (query.sortDirection !== "desc") params.set("sortDirection", query.sortDirection);
   if (query.page !== 1) params.set("page", String(query.page));
@@ -278,6 +287,16 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   if (!response.ok) return throwApiError(response, "Unable to load Tickets");
   const value = await response.json() as TicketListResponse;
   if (!value || !Array.isArray(value.items) || !value.pagination || typeof value.pagination.totalItems !== "number") throw new Error("TokTickIT API returned invalid Ticket list data");
+  return value;
+}
+
+export async function getRequesterDashboard(): Promise<RequesterDashboardResponse> {
+  const response = await apiFetch("/requester/dashboard", {}, { authenticated: true });
+  if (!response.ok) return throwApiError(response, "Unable to load Requester Dashboard.");
+  const value = await response.json() as RequesterDashboardResponse;
+  if (!value?.metrics || !Array.isArray(value.recentlyUpdated) || !Array.isArray(value.recentlyResolved) || !value.drillDown) {
+    throw new Error("TokTickIT API returned invalid Requester Dashboard data");
+  }
   return value;
 }
 
