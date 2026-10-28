@@ -19,8 +19,6 @@ async function loginStaff(page: Page) {
   await page.getByLabel("Email").fill("e2e.staff@example.test");
   await page.getByRole("textbox", { name: "Password", exact: true }).fill(INITIAL_PASSWORD);
   await page.getByRole("button", { name: "Sign In", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Ticket Queue", exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
   await expect(page.getByRole("heading", { name: "IT Staff Dashboard", exact: true })).toBeVisible();
 }
 
@@ -69,8 +67,11 @@ test.describe("Lab 4 responsive and keyboard hardening", () => {
     await page.keyboard.press("Tab");
     let focused = page.locator(":focus");
     await expect(focused).toBeVisible();
-    const firstOutline = await focused.evaluate((element) => getComputedStyle(element).outlineStyle);
-    expect(firstOutline).not.toBe("none");
+    const firstFocusStyle = await focused.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { outline: style.outlineStyle, boxShadow: style.boxShadow };
+    });
+    expect(firstFocusStyle.outline !== "none" || firstFocusStyle.boxShadow !== "none").toBe(true);
 
     for (let attempt = 0; attempt < 12; attempt += 1) {
       if (await focused.getAttribute("class").then((value) => value?.includes("dashboard-metric-card") ?? false)) break;
@@ -78,7 +79,10 @@ test.describe("Lab 4 responsive and keyboard hardening", () => {
       focused = page.locator(":focus");
     }
     await expect(focused).toHaveClass(/dashboard-metric-card/);
-    const metricOutline = await focused.evaluate((element) => getComputedStyle(element).outlineStyle);
-    expect(metricOutline).not.toBe("none");
+    const metricFocusStyle = await focused.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { outline: style.outlineStyle, boxShadow: style.boxShadow };
+    });
+    expect(metricFocusStyle.outline !== "none" || metricFocusStyle.boxShadow !== "none").toBe(true);
   });
 });

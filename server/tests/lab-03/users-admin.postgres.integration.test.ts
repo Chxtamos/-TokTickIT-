@@ -16,6 +16,7 @@ integration("Issue #63 Administrator User Management PostgreSQL safety", () => {
   let adminAId: number, adminBId: number, staffId: number, requesterId: number, categoryId: number, relatedSystemId: number;
   let auth: Awaited<ReturnType<typeof createTestSession>>;
   const createdUserIds: number[] = [], createdRequestIds: string[] = [];
+  const preexistingAdminStates: Array<{ id: number; isActive: boolean; version: number }> = [];
 
   beforeAll(async () => {
     prisma = createIntegrationPrisma(); await prisma.$connect();
@@ -28,9 +29,13 @@ integration("Issue #63 Administrator User Management PostgreSQL safety", () => {
     if (!category || !system) throw new Error("Admin integration requires active reference fixtures.");
     categoryId=category.id; relatedSystemId=system.id; adminAId=adminA.id; adminBId=adminB.id; staffId=staff.id; requesterId=requester.id;
     createdUserIds.push(adminAId,adminBId,staffId,requesterId); auth=await createTestSession(prisma,adminAId);
+    preexistingAdminStates.push(...await prisma.requesterUser.findMany({
+      where: { role: "ADMINISTRATOR", id: { notIn: [adminAId, adminBId] } },
+      select: { id: true, isActive: true, version: true },
+    }));
   });
 
-  afterAll(async () => { if(!prisma)return; if(createdRequestIds.length)await prisma.ticket.deleteMany({where:{clientRequestId:{in:createdRequestIds}}}); if(createdUserIds.length)await prisma.requesterUser.deleteMany({where:{id:{in:createdUserIds}}}); await prisma.$disconnect(); });
+  afterAll(async () => { if(!prisma)return; if(createdRequestIds.length)await prisma.ticket.deleteMany({where:{clientRequestId:{in:createdRequestIds}}}); for(const state of preexistingAdminStates)await prisma.requesterUser.update({where:{id:state.id},data:{isActive:state.isActive,version:state.version}}).catch(()=>undefined); if(createdUserIds.length)await prisma.requesterUser.deleteMany({where:{id:{in:createdUserIds}}}); await prisma.$disconnect(); });
   function api(){const app=createApp(prisma);const a=(call:request.Test)=>call.set("Cookie",auth.cookie).set("Origin",testClientOrigin).set("X-CSRF-Token",auth.csrfToken);return{post:(p:string)=>a(request(app).post(p)),patch:(p:string)=>a(request(app).patch(p))};}
   async function createOwnedTicket(ownerId:number){const clientRequestId=randomUUID();createdRequestIds.push(clientRequestId);return prisma.ticket.create({data:{ticketNumber:`TKT-2099-${randomUUID().slice(0,8)}`,requesterId,categoryId,relatedSystemId,ticketOwnerId:ownerId,summary:"Issue 63 owner cleanup fixture",description:"Real PostgreSQL owner cleanup fixture.",requestedPriority:"MEDIUM",itPriority:"MEDIUM",currentStatus:"OPEN",version:1,clientRequestId,requestPayloadHash:randomUUID().replaceAll("-","").padEnd(64,"0")}});}
 

@@ -1,6 +1,6 @@
 # TokTickIT
 
-TokTickIT is an authenticated IT service desk application for CPE 334 Lab 3. It supports three roles: Requester, IT Staff, and Administrator. Requesters create and track their own Tickets, IT Staff operate a shared queue and manage Ticket workflow, and Administrators manage user accounts with safety rules for active administrators and Ticket ownership.
+TokTickIT is an authenticated IT service desk application for CPE 334 Labs 1-4. It supports three roles: Requester, IT Staff, and Administrator. Requesters create and track their own Tickets and use an owner-scoped Dashboard, IT Staff operate a shared queue, Staff Dashboard, Ticket workflow and Actions Taken, and Administrators reuse operational Staff functions while managing user accounts with safety rules for active administrators and Ticket ownership.
 
 ## Technology Stack
 
@@ -14,18 +14,19 @@ TokTickIT is an authenticated IT service desk application for CPE 334 Lab 3. It 
 ```text
 toktickit/
 +-- client/
-¦   +-- src/
-¦   +-- tests/lab-01, lab-02, lab-03/
-¦   +-- e2e/lab-02, lab-03/
-¦   +-- package.json
+|   +-- src/
+|   +-- tests/lab-01, lab-02, lab-03, lab-04/
+|   +-- e2e/lab-02, lab-03, lab-04/
+|   +-- package.json
 +-- server/
-¦   +-- prisma/migrations, schema.prisma, seed.ts
-¦   +-- scripts/lab3/
-¦   +-- src/
-¦   +-- tests/lab-01, lab-02, lab-03/
-¦   +-- package.json
+|   +-- prisma/migrations, schema.prisma, seed.ts
+|   +-- scripts/lab3/
+|   +-- src/
+|   +-- tests/lab-01, lab-02, lab-03, lab-04/
+|   +-- package.json
 +-- docs/lab-02/
 +-- docs/lab-03/
++-- docs/lab-04/
 +-- artifacts/
 +-- output/
 +-- README.md
@@ -76,7 +77,7 @@ npm --prefix server exec prisma migrate deploy
 npm --prefix server run prisma:seed
 ```
 
-The Lab 3 seed is repeat-safe. Existing credentials, activation state, and Ticket work are not overwritten. When synthetic Staff/Admin fixtures need an initial password, set `LAB_SEED_INITIAL_PASSWORD` before seeding. Migrated users without a password hash are provisioned separately with:
+The Lab 4 seed remains repeat-safe. Existing credentials, activation state, Ticket work and operational edits are not overwritten. Lab 4 adds workflow-cycle, Actions Taken/audit fixtures and Dashboard data while preserving earlier records. When synthetic Staff/Admin fixtures need an initial password, set `LAB_SEED_INITIAL_PASSWORD` before seeding. Migrated users without a password hash are provisioned separately with:
 
 ```powershell
 npm --prefix server run lab3:provision-migrated-users
@@ -102,8 +103,8 @@ Open the Vite URL shown in the terminal, normally `http://localhost:5173`.
 
 TokTickIT no longer uses the Lab 2 Development Requester selector or `X-Requester-Id` as runtime identity. Identity comes from the authenticated session.
 
-- **Requester**: create Ticket, view only owned Tickets, manage permitted Attachments, add Public Comments, and indicate that a problem appears resolved.
-- **IT Staff**: use the shared queue, view operational Ticket Detail, claim/assign/reassign, set IT Priority, perform allowed workflow transitions, add Public Comments and Internal Notes, and download active Attachments.
+- **Requester**: use the Requester Dashboard, create Ticket, view only owned Tickets and read-only Actions Taken, manage permitted Attachments, add Public Comments, and indicate that a problem appears resolved.
+- **IT Staff**: use the Staff Dashboard and shared queue, view operational Ticket Detail, claim/assign/reassign, set IT Priority, create/update/assign/complete/cancel Actions Taken, perform allowed workflow transitions, add Public Comments and Internal Notes, and download active Attachments.
 - **Administrator**: includes Staff operations plus User Management for search/list/create/edit/activate/deactivate/reset-initial-password, with self-deactivation, last-active-admin, session-revocation, version, and owner-cleanup safety rules.
 
 Initial-password sessions require a mandatory password change before normal protected application access.
@@ -116,7 +117,7 @@ Health:
 GET /api/health
 ```
 
-Authentication includes login, logout, current-session identity, and password change endpoints. Ticket and Attachment APIs are protected by authenticated role/ownership rules. Staff queue/workflow/conversation endpoints and Administrator User Management endpoints are documented in `docs/lab-03/api-spec.md`.
+Authentication includes login, logout, current-session identity, and password change endpoints. Ticket and Attachment APIs are protected by authenticated role/ownership rules. Lab 4 adds Requester/Staff Dashboard reads, Actions Taken APIs, current-cycle workflow resolution rules and audit behavior documented in `docs/lab-04/api-spec.md` while Labs 1-3 APIs remain regression-protected.
 
 Public Comments and Internal Notes are separate resources. Internal Notes are available only to IT Staff and Administrators and must never be projected to Requesters.
 
@@ -141,7 +142,18 @@ npm --prefix client run e2e
 
 The test guard fails closed for missing, malformed, non-PostgreSQL, or unsafe same-database targets. A different schema in the development database is not sufficient isolation.
 
-## Lab 3 Documentation
+## Lab 4 Documentation
+
+The current normative and release documents are:
+
+- `docs/lab-04/specification.md` - Sprint 4 requirements, business rules, authorization, workflow, ACs and Product DoD.
+- `docs/lab-04/api-spec.md` - Actions Taken, Dashboard and final workflow API contracts.
+- `docs/lab-04/ui-spec.md` - Dashboard/Actions UI, Zen Green, responsive/accessibility and visual evidence contract.
+- `docs/lab-04/tests.md` - Labs 1-4 traceability and observed verification evidence.
+- `docs/lab-04/reviewer.md` - peer-review and staged integration record.
+- `docs/lab-04/ai-use.md` - selected AI-use record and reflection status.
+
+## Historical Lab 3 Documentation
 
 The current normative and release documents are:
 
@@ -157,4 +169,4 @@ Lab 2 documentation remains under `docs/lab-02/` as historical/regression contex
 
 ## Release Flow
 
-Feature branches merge into `lab3-staging`. The Lab 3 release PR is **`lab3-staging` -> `main`**. Issue #65 remains open through that merge because its acceptance also requires exact-final-`main` reruns, RELEASE-01/final-main evidence, and the final single Part 1-9 PDF. The issue is closed only after those post-merge requirements are complete.
+Lab 4 feature branches merge into `lab4-staging` only after review. The final Lab 4 release PR is **`lab4-staging` -> `main`**. Final release evidence, exact-final-`main` reruns and the required submission PDF remain release work and must not be claimed before they actually occur.

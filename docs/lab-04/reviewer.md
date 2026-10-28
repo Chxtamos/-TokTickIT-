@@ -72,8 +72,19 @@ Later entries must link the real PR/review and summarize actual requested change
 - Branch: `feature/47-lab4-requester-dashboard`
 - Target: `lab4-staging`
 - Pull Request: #106 `Feature 47: Build Requester dashboard`
+- Reviewer: `Tanaboonnnnn` approved exact head `97644ecb8f3a57093415368d9fb4d1219d0152a2` on 2026-10-27.
+- Review status: approved and merged into `lab4-staging` as merge commit `922dd6c04a58799b365d7414df8192d642e477a0`.
+- Comments/responses: reviewer found no confirmed blocker and explicitly noted that Human visual/accessibility sign-off remains separate.
+- TDD evidence: RED commit `9b69dca8ecaeac2594cd73a0c8a35f07f864aa09` produced 2/2 API failures for the missing endpoint and 4/4 UI failures for the missing client Dashboard contract/route.
+- Verification: pre-commit GREEN verification passes Requester Dashboard API 2/2, full Lab 4 server 19/19, Lab 2 My Tickets API regression 6/6, Requester Dashboard UI 4/4, Change Password regression 6/6, full client 120/120, server/client builds and `git diff --check`; Human approval was later recorded before merge.
+
+## Issue #98 Final Hardening
+
+- Branch: `feature/48-lab4-final-hardening`
+- Target: `lab4-staging`
+- Pull Request: pending creation after exact-commit verification.
 - Reviewer: pending real peer review.
 - Review status: pending.
-- Comments/responses: pending. Do not claim approval or reviewer feedback until it exists on GitHub.
-- TDD evidence: RED commit `9b69dca8ecaeac2594cd73a0c8a35f07f864aa09` produced 2/2 API failures for the missing endpoint and 4/4 UI failures for the missing client Dashboard contract/route.
-- Verification: pre-commit GREEN verification passes Requester Dashboard API 2/2, full Lab 4 server 19/19, Lab 2 My Tickets API regression 6/6, Requester Dashboard UI 4/4, Change Password regression 6/6, full client 120/120, server/client builds and `git diff --check`. Human review is pending.
+- Comments/responses: pending. Human visual/accessibility review is also pending and must not be replaced by automated evidence.
+- RED/hardening evidence: commit `be7f6d9` adds responsive/keyboard checks while the existing Lab 4 Staff E2E path still expected the pre-#96 Ticket Queue landing; the existing Actions Taken E2E consequently failed 2/2 until the shared harness/journey was hardened.
+- Verification: focused authorization 3/3, performance smoke 1/1, automated accessibility 2/2, Lab 4 E2E Actions/Responsive 5/5, full client 122/122, full server 242/242, and server/client builds passed. A full server run initially exposed a real test-isolation leak in the Lab 3 Administrator PostgreSQL suite; the suite now snapshots/restores pre-existing Administrator active/version state and the reproducer plus full server suite pass.
