@@ -82,7 +82,7 @@ Later entries must link the real PR/review and summarize actual requested change
 
 - Branch: `feature/48-lab4-final-hardening`
 - Target: `lab4-staging`
-- Pull Request: pending creation after exact-commit verification.
+- Pull Request: #107 `Feature 48: Complete Lab 4 final hardening`
 - Reviewer: pending real peer review.
 - Review status: pending.
 - Comments/responses: pending. Human visual/accessibility review is also pending and must not be replaced by automated evidence.
