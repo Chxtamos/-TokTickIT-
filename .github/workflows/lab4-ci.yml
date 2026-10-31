@@ -84,5 +84,5 @@ jobs:
       - name: Install Playwright Chromium
         run: cd client && npx playwright install --with-deps chromium
 
-      - name: Run Lab 4 Actions and responsive E2E
-        run: npm --prefix client run e2e -- e2e/lab-04/actions-taken-ui.spec.ts e2e/lab-04/responsive.spec.ts --reporter=line
+      - name: Run full Lab 4 E2E
+        run: npm --prefix client run e2e -- e2e/lab-04 --reporter=line
