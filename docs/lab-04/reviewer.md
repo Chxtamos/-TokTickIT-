@@ -86,5 +86,11 @@ Later entries must link the real PR/review and summarize actual requested change
 - Reviewer: pending real peer review.
 - Review status: pending.
 - Comments/responses: pending. Human visual/accessibility review is also pending and must not be replaced by automated evidence.
+- Review feedback on 2026-10-31: `Peepipat-Suesoongnuen` requested (1) CI evidence on the current PR head, (2) completion of Human visual/accessibility sign-off, and (3) fail-loud Administrator cleanup instead of `.catch(() => undefined)`.
+- Fix response: PR CI is now defined in `.github/workflows/lab4-ci.yml` to run the full server/client suites, both builds and focused Lab 4 Playwright against an isolated PostgreSQL test database. Administrator cleanup now restores pre-existing state transactionally, throws on restore failure, and verifies the restored `id/isActive/version` snapshot before disconnecting. Human visual/accessibility confirmation remains explicitly pending until a real person performs and records it.
 - RED/hardening evidence: commit `be7f6d9` adds responsive/keyboard checks while the existing Lab 4 Staff E2E path still expected the pre-#96 Ticket Queue landing; the existing Actions Taken E2E consequently failed 2/2 until the shared harness/journey was hardened.
 - Verification: focused authorization 3/3, performance smoke 1/1, automated accessibility 2/2, Lab 4 E2E Actions/Responsive 5/5, full client 122/122, full server 242/242, and server/client builds passed. A full server run initially exposed a real test-isolation leak in the Lab 3 Administrator PostgreSQL suite; the suite now snapshots/restores pre-existing Administrator active/version state and the reproducer plus full server suite pass.
+
+### Human visual/accessibility checklist (requires real Human sign-off)
+
+The person performing final sign-off must inspect Staff Dashboard, Requester Dashboard and Actions Taken at 1440px, 768px, 390px and 360px, plus the 200%-zoom-equivalent layout, and record PASS/FAIL for: readable hierarchy; Zen Green consistency; role-appropriate controls; editable/read-only distinction; validation placement; keyboard focus visibility/order; labels/landmarks; non-color status cues; clipping/overlap; and document-level horizontal overflow. Automated Playwright/accessibility checks are supporting evidence only and are not recorded as Human approval.

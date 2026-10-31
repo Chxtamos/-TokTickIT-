@@ -35,7 +35,30 @@ integration("Issue #63 Administrator User Management PostgreSQL safety", () => {
     }));
   });
 
-  afterAll(async () => { if(!prisma)return; if(createdRequestIds.length)await prisma.ticket.deleteMany({where:{clientRequestId:{in:createdRequestIds}}}); for(const state of preexistingAdminStates)await prisma.requesterUser.update({where:{id:state.id},data:{isActive:state.isActive,version:state.version}}).catch(()=>undefined); if(createdUserIds.length)await prisma.requesterUser.deleteMany({where:{id:{in:createdUserIds}}}); await prisma.$disconnect(); });
+  afterAll(async () => {
+    if (!prisma) return;
+    if (createdRequestIds.length) {
+      await prisma.ticket.deleteMany({ where: { clientRequestId: { in: createdRequestIds } } });
+    }
+    if (preexistingAdminStates.length) {
+      await prisma.$transaction(
+        preexistingAdminStates.map((state) => prisma.requesterUser.update({
+          where: { id: state.id },
+          data: { isActive: state.isActive, version: state.version },
+        })),
+      );
+      const restored = await prisma.requesterUser.findMany({
+        where: { id: { in: preexistingAdminStates.map((state) => state.id) } },
+        select: { id: true, isActive: true, version: true },
+        orderBy: { id: "asc" },
+      });
+      expect(restored).toEqual([...preexistingAdminStates].sort((a, b) => a.id - b.id));
+    }
+    if (createdUserIds.length) {
+      await prisma.requesterUser.deleteMany({ where: { id: { in: createdUserIds } } });
+    }
+    await prisma.$disconnect();
+  });
   function api(){const app=createApp(prisma);const a=(call:request.Test)=>call.set("Cookie",auth.cookie).set("Origin",testClientOrigin).set("X-CSRF-Token",auth.csrfToken);return{post:(p:string)=>a(request(app).post(p)),patch:(p:string)=>a(request(app).patch(p))};}
   async function createOwnedTicket(ownerId:number){const clientRequestId=randomUUID();createdRequestIds.push(clientRequestId);return prisma.ticket.create({data:{ticketNumber:`TKT-2099-${randomUUID().slice(0,8)}`,requesterId,categoryId,relatedSystemId,ticketOwnerId:ownerId,summary:"Issue 63 owner cleanup fixture",description:"Real PostgreSQL owner cleanup fixture.",requestedPriority:"MEDIUM",itPriority:"MEDIUM",currentStatus:"OPEN",version:1,clientRequestId,requestPayloadHash:randomUUID().replaceAll("-","").padEnd(64,"0")}});}
 
