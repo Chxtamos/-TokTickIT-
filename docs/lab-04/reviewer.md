@@ -83,11 +83,13 @@ Later entries must link the real PR/review and summarize actual requested change
 - Branch: `feature/48-lab4-final-hardening`
 - Target: `lab4-staging`
 - Pull Request: #107 `Feature 48: Complete Lab 4 final hardening`
-- Reviewer: pending real peer review.
-- Review status: pending.
-- Comments/responses: pending. Human visual/accessibility review is also pending and must not be replaced by automated evidence.
+- Reviewer: `Peepipat-Suesoongnuen` requested changes on the hardening branch and re-reviewed the follow-up head.
+- Review status: changes requested; second re-review leaves one blocking Test Isolation item before approval.
+- Comments/responses: Human visual/accessibility review remains a separate real-person gate and must not be replaced by automated evidence.
 - Review feedback on 2026-10-31: `Peepipat-Suesoongnuen` requested (1) CI evidence on the current PR head, (2) completion of Human visual/accessibility sign-off, and (3) fail-loud Administrator cleanup instead of `.catch(() => undefined)`.
 - Fix response: PR CI is now defined in `.github/workflows/lab4-ci.yml` to run the full server/client suites, both builds and focused Lab 4 Playwright against an isolated PostgreSQL test database. Administrator cleanup now restores pre-existing state transactionally, throws on restore failure, and verifies the restored `id/isActive/version` snapshot before disconnecting. Human visual/accessibility confirmation remains explicitly pending until a real person performs and records it.
+- Re-review feedback on 2026-10-31: reviewer confirmed CI on exact head `65202c5b05c9f9d800bcd836230c75f5c93870e8` and fail-loud cleanup, but rejected the remaining design because the suite still temporarily deactivated shared Administrator rows before restoring them, creating a possible cross-file race under parallel Vitest execution.
+- Second fix response: `users-admin.postgres.integration.test.ts` now provisions an entire temporary PostgreSQL database dedicated to that test file. Migrations and the normal seed run inside the temporary database; all Administrator role/deactivation and concurrency mutations occur only there. The shared `TEST_DATABASE_URL` Administrator rows are never changed by this suite. Teardown disconnects every suite client, terminates remaining connections to the temporary database and drops the database. The parallel reproducer (`users-admin` + `seed-provisioning`) passes 4/4 and the full default-parallel server suite passes 242/242.
 - RED/hardening evidence: commit `be7f6d9` adds responsive/keyboard checks while the existing Lab 4 Staff E2E path still expected the pre-#96 Ticket Queue landing; the existing Actions Taken E2E consequently failed 2/2 until the shared harness/journey was hardened.
 - Verification: focused authorization 3/3, performance smoke 1/1, automated accessibility 2/2, Lab 4 E2E Actions/Responsive 5/5, full client 122/122, full server 242/242, and server/client builds passed. A full server run initially exposed a real test-isolation leak in the Lab 3 Administrator PostgreSQL suite; the suite now snapshots/restores pre-existing Administrator active/version state and the reproducer plus full server suite pass.
 

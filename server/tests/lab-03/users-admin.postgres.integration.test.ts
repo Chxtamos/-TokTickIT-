@@ -3,8 +3,9 @@ import type { PrismaClient } from "@prisma/client";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../src/app.js";
-import { assertIntegrationDatabase, createIntegrationPrisma, isDatabaseIntegrationRequested } from "../../src/prisma.js";
+import { assertIntegrationDatabase, isDatabaseIntegrationRequested } from "../../src/prisma.js";
 import { createProvisionedTestUser, createTestSession, testClientOrigin } from "../helpers/auth-session.js";
+import { createIsolatedPostgresTestDatabase } from "../helpers/isolated-postgres.js";
 
 const runIntegration = isDatabaseIntegrationRequested();
 if (runIntegration) assertIntegrationDatabase();
@@ -15,11 +16,12 @@ integration("Issue #63 Administrator User Management PostgreSQL safety", () => {
   let prisma: PrismaClient;
   let adminAId: number, adminBId: number, staffId: number, requesterId: number, categoryId: number, relatedSystemId: number;
   let auth: Awaited<ReturnType<typeof createTestSession>>;
-  const createdUserIds: number[] = [], createdRequestIds: string[] = [];
-  const preexistingAdminStates: Array<{ id: number; isActive: boolean; version: number }> = [];
+  let disposeIsolatedDatabase: (() => Promise<void>) | null = null;
 
   beforeAll(async () => {
-    prisma = createIntegrationPrisma(); await prisma.$connect();
+    const isolated = await createIsolatedPostgresTestDatabase("users_admin");
+    prisma = isolated.prisma;
+    disposeIsolatedDatabase = isolated.dispose;
     const [category, system, adminA, adminB, staff, requester] = await Promise.all([
       prisma.category.findFirst({ where: { isActive: true }, orderBy: { id: "asc" }, select: { id: true } }),
       prisma.relatedSystem.findFirst({ where: { isActive: true }, orderBy: { id: "asc" }, select: { id: true } }),
@@ -28,43 +30,18 @@ integration("Issue #63 Administrator User Management PostgreSQL safety", () => {
     ]);
     if (!category || !system) throw new Error("Admin integration requires active reference fixtures.");
     categoryId=category.id; relatedSystemId=system.id; adminAId=adminA.id; adminBId=adminB.id; staffId=staff.id; requesterId=requester.id;
-    createdUserIds.push(adminAId,adminBId,staffId,requesterId); auth=await createTestSession(prisma,adminAId);
-    preexistingAdminStates.push(...await prisma.requesterUser.findMany({
-      where: { role: "ADMINISTRATOR", id: { notIn: [adminAId, adminBId] } },
-      select: { id: true, isActive: true, version: true },
-    }));
+    auth=await createTestSession(prisma,adminAId);
   });
 
   afterAll(async () => {
-    if (!prisma) return;
-    if (createdRequestIds.length) {
-      await prisma.ticket.deleteMany({ where: { clientRequestId: { in: createdRequestIds } } });
-    }
-    if (preexistingAdminStates.length) {
-      await prisma.$transaction(
-        preexistingAdminStates.map((state) => prisma.requesterUser.update({
-          where: { id: state.id },
-          data: { isActive: state.isActive, version: state.version },
-        })),
-      );
-      const restored = await prisma.requesterUser.findMany({
-        where: { id: { in: preexistingAdminStates.map((state) => state.id) } },
-        select: { id: true, isActive: true, version: true },
-        orderBy: { id: "asc" },
-      });
-      expect(restored).toEqual([...preexistingAdminStates].sort((a, b) => a.id - b.id));
-    }
-    if (createdUserIds.length) {
-      await prisma.requesterUser.deleteMany({ where: { id: { in: createdUserIds } } });
-    }
-    await prisma.$disconnect();
+    await disposeIsolatedDatabase?.();
   });
   function api(){const app=createApp(prisma);const a=(call:request.Test)=>call.set("Cookie",auth.cookie).set("Origin",testClientOrigin).set("X-CSRF-Token",auth.csrfToken);return{post:(p:string)=>a(request(app).post(p)),patch:(p:string)=>a(request(app).patch(p))};}
-  async function createOwnedTicket(ownerId:number){const clientRequestId=randomUUID();createdRequestIds.push(clientRequestId);return prisma.ticket.create({data:{ticketNumber:`TKT-2099-${randomUUID().slice(0,8)}`,requesterId,categoryId,relatedSystemId,ticketOwnerId:ownerId,summary:"Issue 63 owner cleanup fixture",description:"Real PostgreSQL owner cleanup fixture.",requestedPriority:"MEDIUM",itPriority:"MEDIUM",currentStatus:"OPEN",version:1,clientRequestId,requestPayloadHash:randomUUID().replaceAll("-","").padEnd(64,"0")}});}
+  async function createOwnedTicket(ownerId:number){const clientRequestId=randomUUID();return prisma.ticket.create({data:{ticketNumber:`TKT-2099-${randomUUID().slice(0,8)}`,requesterId,categoryId,relatedSystemId,ticketOwnerId:ownerId,summary:"Issue 63 owner cleanup fixture",description:"Real PostgreSQL owner cleanup fixture.",requestedPriority:"MEDIUM",itPriority:"MEDIUM",currentStatus:"OPEN",version:1,clientRequestId,requestPayloadHash:randomUUID().replaceAll("-","").padEnd(64,"0")}});}
 
   it("normalizes email uniqueness and rejects a stale expectedVersion",async()=>{
     const email=`Admin.Integration.${randomUUID()}@Example.Test`; const created=await api().post("/api/admin/users").send({name:"Integration User",email:` ${email} `,role:"REQUESTER",isActive:true,initialPassword:PASSWORD});
-    expect(created.status).toBe(201);createdUserIds.push(created.body.user.id);expect(created.body.user.email).toBe(email.toLowerCase());
+    expect(created.status).toBe(201);expect(created.body.user.email).toBe(email.toLowerCase());
     const duplicate=await api().post("/api/admin/users").send({name:"Duplicate",email:email.toUpperCase(),role:"REQUESTER",isActive:false,initialPassword:PASSWORD});expect(duplicate.status).toBe(409);expect(duplicate.body.error.code).toBe("EMAIL_CONFLICT");
     const stale=await api().patch(`/api/admin/users/${created.body.user.id}`).send({name:"Stale",email:email.toLowerCase(),role:"REQUESTER",isActive:true,expectedVersion:created.body.user.version+1});expect(stale.status).toBe(409);expect(stale.body.error.code).toBe("VERSION_CONFLICT");
   });
