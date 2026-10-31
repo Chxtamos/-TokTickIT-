@@ -9,7 +9,7 @@ const tsxCli = path.join(serverDirectory, "node_modules", "tsx", "dist", "cli.mj
 export function runLab3ServerHelper(script: string, ...args: string[]): void {
   const result = spawnSync(process.execPath, [tsxCli, path.join(serverDirectory, "scripts", "lab3", script), ...args], {
     cwd: serverDirectory,
-    env: process.env,
+    env: { ...process.env, NODE_ENV: "test" },
     encoding: "utf8",
   });
   if (result.status !== 0) throw new Error(result.stderr || result.stdout || `${script} failed`);
