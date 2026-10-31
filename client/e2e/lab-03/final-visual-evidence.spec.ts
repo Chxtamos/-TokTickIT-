@@ -40,6 +40,8 @@ async function captureRoleSet(page: Page, label: string) {
 
   resetIsolatedE2EFixtures();
   await login(page, "e2e.staff@example.test");
+  await expect(page.getByRole("heading", { name: "IT Staff Dashboard", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Ticket Queue", exact: true })).toBeVisible();
   await assertNoHorizontalOverflow(page);
   await shot(page, label, "03-staff-queue");

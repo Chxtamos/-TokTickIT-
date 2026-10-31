@@ -96,9 +96,9 @@ test.describe("Lab 3 authentication", () => {
 
   test("lands IT Staff and Administrator in their role workspaces", async ({ page }) => {
     await browserLogin(page, "e2e.staff@example.test", INITIAL_PASSWORD);
-    await expect(page.getByRole("heading", { name: "Ticket Queue", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "IT Staff Dashboard", exact: true })).toBeVisible();
     await expect(page.getByText("E2E Staff · IT Staff", { exact: true })).toBeVisible();
-    await expect(page).toHaveURL(/\/staff\/tickets$/);
+    await expect(page).toHaveURL(/\/staff\/dashboard$/);
 
     await page.getByRole("button", { name: "Logout", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
