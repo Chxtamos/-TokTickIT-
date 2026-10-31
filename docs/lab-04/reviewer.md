@@ -103,7 +103,7 @@ The person performing final sign-off must inspect Staff Dashboard, Requester Das
 - Branch: `feature/49-lab4-release-evidence`
 - Starting reviewed staging revision: `82ae707ea32e37a98e4900870ec6d13338dd4c04`.
 - Target: `lab4-staging` first; only after review/merge and green staging CI may a reviewed `lab4-staging -> main` release proceed.
-- Pull Request: pending creation after branch evidence commit.
+- Pull Request: #108 `Feature 49: Complete Lab 4 E2E and release evidence`.
 - Reviewer: pending real peer review.
 - Review status: pending.
 - Verification before PR creation: required final E2E acceptance specs pass 5/5; complete Lab 4 Playwright directory passes 11/11; full server passes 242/242; full client passes 122/122; server/client builds pass; screenshots are generated for Staff Dashboard, Actions Taken and Requester Dashboard at 1440/768/390/360/720 widths.
