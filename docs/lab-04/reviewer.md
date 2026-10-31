@@ -104,7 +104,8 @@ The person performing final sign-off must inspect Staff Dashboard, Requester Das
 - Starting reviewed staging revision: `82ae707ea32e37a98e4900870ec6d13338dd4c04`.
 - Target: `lab4-staging` first; only after review/merge and green staging CI may a reviewed `lab4-staging -> main` release proceed.
 - Pull Request: #108 `Feature 49: Complete Lab 4 E2E and release evidence`.
-- Reviewer: pending real peer review.
-- Review status: pending.
+- Reviewer: `Peepipat-Suesoongnuen` requested changes on exact head `36de8fb6f8c856b8e777533e8380b415e995e47f` on 2026-10-31.
+- Review status: changes requested; re-review pending after the documentation correction.
+- Comments/responses: reviewer identified two evidence-ordering defects in `docs/lab-04/ai-use.md`: duplicated item number `14` and a chronology error that placed the PR #107 merge/Issue #99 start before the second PR #107 review fix. The follow-up renumbers the second-review work as item 14 and the post-merge Issue #99 continuation as item 15 so the record now follows the real sequence.
 - Verification before PR creation: required final E2E acceptance specs pass 5/5; complete Lab 4 Playwright directory passes 11/11; full server passes 242/242; full client passes 122/122; server/client builds pass; screenshots are generated for Staff Dashboard, Actions Taken and Requester Dashboard at 1440/768/390/360/720 widths.
 - Release status: not released to `main`. `RELEASE-01`, exact-final-main CI and final-main evidence remain pending and must not be marked complete before the reviewed release actually lands.
