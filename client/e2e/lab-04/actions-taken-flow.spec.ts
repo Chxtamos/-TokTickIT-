@@ -31,6 +31,17 @@ test.describe("Lab 4 final Actions Taken flow", () => {
     await expect(page.getByText("Action saved.", { exact: true })).toBeVisible();
 
     const completedCard = page.locator(".action-item").filter({ hasText: completedDescription });
+    const completedAssignee = completedCard.getByText("Assignee", { exact: true }).locator("..").locator("dd");
+    const completedPerformer = completedCard.getByText("Performed by", { exact: true }).locator("..").locator("dd");
+    await expect(completedAssignee).toHaveText("E2E Staff");
+    await expect(completedPerformer).toHaveText("E2E Staff");
+
+    await completedCard.getByRole("button", { name: "Edit Action", exact: true }).click();
+    await page.getByLabel("Assignee", { exact: true }).selectOption({ label: "E2E Administrator - ADMINISTRATOR" });
+    await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+    await expect(completedAssignee).toHaveText("E2E Administrator");
+    await expect(completedPerformer).toHaveText("E2E Staff");
+
     await completedCard.getByRole("button", { name: "Edit Action", exact: true }).click();
     await page.getByLabel("Action status", { exact: true }).selectOption("IN_PROGRESS");
     await page.getByRole("button", { name: "Save Changes", exact: true }).click();
@@ -58,7 +69,10 @@ test.describe("Lab 4 final Actions Taken flow", () => {
     await enterAuthenticatedRequester(page, 1);
     await page.locator("#ticket-search").fill(TICKET_NUMBER);
     await page.locator(".tickets-table tbody tr").filter({ hasText: TICKET_NUMBER }).getByRole("button", { name: "View Ticket", exact: true }).click();
-    await expect(page.getByText(completedDescription, { exact: true })).toBeVisible();
+    const requesterCompletedCard = page.locator(".action-item").filter({ hasText: completedDescription });
+    await expect(requesterCompletedCard.getByText(completedDescription, { exact: true })).toBeVisible();
+    await expect(requesterCompletedCard.getByText("Assignee", { exact: true }).locator("..").locator("dd")).toHaveText("E2E Administrator");
+    await expect(requesterCompletedCard.getByText("Performed by", { exact: true }).locator("..").locator("dd")).toHaveText("E2E Staff");
     await expect(page.getByText(cancelledDescription, { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Add Action", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Edit Action", exact: true })).toHaveCount(0);
