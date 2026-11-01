@@ -10,6 +10,8 @@ async function loginStaff(page: Page) {
   await page.getByLabel("Email").fill("e2e.staff@example.test");
   await page.getByRole("textbox", { name: "Password", exact: true }).fill(INITIAL_PASSWORD);
   await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "IT Staff Dashboard", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Ticket Queue", exact: true })).toBeVisible();
 }
 
@@ -64,6 +66,18 @@ test.describe("E2E-03 integrated Staff workflow", () => {
     await page.getByRole("button", { name: "Save Internal Note", exact: true }).click();
     await expect(page.getByText("Internal Note saved.", { exact: true })).toBeVisible();
     await expect(page.getByText("E2E private diagnostic note", { exact: true })).toBeVisible();
+
+    const resolutionActionDescription = "E2E Lab 3 regression completion evidence for the current workflow cycle.";
+    await page.getByRole("button", { name: "Add Action", exact: true }).click();
+    await page.getByLabel("Description", { exact: true }).fill(resolutionActionDescription);
+    await page.getByRole("button", { name: "Save Action", exact: true }).click();
+    await expect(page.getByText("Action saved.", { exact: true })).toBeVisible();
+    const resolutionAction = page.locator(".action-item").filter({ hasText: resolutionActionDescription });
+    await resolutionAction.getByRole("button", { name: "Edit Action", exact: true }).click();
+    await page.getByLabel("Action status", { exact: true }).selectOption("COMPLETED");
+    await page.getByLabel("Result", { exact: true }).fill("Regression evidence completed before resolving the Ticket.");
+    await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+    await expect(resolutionAction.getByText("COMPLETED", { exact: true })).toBeVisible();
 
     await page.getByLabel("Next status").selectOption("RESOLVED");
     await page.getByLabel(/Resolution Summary/).fill("E2E resolution summary: VPN profile refreshed successfully.");

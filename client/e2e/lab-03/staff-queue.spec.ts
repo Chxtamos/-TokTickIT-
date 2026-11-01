@@ -8,6 +8,8 @@ async function loginStaff(page: Page) {
   await page.getByLabel("Email").fill("e2e.staff@example.test");
   await page.getByRole("textbox", { name: "Password", exact: true }).fill(INITIAL_PASSWORD);
   await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "IT Staff Dashboard", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Ticket Queue", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Ticket Queue", exact: true })).toBeVisible();
 }
 

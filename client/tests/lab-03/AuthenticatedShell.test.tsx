@@ -8,6 +8,27 @@ function sessionFor(user: api.AuthUser) {
   vi.spyOn(api, "getCurrentUser").mockResolvedValue({ user, csrfToken });
 }
 
+function mockStaffQueue() {
+  vi.spyOn(api, "getCategories").mockResolvedValue([]);
+  vi.spyOn(api, "getRelatedSystems").mockResolvedValue([]);
+  vi.spyOn(api, "getEligibleTicketOwners").mockResolvedValue([]);
+  vi.spyOn(api, "getStaffTickets").mockResolvedValue({
+    items: [],
+    pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false },
+    applied: {
+      search: "",
+      categoryId: null,
+      relatedSystemId: null,
+      requestedPriority: null,
+      itPriority: null,
+      currentStatus: null,
+      owner: "all",
+      sortBy: "updatedAt",
+      sortDirection: "desc",
+    },
+  });
+}
+
 afterEach(() => { vi.restoreAllMocks(); api.clearInMemoryAuth(); sessionStorage.clear(); setRoute(); });
 
 describe("Lab 3 authenticated shell", () => {
@@ -24,6 +45,7 @@ describe("Lab 3 authenticated shell", () => {
   it("renders safe role-specific landing placeholders and navigation", async () => {
     setRoute("/staff/tickets");
     sessionFor({ id: 8, name: "Support One", email: "support@example.test", role: "IT_STAFF", mustChangePassword: false });
+    mockStaffQueue();
     const first = render(<App />);
     expect(await screen.findByRole("heading", { name: "Ticket Queue" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ticket Queue" })).toHaveAttribute("aria-current", "page");
@@ -42,11 +64,12 @@ describe("Lab 3 authenticated shell", () => {
   it("keeps the authenticated shell when logout fails and offers Retry", async () => {
     setRoute("/staff/tickets");
     sessionFor({ id: 8, name: "Support One", email: "support@example.test", role: "IT_STAFF", mustChangePassword: false });
+    mockStaffQueue();
     vi.spyOn(api, "logout").mockRejectedValue(new Error("Unable to log out. Please try again."));
     render(<App />);
     await screen.findByRole("heading", { name: "Ticket Queue" });
     fireEvent.click(screen.getByRole("button", { name: "Logout" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to log out");
+    expect(await screen.findByText("Unable to log out. Please try again.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ticket Queue" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry logout" })).toBeInTheDocument();
   });
@@ -54,6 +77,7 @@ describe("Lab 3 authenticated shell", () => {
   it("clears the account shell after confirmed logout or session revocation", async () => {
     setRoute("/staff/tickets");
     sessionFor({ id: 8, name: "Support One", email: "support@example.test", role: "IT_STAFF", mustChangePassword: false });
+    mockStaffQueue();
     vi.spyOn(api, "logout").mockResolvedValue();
     render(<App />);
     await screen.findByRole("heading", { name: "Ticket Queue" });
@@ -66,6 +90,7 @@ describe("Lab 3 authenticated shell", () => {
   it("fails closed when an authenticated API reports a revoked session", async () => {
     setRoute("/staff/tickets");
     sessionFor({ id: 8, name: "Support One", email: "support@example.test", role: "IT_STAFF", mustChangePassword: false });
+    mockStaffQueue();
     render(<App />);
     await screen.findByRole("heading", { name: "Ticket Queue" });
     act(() => window.dispatchEvent(new CustomEvent("toktickit:session-invalid", { detail: { code: "SESSION_REQUIRED" } })));
