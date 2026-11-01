@@ -12,7 +12,7 @@ The Sprint 4 engineering contract is in `docs/lab-04/specification.md`, `ui-spec
 
 ## Answer Part 3: Test DD and Traceability
 
-`docs/lab-04/tests.md` maps AC-01 through AC-22 to unit/API/PostgreSQL/UI/regression/security/responsive/accessibility/performance/E2E/release evidence. Required final E2E files are `client/e2e/lab-04/actions-taken-flow.spec.ts`, `ticket-resolution.spec.ts` and `dashboards.spec.ts`. The release CI workflow runs the complete server/client suites, both builds and every Lab 4 Playwright spec on an isolated PostgreSQL database. Exact released-main revision `471a45f1f512be297d853afa3f84b4e72847c2ba` passed push runs Client `41312944765`, Server `41312944693`, E2E `41312944772` and Lab 4 `41312944625`.
+`docs/lab-04/tests.md` maps AC-01 through AC-22 to unit/API/PostgreSQL/UI/regression/security/responsive/accessibility/performance/E2E/release evidence. Required final E2E files are `client/e2e/lab-04/actions-taken-flow.spec.ts`, `ticket-resolution.spec.ts` and `dashboards.spec.ts`. The release CI workflow runs the complete server/client suites, both builds and every Lab 4 Playwright spec on an isolated PostgreSQL database. Exact released-main revision `471a45f1f512be297d853afa3f84b4e72847c2ba` passed push runs Client `41312944765`, Server `41312944693`, E2E `41312944772` and Lab 4 `41312944625`. PR #112 review additionally exposed five stale Planned rows; the follow-up adds/verifies the documented Action validation/workflow unit tests and PostgreSQL parent-lock, reopened-cycle race and audit rollback tests, so no automated test-plan row is left unsupported by its stated path.
 
 ## Answer Part 4: AI Use with Reflection
 
@@ -40,4 +40,4 @@ The Requester Dashboard contains only authenticated-owner metrics and bounded re
 
 ## Release Completion Gate
 
-Completed release gates: #99 evidence PR reviewed/merged to `lab4-staging`; PR #110 regression fix merged with green hosted CI; PR #109 received Human approval and merged `lab4-staging -> main`; exact released-main push CI is green; and reviewer/test/AI/final-submission records are synchronized by this evidence follow-up. The remaining gate before Issue #99 may be closed is the real Human visual/accessibility sign-off required by the Lab 4 DoD.
+Completed release/automated-evidence gates: #99 evidence PR reviewed/merged to `lab4-staging`; PR #110 regression fix merged with green hosted CI; PR #109 received Human approval and merged `lab4-staging -> main`; exact released-main push CI is green; and the PR #112 follow-up closes the stale UNIT-01/UNIT-02/DB-03/DB-05/DB-06 evidence gaps with executable tests at the documented paths. The remaining gate before Issue #99 may be closed is the real Human visual/accessibility sign-off required by the Lab 4 DoD.
