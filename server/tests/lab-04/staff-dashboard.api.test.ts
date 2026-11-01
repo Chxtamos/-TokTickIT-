@@ -3,8 +3,9 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PrismaClient, RequestedPriority, TicketStatus } from "@prisma/client";
 import { createApp } from "../../src/app.js";
-import { assertIntegrationDatabase, createIntegrationPrisma, isDatabaseIntegrationRequested } from "../../src/prisma.js";
+import { assertIntegrationDatabase, isDatabaseIntegrationRequested } from "../../src/prisma.js";
 import { createProvisionedTestUser, createTestSession } from "../helpers/auth-session.js";
+import { createIsolatedPostgresTestDatabase } from "../helpers/isolated-postgres.js";
 
 const runIntegration = isDatabaseIntegrationRequested();
 if (runIntegration) assertIntegrationDatabase();
@@ -25,10 +26,12 @@ integration("Lab 4 Staff Dashboard API", () => {
   const nonUrgentOrderingIds: number[] = [];
   const createdTicketIds: number[] = [];
   const createdUserIds: number[] = [];
+  let disposeIsolatedDatabase: (() => Promise<void>) | null = null;
 
   beforeAll(async () => {
-    prisma = createIntegrationPrisma();
-    await prisma.$connect();
+    const isolated = await createIsolatedPostgresTestDatabase("staff_dashboard");
+    prisma = isolated.prisma;
+    disposeIsolatedDatabase = isolated.dispose;
     const [category, system, staff, admin, requester] = await Promise.all([
       prisma.category.findFirstOrThrow({ where: { isActive: true }, orderBy: { id: "asc" } }),
       prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true }, orderBy: { id: "asc" } }),
@@ -90,10 +93,7 @@ integration("Lab 4 Staff Dashboard API", () => {
   });
 
   afterAll(async () => {
-    if (!prisma) return;
-    if (createdTicketIds.length) await prisma.ticket.deleteMany({ where: { id: { in: createdTicketIds } } });
-    if (createdUserIds.length) await prisma.requesterUser.deleteMany({ where: { id: { in: createdUserIds } } });
-    await prisma.$disconnect();
+    await disposeIsolatedDatabase?.();
   });
 
   const get = (session: Awaited<ReturnType<typeof createTestSession>>, path = "/api/staff/dashboard") => request(createApp(prisma)).get(path).set("Cookie", session.cookie);
