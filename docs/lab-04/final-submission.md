@@ -1,6 +1,6 @@
 # TokTickIT Lab 4 Final Submission Evidence
 
-Status: release evidence prepared on `feature/49-lab4-release-evidence`. Final `main` revision, final release PR and exact-final-main CI remain pending until the reviewed `lab4-staging -> main` release is actually merged.
+Status: Lab 4 was released through Human-approved PR #109. Exact released `main` revision `471a45f1f512be297d853afa3f84b4e72847c2ba` passed Client, Server, E2E and Lab 4 push CI. Automated release evidence is complete; Human visual/accessibility sign-off remains pending as a separate DoD item.
 
 ## Answer Part 1: Git Use with Engineering Workflow
 
@@ -12,7 +12,7 @@ The Sprint 4 engineering contract is in `docs/lab-04/specification.md`, `ui-spec
 
 ## Answer Part 3: Test DD and Traceability
 
-`docs/lab-04/tests.md` maps AC-01 through AC-22 to unit/API/PostgreSQL/UI/regression/security/responsive/accessibility/performance/E2E/release evidence. Required final E2E files are `client/e2e/lab-04/actions-taken-flow.spec.ts`, `ticket-resolution.spec.ts` and `dashboards.spec.ts`. The release CI workflow runs the complete server/client suites, both builds and every Lab 4 Playwright spec on an isolated PostgreSQL database. Exact-final-main CI evidence is intentionally pending until the final release merge exists.
+`docs/lab-04/tests.md` maps AC-01 through AC-22 to unit/API/PostgreSQL/UI/regression/security/responsive/accessibility/performance/E2E/release evidence. Required final E2E files are `client/e2e/lab-04/actions-taken-flow.spec.ts`, `ticket-resolution.spec.ts` and `dashboards.spec.ts`. The release CI workflow runs the complete server/client suites, both builds and every Lab 4 Playwright spec on an isolated PostgreSQL database. Exact released-main revision `471a45f1f512be297d853afa3f84b4e72847c2ba` passed push runs Client `41312944765`, Server `41312944693`, E2E `41312944772` and Lab 4 `41312944625`.
 
 ## Answer Part 4: AI Use with Reflection
 
@@ -40,4 +40,4 @@ The Requester Dashboard contains only authenticated-owner metrics and bounded re
 
 ## Release Completion Gate
 
-Before Issue #99 can be closed: the #99 feature PR must be reviewed/merged into `lab4-staging`; final staging CI must be green; a reviewed `lab4-staging -> main` release PR must be approved/merged; exact-final-main CI/regression evidence must be recorded; reviewer/test/AI/final-submission records must be synchronized; and all Lab 4 Issues may only then be marked Done.
+Completed release gates: #99 evidence PR reviewed/merged to `lab4-staging`; PR #110 regression fix merged with green hosted CI; PR #109 received Human approval and merged `lab4-staging -> main`; exact released-main push CI is green; and reviewer/test/AI/final-submission records are synchronized by this evidence follow-up. The remaining gate before Issue #99 may be closed is the real Human visual/accessibility sign-off required by the Lab 4 DoD.
