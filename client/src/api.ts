@@ -79,6 +79,7 @@ export interface TicketListQuery {
   relatedSystemId: number | null;
   requestedPriority: Priority | null;
   currentStatus: TicketStatus | null;
+  state?: "open" | null;
   sortBy: "createdAt" | "updatedAt" | "ticketNumber";
   sortDirection: "asc" | "desc";
   page: number;
@@ -92,6 +93,42 @@ export interface TicketListResponse {
 }
 
 export interface EligibleOwner extends SafeUser { role: "IT_STAFF" | "ADMINISTRATOR" }
+export type ActionTakenStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+export interface ActionTaken {
+  id: number;
+  ticketId: number;
+  workflowCycle: number;
+  description: string;
+  result: string | null;
+  performedBy: { id: number; name: string };
+  assignee: { id: number; name: string } | null;
+  status: ActionTakenStatus;
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface CreateTicketActionInput {
+  clientRequestId: string;
+  description: string;
+  result: string | null;
+  assigneeId: number | null;
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+}
+export interface UpdateTicketActionInput {
+  expectedVersion: number;
+  description?: string;
+  result?: string | null;
+  assigneeId?: number | null;
+  followUpRequired?: boolean;
+  followUpNote?: string | null;
+  attachmentNotes?: string | null;
+  status?: ActionTakenStatus;
+}
 export interface StaffTicketSummary extends TicketSummary {
   itPriority: Priority;
   version: number;
@@ -116,6 +153,23 @@ export interface StaffTicketListResponse {
   items: StaffTicketSummary[];
   pagination: { page: number; pageSize: 10 | 20 | 50; totalItems: number; totalPages: number; hasPreviousPage: boolean; hasNextPage: boolean };
   applied: Omit<StaffQueueQuery, "page" | "pageSize">;
+}
+
+export interface StaffDashboardResponse {
+  metrics: { unassignedTickets: number; myTickets: number; myOpenActions: number };
+  byStatus: Record<TicketStatus, number>;
+  byItPriority: Record<Priority, number>;
+  recentOrUrgent: StaffTicketSummary[];
+  myOpenActionItems: ActionTaken[];
+  myRecentActions: ActionTaken[];
+  drillDown: { unassignedTickets: string; myTickets: string; myOpenActions: string };
+}
+
+export interface RequesterDashboardResponse {
+  metrics: { openTickets: number; waitingForRequester: number };
+  recentlyUpdated: TicketSummary[];
+  recentlyResolved: TicketSummary[];
+  drillDown: { openTickets: string; waitingForRequester: string };
 }
 
 export interface ApiValidationError extends Error {
@@ -224,6 +278,7 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   if (query.relatedSystemId !== null) params.set("relatedSystemId", String(query.relatedSystemId));
   if (query.requestedPriority !== null) params.set("requestedPriority", query.requestedPriority);
   if (query.currentStatus !== null) params.set("currentStatus", query.currentStatus);
+  if (query.state === "open") params.set("state", "open");
   if (query.sortBy !== "updatedAt") params.set("sortBy", query.sortBy);
   if (query.sortDirection !== "desc") params.set("sortDirection", query.sortDirection);
   if (query.page !== 1) params.set("page", String(query.page));
@@ -232,6 +287,16 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   if (!response.ok) return throwApiError(response, "Unable to load Tickets");
   const value = await response.json() as TicketListResponse;
   if (!value || !Array.isArray(value.items) || !value.pagination || typeof value.pagination.totalItems !== "number") throw new Error("TokTickIT API returned invalid Ticket list data");
+  return value;
+}
+
+export async function getRequesterDashboard(): Promise<RequesterDashboardResponse> {
+  const response = await apiFetch("/requester/dashboard", {}, { authenticated: true });
+  if (!response.ok) return throwApiError(response, "Unable to load Requester Dashboard.");
+  const value = await response.json() as RequesterDashboardResponse;
+  if (!value?.metrics || !Array.isArray(value.recentlyUpdated) || !Array.isArray(value.recentlyResolved) || !value.drillDown) {
+    throw new Error("TokTickIT API returned invalid Requester Dashboard data");
+  }
   return value;
 }
 
@@ -253,6 +318,16 @@ export async function getStaffTickets(query: StaffQueueQuery): Promise<StaffTick
   const value = await response.json() as StaffTicketListResponse;
   if (!value || !Array.isArray(value.items) || !value.pagination || typeof value.pagination.totalItems !== "number" || !value.applied) {
     throw new Error("TokTickIT API returned invalid Staff Ticket Queue data");
+  }
+  return value;
+}
+
+export async function getStaffDashboard(): Promise<StaffDashboardResponse> {
+  const response = await apiFetch("/staff/dashboard", {}, { authenticated: true });
+  if (!response.ok) return throwApiError(response, "Unable to load Staff Dashboard.");
+  const value = await response.json() as StaffDashboardResponse;
+  if (!value?.metrics || !value.byStatus || !value.byItPriority || !Array.isArray(value.recentOrUrgent) || !Array.isArray(value.myOpenActionItems) || !Array.isArray(value.myRecentActions) || !value.drillDown) {
+    throw new Error("TokTickIT API returned invalid Staff Dashboard data");
   }
   return value;
 }
@@ -361,6 +436,57 @@ export async function updateStaffTicketStatus(ticketId: number, input: StaffStat
   const response = await apiFetch(`/staff/tickets/${ticketId}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }, { authenticated: true, csrf: true });
   if (!response.ok) return throwApiError(response, "Unable to update Ticket status.");
   return assertTicketDetail(await response.json() as TicketDetail, "TokTickIT API returned invalid status update data");
+}
+
+function assertActionTaken(value: unknown): ActionTaken {
+  const candidate = value as Partial<ActionTaken> | null;
+  if (!candidate
+    || typeof candidate.id !== "number"
+    || typeof candidate.ticketId !== "number"
+    || typeof candidate.workflowCycle !== "number"
+    || typeof candidate.description !== "string"
+    || !candidate.performedBy
+    || typeof candidate.performedBy.id !== "number"
+    || typeof candidate.performedBy.name !== "string"
+    || !["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"].includes(candidate.status ?? "")
+    || typeof candidate.followUpRequired !== "boolean"
+    || typeof candidate.version !== "number"
+    || typeof candidate.createdAt !== "string"
+    || typeof candidate.updatedAt !== "string") {
+    throw new Error("TokTickIT API returned invalid Action Taken data");
+  }
+  return candidate as ActionTaken;
+}
+
+export async function getTicketActions(ticketId: number): Promise<ActionTaken[]> {
+  const response = await apiFetch(`/tickets/${ticketId}/actions`, {}, { authenticated: true });
+  if (!response.ok) return throwApiError(response, "Unable to load Actions Taken.");
+  const body = await response.json() as { items?: unknown[] };
+  if (!body || !Array.isArray(body.items)) throw new Error("TokTickIT API returned invalid Actions Taken data");
+  return body.items.map(assertActionTaken);
+}
+
+export async function createTicketAction(ticketId: number, input: CreateTicketActionInput): Promise<{ action: ActionTaken; replayed: boolean }> {
+  const response = await apiFetch(`/staff/tickets/${ticketId}/actions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }, { authenticated: true, csrf: true });
+  if (!response.ok) return throwApiError(response, "Unable to create Action Taken.");
+  const body = await response.json() as { action?: unknown; replayed?: boolean };
+  if (!body || typeof body.replayed !== "boolean") throw new Error("TokTickIT API returned invalid Action create data");
+  return { action: assertActionTaken(body.action), replayed: body.replayed };
+}
+
+export async function updateTicketAction(ticketId: number, actionId: number, input: UpdateTicketActionInput): Promise<ActionTaken> {
+  const response = await apiFetch(`/staff/tickets/${ticketId}/actions/${actionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }, { authenticated: true, csrf: true });
+  if (!response.ok) return throwApiError(response, "Unable to update Action Taken.");
+  const body = await response.json() as { action?: unknown };
+  return assertActionTaken(body.action);
 }
 
 async function getConversationEntries(path: string, fallback: string): Promise<ConversationEntry[]> {

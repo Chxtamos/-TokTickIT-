@@ -42,6 +42,16 @@ import {
   validateConversationBody,
   type ConversationPrisma,
 } from "./conversation.js";
+import {
+  ActionTakenError,
+  actionSelect,
+  createAction,
+  listActions,
+  updateAction,
+  validateActionCreateBody,
+  validateActionUpdateBody,
+  type ActionsPrisma,
+} from "./actions-taken.js";
 
 export type ReferenceDataPrisma = Pick<
   PrismaClient,
@@ -76,6 +86,7 @@ type TicketListQuery = {
   relatedSystemId: number | null;
   requestedPriority: RequestedPriority | null;
   currentStatus: TicketStatus | null;
+  state: "open" | null;
   sortBy: "createdAt" | "updatedAt" | "ticketNumber";
   sortDirection: "asc" | "desc";
   page: number;
@@ -88,6 +99,7 @@ const ticketListQueryFields = new Set([
   "relatedSystemId",
   "requestedPriority",
   "currentStatus",
+  "state",
   "sortBy",
   "sortDirection",
   "page",
@@ -252,6 +264,11 @@ function parseTicketListQuery(query: Request["query"]): { input?: TicketListQuer
       : null;
   if (statusValue !== undefined && currentStatus === null) fieldErrors.currentStatus = ["Current status is invalid."];
 
+  const stateValue = read("state");
+  const state = stateValue === undefined ? null : stateValue === "open" ? "open" : null;
+  if (stateValue !== undefined && state === null) fieldErrors.state = ["State filter is invalid."];
+  if (state !== null && currentStatus !== null) fieldErrors.state = ["State and currentStatus cannot be combined."];
+
   const sortByValue = read("sortBy");
   const sortBy = sortByValue === undefined ? "updatedAt" : ["createdAt", "updatedAt", "ticketNumber"].includes(sortByValue)
     ? (sortByValue as TicketListQuery["sortBy"])
@@ -301,6 +318,7 @@ function parseTicketListQuery(query: Request["query"]): { input?: TicketListQuer
       relatedSystemId,
       requestedPriority,
       currentStatus,
+      state,
       sortBy,
       sortDirection,
       page,
@@ -555,6 +573,14 @@ function ticketMutationErrorResponse(
     if (error.code === "STATUS_TRANSITION_INVALID") {
       return errorResponse(res, 409, error.code, "The requested Ticket status transition is not permitted.");
     }
+    if (error.code === "RESOLUTION_ACTIONS_INCOMPLETE") {
+      return errorResponse(
+        res,
+        409,
+        error.code,
+        "Complete all current-cycle Actions and record at least one completed Action with a valid Result before resolving this Ticket.",
+      );
+    }
   }
   return errorResponse(res, 500, fallbackCode, fallbackMessage);
 }
@@ -604,6 +630,29 @@ function conversationFailureResponse(res: Response, error: unknown) {
     "INTERNAL_ERROR",
     "Unable to complete this request. Please try again.",
   );
+}
+
+function actionTakenFailureResponse(res: Response, error: unknown, fallbackCode: string, fallbackMessage: string) {
+  if (error instanceof ActionTakenError) {
+    if (error.code === "RESOURCE_NOT_FOUND") return errorResponse(res, 404, error.code, "Resource not found.");
+    if (error.code === "ROLE_FORBIDDEN") return errorResponse(res, 403, error.code, "This account is not permitted to perform that operation.");
+    if (error.code === "VERSION_CONFLICT") return errorResponse(res, 409, error.code, "The Action changed. Refresh and try again.");
+    if (error.code === "IDEMPOTENCY_CONFLICT") return errorResponse(res, 409, error.code, "This request ID was already used for different Action data.");
+    if (error.code === "ASSIGNEE_INELIGIBLE") return errorResponse(res, 409, error.code, "The selected assignee is not an active IT Staff or Administrator account.");
+    if (error.code === "ACTION_TERMINAL") return errorResponse(res, 409, error.code, "Completed or cancelled Actions are read-only.");
+    if (error.code === "ACTION_TRANSITION_INVALID") return errorResponse(res, 409, error.code, "The requested Action status transition is not permitted.");
+    if (error.code === "FOLLOW_UP_INVALID") {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        followUpNote: ["Follow-up note must contain 5 to 1,000 characters while follow-up is required."],
+      });
+    }
+    if (error.code === "COMPLETION_INVALID") {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        status: ["Completion requires a valid Result and no outstanding follow-up requirement."],
+      });
+    }
+  }
+  return errorResponse(res, 500, fallbackCode, fallbackMessage);
 }
 
 function methodNotAllowed(res: Response) {
@@ -709,6 +758,76 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
     }
   });
 
+  app.get("/api/tickets/:ticketId/actions", async (req: AuthenticatedRequest, res: Response) => {
+    if (rejectMutationQuery(req, res)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        ticketId: ["Ticket ID must be a positive PostgreSQL integer."],
+      });
+    }
+    const actor = authenticatedUser(req);
+    try {
+      const items = await listActions(prisma as unknown as ActionsPrisma, { id: actor.id, role: actor.role }, ticketId);
+      return res.status(200).json({ items });
+    } catch (error) {
+      return actionTakenFailureResponse(res, error, "ACTIONS_LIST_FAILED", "Unable to load Actions Taken.");
+    }
+  });
+
+  app.post("/api/staff/tickets/:ticketId/actions", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    if (!requireRequestCsrf(req, res)) return;
+    if (rejectMutationQuery(req, res)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    if (!ticketId) {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", {
+        ticketId: ["Ticket ID must be a positive PostgreSQL integer."],
+      });
+    }
+    const validation = validateActionCreateBody(req.body);
+    if (!validation.input) return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", validation.fieldErrors);
+    try {
+      const result = await createAction(
+        prisma as unknown as ActionsPrisma,
+        authenticatedUser(req).id,
+        ticketId,
+        validation.input,
+      );
+      return res.status(result.replayed ? 200 : 201).json({ action: result.item, replayed: result.replayed });
+    } catch (error) {
+      return actionTakenFailureResponse(res, error, "ACTION_CREATE_FAILED", "Unable to create Action Taken.");
+    }
+  });
+
+  app.patch("/api/staff/tickets/:ticketId/actions/:actionId", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    if (!requireRequestCsrf(req, res)) return;
+    if (rejectMutationQuery(req, res)) return;
+    const ticketId = parsePositiveId(req.params.ticketId);
+    const actionId = parsePositiveId(req.params.actionId);
+    const fieldErrors: Record<string, string[]> = {};
+    if (!ticketId) fieldErrors.ticketId = ["Ticket ID must be a positive PostgreSQL integer."];
+    if (!actionId) fieldErrors.actionId = ["Action ID must be a positive PostgreSQL integer."];
+    if (Object.keys(fieldErrors).length > 0) {
+      return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", fieldErrors);
+    }
+    const validation = validateActionUpdateBody(req.body);
+    if (!validation.input) return errorResponse(res, 400, "VALIDATION_FAILED", "Please correct the highlighted fields.", validation.fieldErrors);
+    try {
+      const action = await updateAction(
+        prisma as unknown as ActionsPrisma,
+        authenticatedUser(req).id,
+        ticketId!,
+        actionId!,
+        validation.input,
+      );
+      return res.status(200).json({ action });
+    } catch (error) {
+      return actionTakenFailureResponse(res, error, "ACTION_UPDATE_FAILED", "Unable to update Action Taken.");
+    }
+  });
+
   app.get("/api/staff/ticket-owners", async (req: AuthenticatedRequest, res: Response) => {
     if (!requireRole(req, res, operationalRoles)) return;
     const unsupported = Object.keys(req.query);
@@ -730,6 +849,109 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       return res.status(200).json(owners);
     } catch {
       return errorResponse(res, 500, "TICKET_OWNERS_UNAVAILABLE", "Unable to load eligible Ticket owners.");
+    }
+  });
+
+  app.get("/api/staff/dashboard", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, operationalRoles)) return;
+    const unsupported = Object.keys(req.query);
+    if (unsupported.length > 0) {
+      return errorResponse(
+        res,
+        400,
+        "VALIDATION_FAILED",
+        "This endpoint does not accept query parameters.",
+        Object.fromEntries(unsupported.map((key) => [key, ["This query parameter is not supported."]])),
+      );
+    }
+
+    const currentUserId = authenticatedUser(req).id;
+    const nonTerminal: TicketStatus[] = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"];
+    const dashboardPrisma = prisma as unknown as PrismaClient;
+    const dashboardTicketSelect = {
+      id: true,
+      ticketNumber: true,
+      summary: true,
+      requestedPriority: true,
+      itPriority: true,
+      currentStatus: true,
+      version: true,
+      createdAt: true,
+      updatedAt: true,
+      category: { select: { id: true, name: true } },
+      relatedSystem: { select: { id: true, name: true } },
+      owner: { select: { id: true, name: true, email: true, role: true } },
+      requester: { select: { id: true, name: true, email: true, role: true } },
+    } satisfies Prisma.TicketSelect;
+
+    try {
+      const [unassignedTickets, myTickets, myOpenActions, statusGroups, priorityGroups, urgentTickets, myOpenActionItems, myRecentActions] = await Promise.all([
+        dashboardPrisma.ticket.count({ where: { ticketOwnerId: null, currentStatus: { in: nonTerminal } } }),
+        dashboardPrisma.ticket.count({ where: { ticketOwnerId: currentUserId, currentStatus: { in: nonTerminal } } }),
+        dashboardPrisma.actionTaken.count({ where: { assigneeId: currentUserId, status: { in: ["PENDING", "IN_PROGRESS"] } } }),
+        dashboardPrisma.ticket.groupBy({ by: ["currentStatus"], _count: { _all: true } }),
+        dashboardPrisma.ticket.groupBy({ by: ["itPriority"], where: { currentStatus: { in: nonTerminal } }, _count: { _all: true } }),
+        dashboardPrisma.ticket.findMany({
+          where: { currentStatus: { in: nonTerminal }, itPriority: "URGENT" },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          take: 10,
+          select: dashboardTicketSelect,
+        }),
+        dashboardPrisma.actionTaken.findMany({
+          where: { assigneeId: currentUserId, status: { in: ["PENDING", "IN_PROGRESS"] } },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          take: 10,
+          select: actionSelect,
+        }),
+        dashboardPrisma.actionTaken.findMany({
+          where: { OR: [{ performedById: currentUserId }, { assigneeId: currentUserId }] },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          take: 5,
+          select: actionSelect,
+        }),
+      ]);
+
+      const remainingRecentSlots = Math.max(0, 10 - urgentTickets.length);
+      const nonUrgentTickets = remainingRecentSlots > 0
+        ? await dashboardPrisma.ticket.findMany({
+          where: { currentStatus: { in: nonTerminal }, itPriority: { not: "URGENT" } },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          take: remainingRecentSlots,
+          select: dashboardTicketSelect,
+        })
+        : [];
+      const recentOrUrgent = [...urgentTickets, ...nonUrgentTickets];
+
+      const byStatus: Record<TicketStatus, number> = {
+        NEW: 0,
+        OPEN: 0,
+        IN_PROGRESS: 0,
+        WAITING_FOR_REQUESTER: 0,
+        RESOLVED: 0,
+        CLOSED: 0,
+        REOPENED: 0,
+        CANCELLED: 0,
+      };
+      for (const row of statusGroups) byStatus[row.currentStatus] = row._count._all;
+
+      const byItPriority: Record<RequestedPriority, number> = { LOW: 0, MEDIUM: 0, HIGH: 0, URGENT: 0 };
+      for (const row of priorityGroups) byItPriority[row.itPriority] = row._count._all;
+
+      return res.status(200).json({
+        metrics: { unassignedTickets, myTickets, myOpenActions },
+        byStatus,
+        byItPriority,
+        recentOrUrgent: recentOrUrgent.map(staffTicketSummaryResponse),
+        myOpenActionItems,
+        myRecentActions,
+        drillDown: {
+          unassignedTickets: "/staff/tickets?owner=unassigned",
+          myTickets: "/staff/tickets?owner=mine",
+          myOpenActions: "/staff/dashboard#my-open-actions",
+        },
+      });
+    } catch {
+      return errorResponse(res, 500, "STAFF_DASHBOARD_FAILED", "Unable to load Staff Dashboard.");
     }
   });
 
@@ -1025,7 +1247,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
         await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE`);
         const current = await tx.ticket.findFirst({
           where: { id: ticketId },
-          select: { id: true, version: true, currentStatus: true, resolutionSummary: true },
+          select: { id: true, version: true, currentStatus: true, resolutionSummary: true, workflowCycle: true },
         });
         if (!current) throw new TicketMutationError("RESOURCE_NOT_FOUND");
         if (current.version !== input.expectedVersion) throw new TicketMutationError("VERSION_CONFLICT");
@@ -1034,6 +1256,23 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
         }
         if (input.currentStatus === "CLOSED" && !current.resolutionSummary) {
           throw new TicketMutationError("STATUS_TRANSITION_INVALID");
+        }
+        if (input.currentStatus === "RESOLVED") {
+          const actions = await tx.actionTaken.findMany({
+            where: { ticketId, workflowCycle: current.workflowCycle },
+            select: { status: true, result: true },
+          });
+          const hasCompletedEvidence = actions.some((action) => (
+            action.status === "COMPLETED"
+            && typeof action.result === "string"
+            && action.result.trim().length >= 5
+            && action.result.trim().length <= 2_000
+          ));
+          const allTerminal = actions.length > 0
+            && actions.every((action) => action.status === "COMPLETED" || action.status === "CANCELLED");
+          if (!hasCompletedEvidence || !allTerminal) {
+            throw new TicketMutationError("RESOLUTION_ACTIONS_INCOMPLETE");
+          }
         }
         const updated = await tx.ticket.updateMany({
           where: { id: ticketId, version: input.expectedVersion },
@@ -1069,6 +1308,7 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       if (input.relatedSystemId !== null) where.relatedSystemId = input.relatedSystemId;
       if (input.requestedPriority !== null) where.requestedPriority = input.requestedPriority;
       if (input.currentStatus !== null) where.currentStatus = input.currentStatus;
+      if (input.state === "open") where.currentStatus = { notIn: ["RESOLVED", "CLOSED", "CANCELLED"] };
 
       const direction = input.sortDirection;
       const orderBy: Prisma.TicketOrderByWithRelationInput[] = [
@@ -1122,6 +1362,66 @@ export function createApp(prisma: ReferenceDataPrisma = getPrisma()): express.Ex
       });
     } catch {
       return errorResponse(res, 500, "TICKET_LIST_FAILED", "Unable to load Tickets.");
+    }
+  });
+
+  app.get("/api/requester/dashboard", async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireRole(req, res, ["REQUESTER"])) return;
+    const unsupported = Object.keys(req.query);
+    if (unsupported.length > 0) {
+      return errorResponse(
+        res,
+        400,
+        "VALIDATION_FAILED",
+        "This endpoint does not accept query parameters.",
+        Object.fromEntries(unsupported.map((key) => [key, ["This query parameter is not supported."]])),
+      );
+    }
+
+    const requesterId = authenticatedUser(req).id;
+    const dashboardTicketSelect = {
+      id: true,
+      ticketNumber: true,
+      summary: true,
+      requestedPriority: true,
+      itPriority: true,
+      currentStatus: true,
+      version: true,
+      createdAt: true,
+      updatedAt: true,
+      category: { select: { id: true, name: true } },
+      relatedSystem: { select: { id: true, name: true } },
+      owner: { select: { id: true, name: true, email: true, role: true } },
+    } satisfies Prisma.TicketSelect;
+
+    try {
+      const [openTickets, waitingForRequester, recentlyUpdated, recentlyResolved] = await Promise.all([
+        prisma.ticket.count({ where: { requesterId, currentStatus: { notIn: ["RESOLVED", "CLOSED", "CANCELLED"] } } }),
+        prisma.ticket.count({ where: { requesterId, currentStatus: "WAITING_FOR_REQUESTER" } }),
+        prisma.ticket.findMany({
+          where: { requesterId },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          take: 5,
+          select: dashboardTicketSelect,
+        }),
+        prisma.ticket.findMany({
+          where: { requesterId, currentStatus: { in: ["RESOLVED", "CLOSED"] } },
+          orderBy: [{ resolvedAt: "desc" }, { id: "desc" }],
+          take: 5,
+          select: dashboardTicketSelect,
+        }),
+      ]);
+      return res.status(200).json({
+        metrics: { openTickets, waitingForRequester },
+        recentlyUpdated: recentlyUpdated.map(ticketSummaryResponse),
+        recentlyResolved: recentlyResolved.map(ticketSummaryResponse),
+        drillDown: {
+          openTickets: "/my-tickets?state=open",
+          waitingForRequester: "/my-tickets?status=WAITING_FOR_REQUESTER",
+        },
+      });
+    } catch {
+      return errorResponse(res, 500, "REQUESTER_DASHBOARD_FAILED", "Unable to load Requester Dashboard.");
     }
   });
 

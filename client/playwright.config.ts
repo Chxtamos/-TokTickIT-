@@ -40,6 +40,7 @@ export default defineConfig({
       env: {
         ...process.env,
         PORT: "3000",
+        CLIENT_ORIGIN: process.env.CLIENT_ORIGIN ?? "http://127.0.0.1:5173",
         DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://toktickit:toktickit@localhost:5432/toktickit?schema=public",
         ...(process.env.TEST_DATABASE_URL ? { TEST_DATABASE_URL: process.env.TEST_DATABASE_URL } : {}),
         RUN_DB_INTEGRATION: "1",

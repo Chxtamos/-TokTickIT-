@@ -1,0 +1,88 @@
+name: Lab 4 CI
+
+on:
+  pull_request:
+    branches:
+      - lab4-staging
+      - main
+  push:
+    branches:
+      - lab4-staging
+      - main
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://toktickit:toktickit@127.0.0.1:5432/toktickit?schema=public
+  TEST_DATABASE_URL: postgresql://toktickit:toktickit@127.0.0.1:5432/toktickit_lab4_test?schema=public
+  RUN_DB_INTEGRATION: "1"
+  LAB_SEED_INITIAL_PASSWORD: local-lab-only-seed-password-2026
+  CLIENT_ORIGIN: http://127.0.0.1:5173
+  CI: "true"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: toktickit
+          POSTGRES_PASSWORD: toktickit
+          POSTGRES_DB: toktickit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U toktickit -d toktickit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install server dependencies
+        run: npm --prefix server install --no-audit --no-fund
+
+      - name: Install client dependencies
+        run: npm --prefix client install --no-audit --no-fund
+
+      - name: Create isolated test database
+        env:
+          PGPASSWORD: toktickit
+        run: psql -h 127.0.0.1 -U toktickit -d postgres -c 'CREATE DATABASE toktickit_lab4_test;'
+
+      - name: Generate Prisma client
+        run: cd server && npx prisma generate
+
+      - name: Apply migrations to isolated test database
+        run: npm --prefix server run prisma:migrate:test
+
+      - name: Seed isolated test database
+        run: npm --prefix server run prisma:seed:test
+
+      - name: Run full server test suite
+        run: npm --prefix server test
+
+      - name: Build server
+        run: npm --prefix server run build
+
+      - name: Run full client test suite
+        run: npm --prefix client test
+
+      - name: Build client
+        run: npm --prefix client run build
+
+      - name: Install Playwright Chromium
+        run: cd client && npx playwright install --with-deps chromium
+
+      - name: Run full Lab 4 E2E
+        run: npm --prefix client run e2e -- e2e/lab-04 --reporter=line

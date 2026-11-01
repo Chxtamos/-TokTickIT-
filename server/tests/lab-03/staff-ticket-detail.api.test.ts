@@ -28,6 +28,7 @@ function ticketFixture() {
     requestedPriority: "HIGH" as const,
     itPriority: "URGENT" as const,
     currentStatus: "IN_PROGRESS" as const,
+    workflowCycle: 1,
     version: 7,
     resolutionSummary: "Temporary workaround applied while root cause is investigated.",
     resolvedAt: new Date("2026-09-18T08:30:00.000Z"),
@@ -275,6 +276,7 @@ function makeMutationPrisma(options: MutationOptions = {}) {
     if (where.version !== ticket.version) return { count: 0 };
     for (const [key, value] of Object.entries(data)) {
       if (key === "version") ticket.version += (value as { increment: number }).increment;
+      else if (key === "workflowCycle") ticket.workflowCycle += (value as { increment: number }).increment;
       else ticket[key] = value;
     }
     if (Object.prototype.hasOwnProperty.call(data, "ticketOwnerId")) {
@@ -302,6 +304,11 @@ function makeMutationPrisma(options: MutationOptions = {}) {
         ownerChanges.push({ id: ownerChanges.length + 1, ...data });
         return ownerChanges.at(-1);
       }),
+    },
+    actionTaken: {
+      findMany: vi.fn().mockResolvedValue([
+        { status: "COMPLETED", result: "Legacy workflow fixture has valid Lab 4 completion evidence." },
+      ]),
     },
     $queryRaw: vi.fn().mockResolvedValue([{ id: ticket.id }]),
   };
@@ -487,7 +494,7 @@ describe("Issue #60 Staff Ticket workflow writes", () => {
     }
   });
 
-  it("sets resolution/close timestamps, reopens with complete resets, and stores cancellation reasons without Actions Taken", async () => {
+  it("sets resolution/close timestamps, reopens with complete resets, and stores cancellation reasons with valid resolution evidence", async () => {
     const resolved = makeMutationPrisma({ status: "IN_PROGRESS" });
     const resolveResponse = await staffWrite(createApp(resolved.prisma)).patch("/api/staff/tickets/42/status").send({ currentStatus: "RESOLVED", expectedVersion: 7, resolutionSummary: "  Verified permanent resolution.  " });
     expect(resolveResponse.status).toBe(200);
