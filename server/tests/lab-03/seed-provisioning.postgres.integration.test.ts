@@ -2,10 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import {
   assertIntegrationDatabase,
-  createIntegrationPrisma,
   isDatabaseIntegrationRequested,
 } from "../../src/prisma.js";
 import { seedLab3Fixtures } from "../../prisma/seed-data.js";
+import { createIsolatedPostgresTestDatabase } from "../helpers/isolated-postgres.js";
 
 const runIntegration = isDatabaseIntegrationRequested();
 if (runIntegration) assertIntegrationDatabase();
@@ -13,14 +13,16 @@ const integration = runIntegration ? describe : describe.skip;
 
 integration("Lab 3 fixture seed PostgreSQL integration", () => {
   let prisma: PrismaClient;
+  let disposeIsolatedDatabase: (() => Promise<void>) | null = null;
 
   beforeAll(async () => {
-    prisma = createIntegrationPrisma();
-    await prisma.$connect();
+    const isolated = await createIsolatedPostgresTestDatabase("seed_provisioning");
+    prisma = isolated.prisma;
+    disposeIsolatedDatabase = isolated.dispose;
   });
 
   afterAll(async () => {
-    await prisma?.$disconnect();
+    await disposeIsolatedDatabase?.();
   });
 
   it("meets role/workflow minima and is safe to run repeatedly", async () => {
